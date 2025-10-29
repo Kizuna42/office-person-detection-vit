@@ -3,7 +3,8 @@
 import cv2
 import logging
 import re
-from typing import Optional, Tuple
+from pathlib import Path
+from typing import Optional, Tuple, Union
 import numpy as np
 import pytesseract
 
@@ -29,12 +30,44 @@ class TimestampExtractor:
         """
         self.roi = roi or (900, 10, 350, 60)
         logger.debug(f"TimestampExtractor初期化: ROI={self.roi}")
+        self._debug_enabled = False
+        self._debug_dir: Optional[Path] = None
+        self._debug_save_intermediate = True
+        self._debug_save_overlay = True
+        self._debug_counter = 0
     
-    def extract(self, frame: np.ndarray) -> Optional[str]:
+    def enable_debug(
+        self,
+        debug_dir: Union[str, Path],
+        save_intermediate: bool = True,
+        save_overlay: bool = True
+    ) -> None:
+        """デバッグ出力を有効化する
+        
+        Args:
+            debug_dir: デバッグ画像を保存するディレクトリ
+            save_intermediate: 前処理結果画像を保存するか
+            save_overlay: オーバーレイ画像を保存するか
+        """
+        debug_path = Path(debug_dir)
+        debug_path.mkdir(parents=True, exist_ok=True)
+        self._debug_enabled = True
+        self._debug_dir = debug_path
+        self._debug_save_intermediate = save_intermediate
+        self._debug_save_overlay = save_overlay
+        logger.info(f"タイムスタンプOCRデバッグ出力: {debug_path}")
+    
+    def disable_debug(self) -> None:
+        """デバッグ出力を無効化する"""
+        self._debug_enabled = False
+        self._debug_dir = None
+    
+    def extract(self, frame: np.ndarray, frame_index: Optional[int] = None) -> Optional[str]:
         """フレームからタイムスタンプを抽出する
         
         Args:
             frame: 入力フレーム画像
+            frame_index: デバッグ用のフレーム番号
             
         Returns:
             タイムスタンプ文字列 (HH:MM形式)、失敗した場合None
@@ -56,6 +89,7 @@ class TimestampExtractor:
                 h = min(h, frame_height - y)
             
             roi_image = frame[y:y+h, x:x+w]
+            roi_bounds = (x, y, w, h)
             
             if roi_image.size == 0:
                 logger.warning("ROI領域が空です")
@@ -79,6 +113,17 @@ class TimestampExtractor:
                 logger.debug(f"抽出されたタイムスタンプ: {timestamp}")
             else:
                 logger.warning(f"タイムスタンプの抽出に失敗しました: OCR結果='{ocr_text.strip()}'")
+            
+            if self._debug_enabled:
+                self._save_debug_outputs(
+                    frame,
+                    roi_image,
+                    preprocessed,
+                    ocr_text,
+                    timestamp,
+                    frame_index,
+                    roi_bounds
+                )
             
             return timestamp
             
@@ -235,3 +280,49 @@ class TimestampExtractor:
         except Exception as e:
             logger.error(f"信頼度付きタイムスタンプ抽出中にエラーが発生しました: {e}")
             return None, 0.0
+
+    def _save_debug_outputs(
+        self,
+        frame: np.ndarray,
+        roi_image: np.ndarray,
+        preprocessed: np.ndarray,
+        ocr_text: str,
+        timestamp: Optional[str],
+        frame_index: Optional[int],
+        roi_bounds: Tuple[int, int, int, int]
+    ) -> None:
+        """デバッグ用に画像を保存する"""
+        if not self._debug_enabled or self._debug_dir is None:
+            return
+        try:
+            if frame_index is not None:
+                frame_tag = f"frame_{int(frame_index):06d}"
+            else:
+                frame_tag = f"frame_{self._debug_counter:06d}"
+                self._debug_counter += 1
+            roi_path = self._debug_dir / f"{frame_tag}_roi.png"
+            cv2.imwrite(str(roi_path), roi_image)
+            if self._debug_save_intermediate:
+                preprocessed_path = self._debug_dir / f"{frame_tag}_preprocessed.png"
+                cv2.imwrite(str(preprocessed_path), preprocessed)
+            if self._debug_save_overlay:
+                overlay = frame.copy()
+                x, y, w, h = roi_bounds
+                frame_height, frame_width = frame.shape[:2]
+                x2 = min(x + w, frame_width - 1)
+                y2 = min(y + h, frame_height - 1)
+                cv2.rectangle(overlay, (x, y), (x2, y2), (0, 255, 0), 2)
+                display_text = timestamp or ocr_text.strip() or "(no result)"
+                cv2.putText(
+                    overlay,
+                    display_text,
+                    (x, max(y - 10, 0)),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    (0, 255, 0),
+                    2
+                )
+                overlay_path = self._debug_dir / f"{frame_tag}_overlay.png"
+                cv2.imwrite(str(overlay_path), overlay)
+        except Exception as exc:
+            logger.error(f"デバッグ画像の保存に失敗しました: {exc}")

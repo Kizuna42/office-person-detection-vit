@@ -99,39 +99,53 @@ class FrameSampler:
         """
         try:
             target_dt = datetime.strptime(target_timestamp, "%H:%M")
-            
+
             closest_frame = None
-            min_diff_seconds = float('inf')
-            
+            min_abs_diff = float("inf")
+            best_signed_diff = 0.0
+
             for frame_num, timestamp in frame_timestamps.items():
                 try:
                     frame_dt = datetime.strptime(timestamp, "%H:%M")
-                    
-                    # 時刻差を計算（秒単位）
-                    diff = abs((frame_dt - target_dt).total_seconds())
-                    
-                    # 日をまたぐ場合の処理
-                    if diff > 12 * 3600:  # 12時間以上の差がある場合
-                        diff = 24 * 3600 - diff
-                    
-                    # 許容誤差内かつ最小差の場合
-                    if diff <= self.tolerance_seconds and diff < min_diff_seconds:
-                        min_diff_seconds = diff
-                        closest_frame = frame_num
-                        
+
+                    # 時刻差を計算（秒単位、日跨ぎを考慮）
+                    signed_diff = (frame_dt - target_dt).total_seconds()
+
+                    if signed_diff > 12 * 3600:
+                        signed_diff -= 24 * 3600
+                    elif signed_diff < -12 * 3600:
+                        signed_diff += 24 * 3600
+
+                    abs_diff = abs(signed_diff)
+
+                    # 許容誤差内かつより近い、または同距離で未来側を優先
+                    if abs_diff <= self.tolerance_seconds:
+                        if (
+                            abs_diff < min_abs_diff
+                            or (
+                                abs_diff == min_abs_diff
+                                and (closest_frame is None or signed_diff > best_signed_diff)
+                            )
+                        ):
+                            min_abs_diff = abs_diff
+                            best_signed_diff = signed_diff
+                            closest_frame = frame_num
+
                 except ValueError:
                     continue
-            
+
             if closest_frame is not None:
                 logger.debug(
                     f"目標 {target_timestamp} に最も近いフレーム: "
-                    f"#{closest_frame} ({frame_timestamps[closest_frame]}, 差={min_diff_seconds:.1f}秒)"
+                    f"#{closest_frame} ({frame_timestamps[closest_frame]}, 差={min_abs_diff:.1f}秒)"
                 )
             else:
-                logger.warning(f"目標 {target_timestamp} に対応するフレームが見つかりませんでした（許容誤差±{self.tolerance_seconds}秒）")
-            
+                logger.warning(
+                    f"目標 {target_timestamp} に対応するフレームが見つかりませんでした（許容誤差±{self.tolerance_seconds}秒）"
+                )
+
             return closest_frame
-            
+
         except Exception as e:
             logger.error(f"最近接フレーム検索中にエラーが発生しました: {e}")
             return None
@@ -244,7 +258,7 @@ class FrameSampler:
                 
                 # scan_interval間隔でタイムスタンプを抽出
                 if frame_count % scan_interval == 0:
-                    timestamp = timestamp_extractor.extract(frame)
+                    timestamp = timestamp_extractor.extract(frame, frame_index=frame_count)
                     
                     if timestamp:
                         frame_timestamps[frame_count] = timestamp

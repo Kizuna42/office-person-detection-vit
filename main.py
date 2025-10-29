@@ -343,6 +343,9 @@ def main():
         
         # タイムスタンプ抽出器の初期化
         timestamp_extractor = TimestampExtractor()
+        if config.get('output.debug_mode', False):
+            debug_dir = output_path / 'debug' / 'timestamps'
+            timestamp_extractor.enable_debug(debug_dir)
         
         # フレームサンプラーの初期化
         interval_minutes = config.get('video.frame_interval_minutes', 5)
