@@ -186,3 +186,24 @@ zones:
 - リアルタイム可視化機能
 - ヒートマップ生成機能
 - 軌跡追跡機能
+
+## カメラキャリブレーション手順
+
+1. **参照フレームの抽出**
+
+   - `python tools/export_reference_frame.py --timestamp 12:20` を実行し、`output/calibration/` にカメラ参照画像 (`reference_*.png`) とフロアマップのグリッドガイド (`floormap_grid.png`) を生成します。
+   - 別の時刻・フレームを使用する場合は `--frame-number` や `--scan-interval` を調整してください。
+
+2. **対応点の取得とホモグラフィ計算**
+
+   - `python tools/homography_calibrator.py --reference-image output/calibration/reference_122000_f001234.png --update-config` のように実行します。
+   - カメラ画像ウィンドウで対応点をクリックし、その後フロアマップウィンドウで対応点をクリックする操作を繰り返します。
+     - `u`: 直前の点を取り消す
+     - `c`: すべての点をクリア
+     - `s` または Enter: 対応点を確定してホモグラフィを計算
+     - `q` または Esc: 中断
+   - 処理が完了すると `output/calibration/` に対応点 JSON (`points_*.json`) と行列を含む YAML (`homography_*.yaml`) が保存され、`--update-config` を付与した場合は自動的に `config.yaml` の `homography.matrix` が更新されます（元の設定は `config.backup/` にバックアップされます）。
+
+3. **検証**
+   - `tools/homography_calibrator.py` の標準出力に表示される RMSE や最大誤差を確認し、値が大きい場合は対応点を再取得します。
+   - 更新後は `python main.py --debug` を実行して、フロアマップ上のプロット位置が期待通りになるか確認してください。

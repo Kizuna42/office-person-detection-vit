@@ -73,6 +73,10 @@ output/floormaps/*
 output/graphs/*
 !output/graphs/.gitkeep
 
+# Calibration output (large debug images)
+output/calibration/*
+!output/calibration/.gitkeep
+
 # Input video files (large files should not be pushed)
 input/merged_moviefiles.mov
 input/*.mov
