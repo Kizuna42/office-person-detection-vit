@@ -1,0 +1,242 @@
+---
+description: ホモグラフィ変換とゾーン判定の実装ガイドライン
+---
+
+# 座標変換とゾーン判定
+
+## ホモグラフィ変換
+
+### 概要
+
+[coordinate_transformer.py](mdc:src/coordinate_transformer.py) は、カメラ座標系からフロアマップ座標系への変換を担当します。
+
+### 変換行列
+
+3×3 のホモグラフィ行列を使用した射影変換:
+
+```python
+import numpy as np
+from typing import Tuple, List
+
+class CoordinateTransformer:
+    def __init__(self, homography_matrix: np.ndarray):
+        """
+        Args:
+            homography_matrix: 3x3のホモグラフィ変換行列
+        """
+        if homography_matrix is None:
+            raise ValueError("ホモグラフィ行列が設定されていません")
+
+        self.H = np.array(homography_matrix, dtype=np.float64)
+
+        if self.H.shape != (3, 3):
+            raise ValueError(f"ホモグラフィ行列は3x3である必要があります: {self.H.shape}")
+```
+
+### 座標変換
+
+```python
+def transform(self, camera_point: Tuple[float, float]) -> Tuple[float, float]:
+    """カメラ座標をフロアマップ座標に変換"""
+    x, y = camera_point
+
+    # 同次座標に変換
+    point_homogeneous = np.array([x, y, 1.0])
+
+    # ホモグラフィ変換
+    transformed = self.H @ point_homogeneous
+
+    # 正規化して2D座標に戻す
+    floor_x = transformed[0] / transformed[2]
+    floor_y = transformed[1] / transformed[2]
+
+    return (floor_x, floor_y)
+
+def transform_batch(self, camera_points: List[Tuple[float, float]]) -> List[Tuple[float, float]]:
+    """複数座標の一括変換（効率化）"""
+    if not camera_points:
+        return []
+
+    # N x 3 行列に変換
+    points = np.array([[x, y, 1.0] for x, y in camera_points])
+
+    # バッチ変換
+    transformed = (self.H @ points.T).T
+
+    # 正規化
+    floor_points = transformed[:, :2] / transformed[:, 2:3]
+
+    return [tuple(p) for p in floor_points]
+```
+
+### 足元座標の計算
+
+バウンディングボックスから人物の足元座標を計算:
+
+```python
+def get_foot_position(self, bbox: Tuple[float, float, float, float]) -> Tuple[float, float]:
+    """バウンディングボックスから足元座標を計算
+
+    Args:
+        bbox: (x, y, width, height) 形式のバウンディングボックス
+
+    Returns:
+        (foot_x, foot_y): 足元の座標（バウンディングボックスの中心下端）
+    """
+    x, y, width, height = bbox
+    foot_x = x + width / 2
+    foot_y = y + height
+    return (foot_x, foot_y)
+```
+
+### 設定例 (config.yaml)
+
+```yaml
+homography:
+  # カメラ較正により取得した3x3変換行列
+  matrix:
+    - [1.2, 0.1, -50]
+    - [0.05, 1.3, -30]
+    - [0.0001, 0.0002, 1]
+```
+
+## ゾーン判定
+
+### 概要
+
+[zone_classifier.py](mdc:src/zone_classifier.py) は、フロアマップ座標がどのゾーンに属するかを判定します。
+
+### ゾーン定義
+
+各ゾーンは多角形の頂点座標リストで定義:
+
+```python
+class ZoneClassifier:
+    def __init__(self, zones: List[dict]):
+        """
+        Args:
+            zones: ゾーン定義リスト
+                [
+                    {
+                        "id": "zone_a",
+                        "name": "会議室エリア",
+                        "polygon": [[100, 200], [300, 200], [300, 400], [100, 400]]
+                    },
+                    ...
+                ]
+        """
+        self.zones = zones
+```
+
+### 点 in 多角形判定
+
+Ray Casting Algorithm を使用:
+
+```python
+def _point_in_polygon(self, point: Tuple[float, float], polygon: List[Tuple[float, float]]) -> bool:
+    """点が多角形内にあるか判定 (Ray Casting Algorithm)
+
+    Args:
+        point: 判定する点 (x, y)
+        polygon: 多角形の頂点リスト [(x1, y1), (x2, y2), ...]
+
+    Returns:
+        True: 点が多角形内にある
+        False: 点が多角形外にある
+    """
+    x, y = point
+    n = len(polygon)
+    inside = False
+
+    p1x, p1y = polygon[0]
+    for i in range(1, n + 1):
+        p2x, p2y = polygon[i % n]
+
+        if y > min(p1y, p2y):
+            if y <= max(p1y, p2y):
+                if x <= max(p1x, p2x):
+                    if p1y != p2y:
+                        xinters = (y - p1y) * (p2x - p1x) / (p2y - p1y) + p1x
+                    if p1x == p2x or x <= xinters:
+                        inside = not inside
+
+        p1x, p1y = p2x, p2y
+
+    return inside
+```
+
+### ゾーン分類
+
+```python
+def classify(self, floor_point: Tuple[float, float]) -> List[str]:
+    """座標が属するゾーンIDのリストを返す
+
+    Args:
+        floor_point: フロアマップ上の座標 (x, y)
+
+    Returns:
+        所属するゾーンIDのリスト（複数ゾーンに重複可能）
+        空リストの場合は未分類
+    """
+    zone_ids = []
+
+    for zone in self.zones:
+        polygon = [tuple(p) for p in zone["polygon"]]
+        if self._point_in_polygon(floor_point, polygon):
+            zone_ids.append(zone["id"])
+
+    return zone_ids if zone_ids else ["unclassified"]
+```
+
+### 検出結果への適用
+
+```python
+def apply_to_detections(self, detections: List[Detection]) -> List[Detection]:
+    """検出結果にゾーン情報を付与"""
+    for detection in detections:
+        if detection.floor_coords is not None:
+            detection.zone_ids = self.classify(detection.floor_coords)
+
+    return detections
+```
+
+### 設定例 (config.yaml)
+
+```yaml
+zones:
+  - id: "zone_a"
+    name: "会議室エリア"
+    polygon: [[100, 200], [300, 200], [300, 400], [100, 400]]
+
+  - id: "zone_b"
+    name: "デスクエリア"
+    polygon: [[350, 150], [600, 150], [600, 500], [350, 500]]
+
+  - id: "zone_c"
+    name: "共有スペース"
+    polygon: [[100, 450], [600, 450], [600, 650], [100, 650]]
+```
+
+## 統合フロー
+
+```python
+# 1. ホモグラフィ変換
+transformer = CoordinateTransformer(config.get("homography.matrix"))
+
+for detection in detections:
+    # 足元座標を取得
+    foot_pos = transformer.get_foot_position(detection.bbox)
+
+    # フロアマップ座標に変換
+    detection.floor_coords = transformer.transform(foot_pos)
+
+# 2. ゾーン判定
+classifier = ZoneClassifier(config.get("zones"))
+detections = classifier.apply_to_detections(detections)
+```
+
+## フロアマップ参照
+
+フロアマップ画像: [floormap.png](mdc:data/floormap.png)
+
+- ゾーン座標はこの画像のピクセル座標系で定義

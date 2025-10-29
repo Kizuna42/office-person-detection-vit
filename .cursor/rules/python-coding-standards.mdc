@@ -1,0 +1,99 @@
+---
+globs: *.py
+---
+
+# Python コーディング規約
+
+## コーディングスタイル
+
+- **PEP 8 準拠**: Python の標準スタイルガイドに従う
+- **型ヒント**: 関数の引数と戻り値には型ヒントを必ず付ける
+- **Docstrings**: すべてのクラスと public メソッドに docstring を記述
+- **命名規則**:
+  - クラス: PascalCase (例: `VideoProcessor`, `ViTDetector`)
+  - 関数/メソッド: snake_case (例: `load_model`, `extract_timestamp`)
+  - 定数: UPPER_SNAKE_CASE (例: `DEFAULT_CONFIDENCE`)
+  - プライベートメソッド: 先頭にアンダースコア (例: `_preprocess`)
+
+## データクラスの使用
+
+検出結果やフレーム結果などのデータ構造は`@dataclass`デコレータを使用:
+
+```python
+from dataclasses import dataclass, field
+from typing import Tuple, Optional, List
+
+@dataclass
+class Detection:
+    """検出結果データクラス"""
+    bbox: Tuple[float, float, float, float]  # (x, y, width, height)
+    confidence: float
+    class_id: int
+    class_name: str
+    camera_coords: Tuple[float, float]
+    floor_coords: Optional[Tuple[float, float]] = None
+    zone_ids: List[str] = field(default_factory=list)
+```
+
+## エラーハンドリング
+
+- **ログ記録**: すべてのエラーと警告を適切にログに記録
+- **例外処理**: 予期される例外は適切にキャッチし、処理を継続するか中断するか判断
+- **リソース管理**: `with`文または try-finally でリソース解放を保証
+
+```python
+import logging
+
+logger = logging.getLogger(__name__)
+
+try:
+    # 処理
+    pass
+except FileNotFoundError as e:
+    logger.error(f"ファイルが見つかりません: {e}")
+    raise
+except Exception as e:
+    logger.error(f"フレーム処理中にエラー: {e}", exc_info=True)
+    # 次のフレームへスキップ
+```
+
+## PyTorch と MPS の使用
+
+- **デバイス検出**: MPS、CUDA、CPU の順で利用可能なデバイスを検出
+- **テンソル操作**: すべてのテンソルを適切なデバイスに配置
+- **メモリ管理**: 不要なテンソルは明示的に削除 (`del tensor`)
+
+```python
+import torch
+
+def get_device() -> torch.device:
+    """利用可能なデバイスを返す"""
+    if torch.backends.mps.is_available():
+        return torch.device("mps")
+    elif torch.cuda.is_available():
+        return torch.device("cuda")
+    else:
+        return torch.device("cpu")
+```
+
+## OpenCV の使用
+
+- **画像形式**: OpenCV は BGR 形式、PIL/Torch は RGB 形式なので変換に注意
+- **座標系**: (x, y, width, height) 形式で統一
+- **リソース解放**: VideoCapture は必ず `release()` を呼ぶ
+
+## 設定ファイルの参照
+
+設定値は [config.yaml](mdc:config.yaml) から取得し、ハードコードしない:
+
+```python
+class MyModule:
+    def __init__(self, config_manager: ConfigManager):
+        self.threshold = config_manager.get("detection.confidence_threshold", 0.5)
+```
+
+## テスト
+
+- **ユニットテスト**: 各クラスの主要メソッドをテスト
+- **モック使用**: 外部依存（モデルロード、ファイル I/O）はモックを使用
+- **テストデータ**: `tests/fixtures/` にサンプルデータを配置

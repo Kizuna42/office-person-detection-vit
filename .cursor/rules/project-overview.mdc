@@ -1,0 +1,81 @@
+---
+alwaysApply: true
+---
+
+# オフィス人物検出システム - プロジェクト概要
+
+## システム概要
+
+本プロジェクトは、Vision Transformer（ViT）ベースの物体検出モデルを使用して、オフィス内の定点カメラ映像から人物を検出し、フロアマップ上でのゾーン別人数集計を実現するバッチ処理システムです。
+
+## 技術スタック
+
+- **言語**: Python 3.10+
+- **深層学習**: PyTorch 2.0+ (MPS 対応)
+- **ViT モデル**: Hugging Face Transformers (facebook/detr-resnet-50 または microsoft/vit-det)
+- **画像処理**: OpenCV, Pillow
+- **数値計算**: NumPy
+- **設定管理**: PyYAML
+- **可視化**: Matplotlib
+- **OCR**: pytesseract
+
+## プロジェクト構造
+
+```
+office-person-detection/
+├── config.yaml                 # メイン設定ファイル
+├── main.py                     # エントリーポイント
+├── src/                        # ソースコード
+│   ├── config_manager.py       # 設定管理
+│   ├── video_processor.py      # 動画処理
+│   ├── frame_sampler.py        # フレームサンプリング
+│   ├── timestamp_extractor.py  # タイムスタンプ抽出
+│   ├── vit_detector.py         # ViT人物検出
+│   ├── coordinate_transformer.py # 座標変換
+│   ├── zone_classifier.py      # ゾーン判定
+│   ├── aggregator.py           # 集計処理
+│   ├── visualizer.py           # 可視化
+│   ├── evaluation_module.py    # 精度評価
+│   └── fine_tuner.py           # ファインチューニング
+├── input/                      # 入力ファイル
+│   └── merged_moviefiles.mov   # タイムラプス動画
+├── data/                       # 参照データ
+│   └── floormap.png           # フロアマップ画像
+├── output/                     # 出力ディレクトリ
+│   ├── labels/                # Ground Truthデータ
+│   ├── detections/            # 検出結果画像
+│   ├── floormaps/             # フロアマップ画像
+│   ├── graphs/                # グラフ
+│   └── zone_counts.csv        # 集計結果
+└── tests/                      # テストコード
+```
+
+## データフロー
+
+1. 入力動画 (1280×720, タイムラプス) → タイムスタンプ抽出
+2. 5 分刻みフレーム抽出 (12:10, 12:15, 12:20..., ±10 秒許容)
+3. ViT モデルによる人物検出 (DETR/ViT-Det)
+4. ホモグラフィ変換 (カメラ座標 → フロアマップ座標)
+5. ゾーン判定 (点 in 多角形アルゴリズム)
+6. ゾーン別人数集計
+7. CSV・画像・グラフ出力
+
+## 重要な設計原則
+
+- **モジュラー設計**: 各機能は独立したクラスとして実装
+- **MPS 優先**: Apple Silicon GPU (MPS) を優先的に使用、利用不可時は CPU にフォールバック
+- **エラーハンドリング**: 処理失敗時はログ記録後、次フレームへスキップ
+- **設定駆動**: コード変更なしに YAML/JSON 設定ファイルで動作を制御
+- **バッチ処理**: 複数フレームをまとめて処理して効率化
+
+## パフォーマンス目標
+
+- フレーム処理時間: ≤ 2 秒/フレーム (MPS 使用時)
+- メモリ使用量: ≤ 12GB
+- 全処理時間: ≤ 10 分 (1 時間分のタイムラプス動画)
+
+## 参照ドキュメント
+
+- 設計書: [design.md](mdc:.kiro/specs/office-person-detection/design.md)
+- 要件定義書: [requirements.md](mdc:.kiro/specs/office-person-detection/requirements.md)
+- タスクリスト: [tasks.md](mdc:.kiro/specs/office-person-detection/tasks.md)

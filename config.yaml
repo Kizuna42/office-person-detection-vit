@@ -1,0 +1,127 @@
+# オフィス人物検出システム設定ファイル
+# Office Person Detection System Configuration File
+
+# 動画入力設定
+video:
+  # 入力動画ファイルのパス
+  input_path: "input/merged_moviefiles.mov"
+
+  # タイムラプス動画かどうか
+  is_timelapse: true
+
+  # フレーム抽出間隔（分）
+  # タイムスタンプベースで5分刻みのフレームを抽出（例: 12:10, 12:15, 12:20）
+  frame_interval_minutes: 5
+
+  # タイムスタンプ許容誤差（秒）
+  # 目標タイムスタンプから±この秒数以内のフレームを選択
+  tolerance_seconds: 10
+
+# 人物検出設定
+detection:
+  # 使用するViTモデル名
+  # 選択肢: "facebook/detr-resnet-50", "microsoft/vit-det-base"
+  model_name: "facebook/detr-resnet-50"
+
+  # 検出信頼度閾値（0.0-1.0）
+  # この値以上の信頼度を持つ検出結果のみを採用
+  confidence_threshold: 0.5
+
+  # NMS（Non-Maximum Suppression）閾値（0.0-1.0）
+  nms_threshold: 0.4
+
+  # パッチサイズ（ViTの入力パッチサイズ）
+  patch_size: 16
+
+  # 使用デバイス
+  # 選択肢: "mps" (Apple Silicon GPU), "cuda" (NVIDIA GPU), "cpu"
+  device: "mps"
+
+  # バッチサイズ（複数フレームの同時処理数）
+  batch_size: 4
+
+# ホモグラフィ変換設定
+homography:
+  # 3x3変換行列
+  # カメラ座標からフロアマップ座標への射影変換
+  # 実際の環境に合わせて調整が必要
+  matrix:
+    - [1.2, 0.1, -50.0]
+    - [0.05, 1.3, -30.0]
+    - [0.0001, 0.0002, 1.0]
+
+# ゾーン定義
+zones:
+  # ゾーン1: 会議室エリア
+  - id: "zone_a"
+    name: "会議室エリア"
+    # 多角形の頂点座標リスト [[x1, y1], [x2, y2], ...]
+    polygon:
+      - [100, 200]
+      - [300, 200]
+      - [300, 400]
+      - [100, 400]
+
+  # ゾーン2: デスクエリア
+  - id: "zone_b"
+    name: "デスクエリア"
+    polygon:
+      - [350, 150]
+      - [600, 150]
+      - [600, 500]
+      - [350, 500]
+
+  # 追加のゾーンをここに定義
+  # - id: "zone_c"
+  #   name: "休憩エリア"
+  #   polygon:
+  #     - [650, 200]
+  #     - [800, 200]
+  #     - [800, 450]
+  #     - [650, 450]
+
+# 出力設定
+output:
+  # 出力ディレクトリ
+  directory: "output"
+
+  # 検出結果画像を保存するか
+  save_detection_images: true
+
+  # フロアマップ画像を保存するか
+  save_floormap_images: true
+
+  # デバッグモード
+  # trueの場合、中間処理結果やAttention Mapを出力
+  debug_mode: false
+
+# 精度評価設定
+evaluation:
+  # Ground Truthデータのパス
+  ground_truth_path: "output/labels/result_fixed.json"
+
+  # IoU閾値（True Positiveの判定基準）
+  iou_threshold: 0.5
+
+# ファインチューニング設定（オプション）
+fine_tuning:
+  # ファインチューニングを実行するか
+  enabled: false
+
+  # 学習データセットのパス
+  dataset_path: "data/office_dataset"
+
+  # エポック数
+  epochs: 50
+
+  # 学習率
+  learning_rate: 0.0001
+
+  # バッチサイズ
+  batch_size: 8
+
+  # Warmupエポック数
+  warmup_epochs: 5
+
+  # Layer-wise Learning Rate Decay係数
+  layer_decay: 0.65

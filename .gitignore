@@ -1,0 +1,101 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# PyTorch
+*.pth
+*.pt
+*.ckpt
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Logs
+*.log
+logs/
+
+# Output files
+output/detections/*.jpg
+output/detections/*.png
+output/floormaps/*.jpg
+output/floormaps/*.png
+output/graphs/*.png
+output/*.csv
+
+# Keep directory structure but ignore contents
+output/detections/*
+!output/detections/.gitkeep
+output/floormaps/*
+!output/floormaps/.gitkeep
+output/graphs/*
+!output/graphs/.gitkeep
+
+# Input video files (large files should not be pushed)
+input/merged_moviefiles.mov
+input/*.mov
+input/*.mp4
+input/*.avi
+
+# Models (large files)
+models/*.pth
+models/*.pt
+models/*.bin
+
+# Ground truth data is kept
+!output/labels/result_fixed.json
+
+# Environment variables
+.env
+.env.local
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Thumbnails
+._*
+

@@ -1,0 +1,335 @@
+---
+globs: tests/**/*.py
+description: テスト作成のガイドラインとベストプラクティス
+---
+
+# テスト作成ガイドライン
+
+## テスト構造
+
+```
+tests/
+├── __init__.py
+├── conftest.py                    # pytest共通設定とフィクスチャ
+├── fixtures/                      # テストデータ
+│   ├── sample_video.mov
+│   ├── sample_frame.jpg
+│   └── sample_config.yaml
+├── test_config_manager.py
+├── test_video_processor.py
+├── test_frame_sampler.py
+├── test_timestamp_extractor.py
+├── test_vit_detector.py
+├── test_coordinate_transformer.py
+├── test_zone_classifier.py
+├── test_aggregator.py
+├── test_visualizer.py
+├── test_evaluation_module.py
+└── test_integration.py            # 統合テスト
+```
+
+## pytest 設定
+
+### conftest.py
+
+共通フィクスチャの定義:
+
+```python
+import pytest
+import numpy as np
+from pathlib import Path
+
+@pytest.fixture
+def sample_config():
+    """テスト用設定辞書"""
+    return {
+        "video": {
+            "input_path": "tests/fixtures/sample_video.mov",
+            "frame_interval_minutes": 5,
+            "tolerance_seconds": 10
+        },
+        "detection": {
+            "model_name": "facebook/detr-resnet-50",
+            "confidence_threshold": 0.5,
+            "device": "cpu"  # テストではCPU使用
+        },
+        "homography": {
+            "matrix": [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+        }
+    }
+
+@pytest.fixture
+def sample_frame():
+    """テスト用画像フレーム"""
+    return np.zeros((720, 1280, 3), dtype=np.uint8)
+
+@pytest.fixture
+def sample_detection():
+    """テスト用検出結果"""
+    from src.models import Detection
+    return Detection(
+        bbox=(100, 200, 50, 100),
+        confidence=0.85,
+        class_id=1,
+        class_name="person",
+        camera_coords=(125, 300)
+    )
+
+@pytest.fixture
+def fixtures_dir():
+    """フィクスチャディレクトリのパス"""
+    return Path(__file__).parent / "fixtures"
+```
+
+## ユニットテストの例
+
+### test_config_manager.py
+
+```python
+import pytest
+from src.config_manager import ConfigManager
+from pathlib import Path
+
+def test_load_config_success(tmp_path):
+    """設定ファイルの正常読み込み"""
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text("""
+video:
+  input_path: "input/video.mov"
+detection:
+  confidence_threshold: 0.6
+    """)
+
+    config = ConfigManager(str(config_file))
+    assert config.get("video.input_path") == "input/video.mov"
+    assert config.get("detection.confidence_threshold") == 0.6
+
+def test_get_with_default():
+    """存在しないキーでデフォルト値を返す"""
+    config = ConfigManager()
+    assert config.get("nonexistent.key", "default") == "default"
+
+def test_validation_failure():
+    """不正な設定値で検証失敗"""
+    with pytest.raises(ValueError):
+        # confidence_thresholdが範囲外
+        config = ConfigManager()
+        config.set("detection.confidence_threshold", 1.5)
+        config.validate()
+```
+
+### test_coordinate_transformer.py
+
+```python
+import pytest
+import numpy as np
+from src.coordinate_transformer import CoordinateTransformer
+
+def test_identity_transform():
+    """単位行列での変換（変化なし）"""
+    H = np.eye(3)
+    transformer = CoordinateTransformer(H)
+
+    result = transformer.transform((100, 200))
+    assert result == pytest.approx((100, 200))
+
+def test_translation_transform():
+    """平行移動変換"""
+    H = np.array([[1, 0, 50], [0, 1, 30], [0, 0, 1]])
+    transformer = CoordinateTransformer(H)
+
+    result = transformer.transform((100, 200))
+    assert result == pytest.approx((150, 230))
+
+def test_batch_transform():
+    """バッチ変換の正確性"""
+    H = np.eye(3)
+    transformer = CoordinateTransformer(H)
+
+    points = [(10, 20), (30, 40), (50, 60)]
+    results = transformer.batch_transform(points)
+
+    assert len(results) == 3
+    for orig, trans in zip(points, results):
+        assert orig == pytest.approx(trans)
+
+def test_foot_position_calculation():
+    """足元座標の計算"""
+    transformer = CoordinateTransformer(np.eye(3))
+    bbox = (100, 200, 50, 100)  # x, y, width, height
+
+    foot = transformer.get_foot_position(bbox)
+    assert foot == (125, 300)  # x + width/2, y + height
+```
+
+### test_zone_classifier.py
+
+```python
+import pytest
+from src.zone_classifier import ZoneClassifier
+
+@pytest.fixture
+def zones():
+    """テスト用ゾーン定義"""
+    return [
+        {
+            "id": "zone_a",
+            "name": "エリアA",
+            "polygon": [[0, 0], [100, 0], [100, 100], [0, 100]]
+        },
+        {
+            "id": "zone_b",
+            "name": "エリアB",
+            "polygon": [[150, 150], [250, 150], [250, 250], [150, 250]]
+        }
+    ]
+
+def test_point_inside_zone(zones):
+    """ゾーン内の点を正しく判定"""
+    classifier = ZoneClassifier(zones)
+    result = classifier.classify((50, 50))
+    assert "zone_a" in result
+
+def test_point_outside_all_zones(zones):
+    """すべてのゾーン外の点"""
+    classifier = ZoneClassifier(zones)
+    result = classifier.classify((300, 300))
+    assert result == ["unclassified"]
+
+def test_point_on_boundary(zones):
+    """境界上の点（実装依存）"""
+    classifier = ZoneClassifier(zones)
+    result = classifier.classify((100, 50))
+    # 境界の扱いは実装による
+    assert isinstance(result, list)
+```
+
+## モックの使用
+
+### test_vit_detector.py
+
+外部依存（モデルロード）をモック:
+
+```python
+import pytest
+from unittest.mock import Mock, patch, MagicMock
+from src.vit_detector import ViTDetector
+
+@patch('src.vit_detector.DetrForObjectDetection')
+@patch('src.vit_detector.DetrImageProcessor')
+def test_model_loading(mock_processor, mock_model):
+    """モデルロードのテスト（実際のダウンロードなし）"""
+    detector = ViTDetector("facebook/detr-resnet-50", device="cpu")
+    detector.load_model()
+
+    mock_processor.from_pretrained.assert_called_once()
+    mock_model.from_pretrained.assert_called_once()
+
+@patch('src.vit_detector.ViTDetector._preprocess')
+@patch('src.vit_detector.ViTDetector._postprocess')
+def test_detection_pipeline(mock_postprocess, mock_preprocess, sample_frame):
+    """検出パイプラインのテスト"""
+    detector = ViTDetector("facebook/detr-resnet-50", device="cpu")
+    detector.model = Mock()
+
+    mock_preprocess.return_value = Mock()
+    mock_postprocess.return_value = []
+
+    results = detector.detect(sample_frame)
+
+    mock_preprocess.assert_called_once()
+    mock_postprocess.assert_called_once()
+    assert isinstance(results, list)
+```
+
+## 統合テスト
+
+### test_integration.py
+
+```python
+import pytest
+from src.config_manager import ConfigManager
+from src.video_processor import VideoProcessor
+from src.vit_detector import ViTDetector
+from src.coordinate_transformer import CoordinateTransformer
+from src.zone_classifier import ZoneClassifier
+
+@pytest.mark.slow
+def test_end_to_end_pipeline(fixtures_dir):
+    """エンドツーエンド処理フロー"""
+    # 設定読み込み
+    config = ConfigManager(fixtures_dir / "sample_config.yaml")
+
+    # 各コンポーネント初期化
+    video = VideoProcessor(config.get("video.input_path"))
+    detector = ViTDetector(config.get("detection.model_name"), device="cpu")
+    transformer = CoordinateTransformer(config.get("homography.matrix"))
+    classifier = ZoneClassifier(config.get("zones"))
+
+    # 処理実行
+    video.open()
+    frame = video.get_frame(0)
+
+    detections = detector.detect(frame)
+
+    for detection in detections:
+        foot = transformer.get_foot_position(detection.bbox)
+        detection.floor_coords = transformer.transform(foot)
+        detection.zone_ids = classifier.classify(detection.floor_coords)
+
+    # アサーション
+    assert len(detections) >= 0
+    video.release()
+```
+
+## パフォーマンステスト
+
+### test_performance.py
+
+```python
+import pytest
+import time
+
+@pytest.mark.performance
+def test_detection_speed(sample_frame):
+    """検出速度が要件を満たすか"""
+    detector = ViTDetector("facebook/detr-resnet-50", device="cpu")
+    detector.load_model()
+
+    start = time.time()
+    detections = detector.detect(sample_frame)
+    elapsed = time.time() - start
+
+    # 要件: 2秒以内（CPU使用時は緩和）
+    assert elapsed < 5.0, f"処理時間が長すぎます: {elapsed}秒"
+```
+
+## テスト実行
+
+```bash
+# すべてのテストを実行
+pytest
+
+# 特定のテストファイルのみ
+pytest tests/test_config_manager.py
+
+# 遅いテストをスキップ
+pytest -m "not slow"
+
+# カバレッジ測定
+pytest --cov=src --cov-report=html
+
+# 詳細出力
+pytest -v
+
+# 失敗時にデバッガ起動
+pytest --pdb
+```
+
+## ベストプラクティス
+
+1. **独立性**: 各テストは互いに独立し、順序に依存しない
+2. **高速性**: ユニットテストは高速に（< 1 秒）
+3. **モック活用**: 外部依存（ネットワーク、ファイル I/O、モデルロード）はモック
+4. **明確なアサーション**: 何をテストしているか明確に
+5. **フィクスチャ使用**: 共通のテストデータはフィクスチャ化
