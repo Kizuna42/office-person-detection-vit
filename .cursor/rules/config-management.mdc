@@ -61,6 +61,15 @@ class ConfigManager:
                 "device": "mps",
                 "batch_size": 4
             },
+            "floormap": {
+                "image_path": "data/floormap.png",
+                "image_width": 1878,
+                "image_height": 1369,
+                "image_origin_x": 7,
+                "image_origin_y": 9,
+                "image_x_mm_per_pixel": 28.1926406926406,
+                "image_y_mm_per_pixel": 28.241430700447
+            },
             "output": {
                 "directory": "output",
                 "save_detection_images": True,
@@ -74,7 +83,10 @@ class ConfigManager:
         required_keys = [
             "video.input_path",
             "detection.model_name",
-            "detection.confidence_threshold"
+            "detection.confidence_threshold",
+            "floormap.image_path",
+            "floormap.image_width",
+            "floormap.image_height"
         ]
 
         for key in required_keys:
@@ -87,6 +99,12 @@ class ConfigManager:
         if not (0.0 <= confidence <= 1.0):
             logger.error(f"信頼度閾値が範囲外です: {confidence}")
             return False
+
+        # フロアマップパラメータの検証
+        floormap_width = self.get("floormap.image_width")
+        floormap_height = self.get("floormap.image_height")
+        if floormap_width != 1878 or floormap_height != 1369:
+            logger.warning(f"フロアマップサイズが固定値と異なります: {floormap_width}x{floormap_height}")
 
         # ホモグラフィ行列の検証
         if self.get("homography.matrix") is not None:
@@ -152,6 +170,16 @@ detection:
   device: "mps" # デバイス: mps, cuda, cpu
   batch_size: 4 # バッチサイズ
 
+# フロアマップ固定パラメータ
+floormap:
+  image_path: "data/floormap.png"
+  image_width: 1878 # 固定値（pixel）
+  image_height: 1369 # 固定値（pixel）
+  image_origin_x: 7 # 固定値（pixel）
+  image_origin_y: 9 # 固定値（pixel）
+  image_x_mm_per_pixel: 28.1926406926406 # 固定値（mm/pixel）
+  image_y_mm_per_pixel: 28.241430700447 # 固定値（mm/pixel）
+
 # ホモグラフィ変換設定
 homography:
   # 3x3変換行列（カメラ較正で取得）
@@ -162,6 +190,7 @@ homography:
 
 # ゾーン定義
 zones:
+  # 座標はフロアマップ上のピクセル座標（原点オフセット適用後）
   - id: "zone_a"
     name: "会議室エリア"
     polygon:
@@ -224,6 +253,11 @@ input_path = config.get("video.input_path")
 confidence = config.get("detection.confidence_threshold", 0.5)
 zones = config.get("zones", [])
 
+# フロアマップ固定パラメータを取得
+floormap_config = config.get("floormap")
+image_width = floormap_config['image_width']  # 1878
+origin_x = floormap_config['image_origin_x']  # 7
+
 # ネストした設定
 device = config.get("detection.device")
 ```
@@ -237,6 +271,13 @@ class ViTDetector:
         self.confidence_threshold = config.get("detection.confidence_threshold")
         self.device = config.get("detection.device")
         self.batch_size = config.get("detection.batch_size")
+
+class CoordinateTransformer:
+    def __init__(self, config: ConfigManager):
+        self.H = np.array(config.get("homography.matrix"))
+        self.floormap_config = config.get("floormap")
+        self.origin_x = self.floormap_config['image_origin_x']
+        self.origin_y = self.floormap_config['image_origin_y']
 ```
 
 ### 動的な設定変更（テスト用）
@@ -253,6 +294,14 @@ config.set("detection.confidence_threshold", 0.7)
 - `video.input_path`
 - `detection.model_name`
 - `detection.confidence_threshold`
+- `floormap.image_path`
+- `floormap.image_width`
+- `floormap.image_height`
+- `floormap.image_origin_x`
+- `floormap.image_origin_y`
+- `floormap.image_x_mm_per_pixel`
+- `floormap.image_y_mm_per_pixel`
+- `homography.matrix`
 
 ### 数値範囲チェック
 
@@ -260,11 +309,16 @@ config.set("detection.confidence_threshold", 0.7)
 - `detection.nms_threshold`: 0.0 ~ 1.0
 - `evaluation.iou_threshold`: 0.0 ~ 1.0
 - `video.tolerance_seconds`: > 0
+- `floormap.image_width`: 正の整数（固定値: 1878）
+- `floormap.image_height`: 正の整数（固定値: 1369）
+- `floormap.image_x_mm_per_pixel`: > 0（固定値: 28.1926406926406）
+- `floormap.image_y_mm_per_pixel`: > 0（固定値: 28.241430700447）
 
 ### 構造チェック
 
 - `homography.matrix`: 3x3 のリスト
 - `zones[].polygon`: 3 点以上の座標リスト
+- `floormap`: すべての固定パラメータが存在すること
 
 ## エラーハンドリング
 
@@ -285,3 +339,33 @@ except ValueError as e:
 2. **デフォルト値の提供**: `config.get()` の第 2 引数でデフォルト値を指定
 3. **早期検証**: アプリケーション起動時に設定を検証
 4. **型安全性**: 取得した設定値の型を確認
+5. **フロアマップ固定値**: フロアマップパラメータ（1878×1369 pixel、原点 (7,9)、スケール 28.19/28.24 mm/pixel）は変更しない
+
+## 重要な注意事項
+
+### フロアマップ固定パラメータ
+
+以下のパラメータは **固定値** として扱い、システム全体で統一して使用すること：
+
+```yaml
+floormap:
+  image_width: 1878 # 固定値（pixel）
+  image_height: 1369 # 固定値（pixel）
+  image_origin_x: 7 # 固定値（pixel）
+  image_origin_y: 9 # 固定値（pixel）
+  image_x_mm_per_pixel: 28.1926406926406 # 固定値（mm/pixel）
+  image_y_mm_per_pixel: 28.241430700447 # 固定値（mm/pixel）
+```
+
+これらの値は、CoordinateTransformer、FloormapVisualizer、ZoneClassifier で共通して使用されます。変更する場合は、物理的なフロアマップの仕様が変わった場合のみです。
+
+### ゾーン座標の定義
+
+ゾーン座標は、フロアマップ座標系（原点オフセット適用後のピクセル座標）で定義してください：
+
+```yaml
+zones:
+  - id: "zone_a"
+    polygon: [[100, 200], [300, 200], [300, 400], [100, 400]]
+    # これらの座標は、フロアマップ画像上の座標（原点オフセット (7,9) 適用後）
+```

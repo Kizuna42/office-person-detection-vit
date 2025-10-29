@@ -10,19 +10,31 @@ description: ホモグラフィ変換とゾーン判定の実装ガイドライ�
 
 [coordinate_transformer.py](mdc:src/coordinate_transformer.py) は、カメラ座標系からフロアマップ座標系への変換を担当します。
 
-### 変換行列
+### フロアマップ固定パラメータ
 
-3×3 のホモグラフィ行列を使用した射影変換:
+フロアマップ画像 [floormap.png](mdc:data/floormap.png) は以下の固定パラメータを持ちます：
+
+- **画像サイズ**: 1878 × 1369 pixel（固定値）
+- **原点オフセット**: (7, 9) pixel（固定値）
+- **スケール（X 軸）**: 28.1926406926406 mm/pixel（固定値）
+- **スケール（Y 軸）**: 28.241430700447 mm/pixel（固定値）
+
+これらのパラメータは config.yaml の `floormap` セクションで定義されます。
+
+### 初期化とパラメータ設定
+
+3×3 のホモグラフィ行列とフロアマップ固定パラメータで初期化:
 
 ```python
 import numpy as np
 from typing import Tuple, List
 
 class CoordinateTransformer:
-    def __init__(self, homography_matrix: np.ndarray):
+    def __init__(self, homography_matrix: np.ndarray, floormap_config: dict):
         """
         Args:
             homography_matrix: 3x3のホモグラフィ変換行列
+            floormap_config: フロアマップ固定パラメータ辞書
         """
         if homography_matrix is None:
             raise ValueError("ホモグラフィ行列が設定されていません")
@@ -31,13 +43,29 @@ class CoordinateTransformer:
 
         if self.H.shape != (3, 3):
             raise ValueError(f"ホモグラフィ行列は3x3である必要があります: {self.H.shape}")
+
+        # フロアマップ固定パラメータ
+        self.origin_x = floormap_config['image_origin_x']  # 7 pixel
+        self.origin_y = floormap_config['image_origin_y']  # 9 pixel
+        self.x_mm_per_pixel = floormap_config['image_x_mm_per_pixel']  # 28.19 mm/pixel
+        self.y_mm_per_pixel = floormap_config['image_y_mm_per_pixel']  # 28.24 mm/pixel
+        self.image_width = floormap_config['image_width']  # 1878 pixel
+        self.image_height = floormap_config['image_height']  # 1369 pixel
 ```
 
-### 座標変換
+### 座標変換（原点オフセット適用）
 
 ```python
-def transform(self, camera_point: Tuple[float, float]) -> Tuple[float, float]:
-    """カメラ座標をフロアマップ座標に変換"""
+def transform(self, camera_point: Tuple[float, float], apply_origin_offset: bool = True) -> Tuple[float, float]:
+    """カメラ座標をフロアマップ座標に変換
+
+    Args:
+        camera_point: カメラ座標 (x, y)
+        apply_origin_offset: 原点オフセット(7, 9)を適用するか（デフォルト: True）
+
+    Returns:
+        フロアマップ座標（ピクセル単位、原点オフセット適用済み）
+    """
     x, y = camera_point
 
     # 同次座標に変換
@@ -50,9 +78,14 @@ def transform(self, camera_point: Tuple[float, float]) -> Tuple[float, float]:
     floor_x = transformed[0] / transformed[2]
     floor_y = transformed[1] / transformed[2]
 
+    # 原点オフセットを適用
+    if apply_origin_offset:
+        floor_x += self.origin_x  # +7 pixel
+        floor_y += self.origin_y  # +9 pixel
+
     return (floor_x, floor_y)
 
-def transform_batch(self, camera_points: List[Tuple[float, float]]) -> List[Tuple[float, float]]:
+def transform_batch(self, camera_points: List[Tuple[float, float]], apply_origin_offset: bool = True) -> List[Tuple[float, float]]:
     """複数座標の一括変換（効率化）"""
     if not camera_points:
         return []
@@ -66,7 +99,42 @@ def transform_batch(self, camera_points: List[Tuple[float, float]]) -> List[Tupl
     # 正規化
     floor_points = transformed[:, :2] / transformed[:, 2:3]
 
+    # 原点オフセットを適用
+    if apply_origin_offset:
+        floor_points[:, 0] += self.origin_x
+        floor_points[:, 1] += self.origin_y
+
     return [tuple(p) for p in floor_points]
+```
+
+### ピクセル ⇔ mm 変換
+
+```python
+def pixel_to_mm(self, pixel_point: Tuple[float, float]) -> Tuple[float, float]:
+    """ピクセル座標をmm座標に変換
+
+    Args:
+        pixel_point: ピクセル座標（原点オフセット適用済み）
+
+    Returns:
+        mm座標
+    """
+    x_pixel, y_pixel = pixel_point
+    x_mm = x_pixel * self.x_mm_per_pixel  # 28.1926 mm/pixel
+    y_mm = y_pixel * self.y_mm_per_pixel  # 28.2414 mm/pixel
+    return (x_mm, y_mm)
+
+def mm_to_pixel(self, mm_point: Tuple[float, float]) -> Tuple[float, float]:
+    """mm座標をピクセル座標に変換"""
+    x_mm, y_mm = mm_point
+    x_pixel = x_mm / self.x_mm_per_pixel
+    y_pixel = y_mm / self.y_mm_per_pixel
+    return (x_pixel, y_pixel)
+
+def is_within_bounds(self, floor_point: Tuple[float, float]) -> bool:
+    """座標がフロアマップ範囲内（1878×1369）にあるか判定"""
+    x, y = floor_point
+    return 0 <= x < self.image_width and 0 <= y < self.image_height
 ```
 
 ### 足元座標の計算
@@ -92,6 +160,15 @@ def get_foot_position(self, bbox: Tuple[float, float, float, float]) -> Tuple[fl
 ### 設定例 (config.yaml)
 
 ```yaml
+floormap:
+  image_path: "data/floormap.png"
+  image_width: 1878 # 固定値（pixel）
+  image_height: 1369 # 固定値（pixel）
+  image_origin_x: 7 # 固定値（pixel）
+  image_origin_y: 9 # 固定値（pixel）
+  image_x_mm_per_pixel: 28.1926406926406 # 固定値（mm/pixel）
+  image_y_mm_per_pixel: 28.241430700447 # 固定値（mm/pixel）
+
 homography:
   # カメラ較正により取得した3x3変換行列
   matrix:
@@ -109,6 +186,8 @@ homography:
 ### ゾーン定義
 
 各ゾーンは多角形の頂点座標リストで定義:
+
+**重要**: ゾーン座標はフロアマップ座標系（原点オフセット適用後）で指定
 
 ```python
 class ZoneClassifier:
@@ -172,7 +251,7 @@ def classify(self, floor_point: Tuple[float, float]) -> List[str]:
     """座標が属するゾーンIDのリストを返す
 
     Args:
-        floor_point: フロアマップ上の座標 (x, y)
+        floor_point: フロアマップ上の座標 (x, y)（原点オフセット適用後）
 
     Returns:
         所属するゾーンIDのリスト（複数ゾーンに重複可能）
@@ -204,6 +283,7 @@ def apply_to_detections(self, detections: List[Detection]) -> List[Detection]:
 
 ```yaml
 zones:
+  # 座標はフロアマップ上のピクセル座標（原点オフセット適用後）
   - id: "zone_a"
     name: "会議室エリア"
     polygon: [[100, 200], [300, 200], [300, 400], [100, 400]]
@@ -220,23 +300,62 @@ zones:
 ## 統合フロー
 
 ```python
-# 1. ホモグラフィ変換
-transformer = CoordinateTransformer(config.get("homography.matrix"))
+# 1. ホモグラフィ変換（フロアマップ固定パラメータ使用）
+transformer = CoordinateTransformer(
+    config.get("homography.matrix"),
+    config.get("floormap")
+)
 
 for detection in detections:
     # 足元座標を取得
     foot_pos = transformer.get_foot_position(detection.bbox)
 
-    # フロアマップ座標に変換
-    detection.floor_coords = transformer.transform(foot_pos)
+    # フロアマップ座標に変換（原点オフセット自動適用）
+    detection.floor_coords = transformer.transform(foot_pos, apply_origin_offset=True)
+
+    # mm単位の座標も計算
+    detection.floor_coords_mm = transformer.pixel_to_mm(detection.floor_coords)
+
+    # 範囲チェック
+    if not transformer.is_within_bounds(detection.floor_coords):
+        logging.warning(f"検出座標がフロアマップ範囲外: {detection.floor_coords}")
 
 # 2. ゾーン判定
 classifier = ZoneClassifier(config.get("zones"))
 detections = classifier.apply_to_detections(detections)
 ```
 
-## フロアマップ参照
+## 重要な注意事項
+
+### フロアマップ参照
 
 フロアマップ画像: [floormap.png](mdc:data/floormap.png)
 
-- ゾーン座標はこの画像のピクセル座標系で定義
+- **画像サイズ**: 1878 × 1369 pixel（固定値、変更不可）
+- **原点**: 画像左上（オフセット (7, 9) pixel が自動適用される）
+- **座標軸**: 右方向が X 軸正、下方向が Y 軸正
+
+### 座標系の統一
+
+- **カメラ座標**: 検出されたバウンディングボックスの足元座標
+- **フロアマップ座標（ピクセル）**: ホモグラフィ変換 + 原点オフセット(7, 9)適用後
+- **フロアマップ座標（mm）**: ピクセル座標 × スケール（28.19/28.24 mm/pixel）
+- **ゾーン座標**: フロアマップ座標（ピクセル、原点オフセット適用後）で定義
+
+### 原点オフセットの扱い
+
+- `transform()` メソッドは **デフォルトで原点オフセットを適用** (`apply_origin_offset=True`)
+- ゾーン定義はすべて **原点オフセット適用後の座標** で指定する
+- 可視化時もフロアマップの原点オフセットを考慮する
+- Detection データクラスの `floor_coords` は常に原点オフセット適用済みの座標
+
+### フロアマップ固定パラメータ
+
+以下のパラメータは **固定値** として扱い、変更しないこと：
+
+- image_width: 1878 pixel
+- image_height: 1369 pixel
+- image_origin_x: 7 pixel
+- image_origin_y: 9 pixel
+- image_x_mm_per_pixel: 28.1926406926406
+- image_y_mm_per_pixel: 28.241430700447
