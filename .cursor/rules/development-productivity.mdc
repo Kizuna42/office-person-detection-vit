@@ -1,0 +1,712 @@
+---
+description: 開発効率と生産性を向上させるベストプラクティス
+alwaysApply: true
+---
+
+# 開発効率・生産性向上ガイドライン
+
+## 概要
+
+本プロジェクトにおける開発効率と生産性を最大化するためのベストプラクティス、ツール、テクニックを定義します。
+
+## コーディング原則
+
+### DRY 原則（Don't Repeat Yourself）
+
+**悪い例:**
+
+```python
+# 同じロジックが複数箇所に
+def process_frame_a(frame):
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    resized = cv2.resize(gray, (640, 480))
+    return resized
+
+def process_frame_b(frame):
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    resized = cv2.resize(gray, (640, 480))
+    return resized
+```
+
+**良い例:**
+
+```python
+def process_frame(frame: np.ndarray, size: tuple = (640, 480)) -> np.ndarray:
+    """フレームをグレースケール化してリサイズ"""
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    resized = cv2.resize(gray, size)
+    return resized
+
+# 再利用
+frame_a = process_frame(frame)
+frame_b = process_frame(frame, size=(800, 600))
+```
+
+### SOLID 原則
+
+#### Single Responsibility（単一責任）
+
+各クラスは 1 つの責任のみを持つ:
+
+```python
+# ✅ 良い例: 責任が分離されている
+class ViTDetector:
+    """人物検出のみを担当"""
+    def detect(self, image: np.ndarray) -> List[Detection]:
+        pass
+
+class CoordinateTransformer:
+    """座標変換のみを担当"""
+    def transform(self, points: List[tuple]) -> List[tuple]:
+        pass
+
+# ❌ 悪い例: 複数の責任を持つ
+class DetectionProcessor:
+    """検出、変換、集計を全て担当（責任過多）"""
+    def detect(self, image): pass
+    def transform(self, points): pass
+    def aggregate(self, detections): pass
+```
+
+#### Open/Closed（開放閉鎖）
+
+拡張に開いていて、修正に閉じている:
+
+```python
+from abc import ABC, abstractmethod
+
+class BaseDetector(ABC):
+    """検出器の基底クラス（拡張に開いている）"""
+
+    @abstractmethod
+    def detect(self, image: np.ndarray) -> List[Detection]:
+        pass
+
+class DETRDetector(BaseDetector):
+    """DETR実装（既存コードを変更せず拡張）"""
+    def detect(self, image: np.ndarray) -> List[Detection]:
+        # DETR固有の実装
+        pass
+
+class YOLODetector(BaseDetector):
+    """YOLO実装（既存コードを変更せず拡張）"""
+    def detect(self, image: np.ndarray) -> List[Detection]:
+        # YOLO固有の実装
+        pass
+```
+
+### 早期リターン（Early Return）
+
+ネストを減らして可読性を向上:
+
+```python
+# ❌ 悪い例: 深いネスト
+def process_detection(detection):
+    if detection is not None:
+        if detection.confidence > 0.5:
+            if detection.bbox is not None:
+                return transform_bbox(detection.bbox)
+            else:
+                return None
+        else:
+            return None
+    else:
+        return None
+
+# ✅ 良い例: 早期リターン
+def process_detection(detection: Detection) -> Optional[BBox]:
+    """検出結果を処理"""
+    if detection is None:
+        return None
+    if detection.confidence <= 0.5:
+        return None
+    if detection.bbox is None:
+        return None
+
+    return transform_bbox(detection.bbox)
+```
+
+## 効率的なデバッグ
+
+### ログレベルの活用
+
+```python
+import logging
+
+logger = logging.getLogger(__name__)
+
+def detect_persons(image: np.ndarray) -> List[Detection]:
+    """人物検出（ログレベル別に情報を出力）"""
+    logger.debug(f"入力画像サイズ: {image.shape}")  # 開発時のみ
+
+    try:
+        detections = model.detect(image)
+        logger.info(f"検出数: {len(detections)}")  # 通常の動作ログ
+
+        if len(detections) == 0:
+            logger.warning("検出結果が0件です")  # 注意すべき状態
+
+        return detections
+    except Exception as e:
+        logger.error(f"検出処理でエラー: {e}")  # エラー情報
+        logger.exception("詳細なスタックトレース")  # デバッグ用
+        raise
+```
+
+### デバッグ用可視化
+
+```python
+def debug_visualize_detection(image: np.ndarray, detections: List[Detection]):
+    """デバッグ用の検出結果可視化"""
+    if not config.get("output.debug_mode"):
+        return  # デバッグモードOFFならスキップ
+
+    vis_image = image.copy()
+    for det in detections:
+        cv2.rectangle(vis_image, det.bbox[:2], det.bbox[2:], (0, 255, 0), 2)
+        cv2.putText(vis_image, f"{det.confidence:.2f}",
+                   det.bbox[:2], cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
+
+    cv2.imshow("Debug Detection", vis_image)
+    cv2.waitKey(0)
+```
+
+### プロファイリング
+
+処理時間の計測:
+
+```python
+import time
+from functools import wraps
+
+def timeit(func):
+    """関数の実行時間を計測するデコレータ"""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start = time.time()
+        result = func(*args, **kwargs)
+        elapsed = time.time() - start
+        logger.info(f"{func.__name__}の実行時間: {elapsed:.3f}秒")
+        return result
+    return wrapper
+
+@timeit
+def detect_persons(image: np.ndarray) -> List[Detection]:
+    """人物検出（実行時間を自動計測）"""
+    return model.detect(image)
+```
+
+メモリプロファイリング:
+
+```python
+from memory_profiler import profile
+
+@profile
+def process_video(video_path: str):
+    """ビデオ処理（メモリ使用量を計測）"""
+    # python -m memory_profiler main.py で実行
+    frames = load_video(video_path)
+    detections = detect_all_frames(frames)
+    return detections
+```
+
+## パフォーマンス最適化
+
+### バッチ処理
+
+```python
+# ❌ 悪い例: 1フレームずつ処理
+def detect_all_frames(frames: List[np.ndarray]) -> List[List[Detection]]:
+    results = []
+    for frame in frames:
+        result = model.detect(frame)  # 非効率
+        results.append(result)
+    return results
+
+# ✅ 良い例: バッチ処理
+def detect_all_frames(frames: List[np.ndarray], batch_size: int = 4) -> List[List[Detection]]:
+    """バッチ処理で効率化"""
+    results = []
+    for i in range(0, len(frames), batch_size):
+        batch = frames[i:i+batch_size]
+        batch_results = model.detect_batch(batch)  # バッチ処理
+        results.extend(batch_results)
+    return results
+```
+
+### キャッシング
+
+```python
+from functools import lru_cache
+
+@lru_cache(maxsize=128)
+def load_homography_matrix(config_path: str) -> np.ndarray:
+    """ホモグラフィ行列を読み込み（キャッシュ）"""
+    config = ConfigManager(config_path)
+    matrix = np.array(config.get("homography.matrix"))
+    return matrix
+
+# 同じconfig_pathなら2回目以降はキャッシュから取得
+H1 = load_homography_matrix("config.yaml")  # ファイル読み込み
+H2 = load_homography_matrix("config.yaml")  # キャッシュから取得（高速）
+```
+
+### NumPy のベクトル化
+
+```python
+# ❌ 悪い例: Pythonループ
+def transform_points(points: List[tuple], H: np.ndarray) -> List[tuple]:
+    transformed = []
+    for point in points:
+        x, y = point
+        transformed_point = apply_homography(x, y, H)
+        transformed.append(transformed_point)
+    return transformed
+
+# ✅ 良い例: NumPyベクトル化
+def transform_points(points: np.ndarray, H: np.ndarray) -> np.ndarray:
+    """点群を一括変換（ベクトル化）"""
+    # points: (N, 2), H: (3, 3)
+    ones = np.ones((points.shape[0], 1))
+    points_homogeneous = np.hstack([points, ones])  # (N, 3)
+    transformed = (H @ points_homogeneous.T).T  # 行列演算で一括変換
+    transformed = transformed[:, :2] / transformed[:, 2:3]
+    return transformed
+```
+
+### ジェネレータの活用
+
+```python
+# ❌ 悪い例: 全フレームをメモリに読み込み
+def load_all_frames(video_path: str) -> List[np.ndarray]:
+    cap = cv2.VideoCapture(video_path)
+    frames = []
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+        frames.append(frame)  # メモリ大量消費
+    cap.release()
+    return frames
+
+# ✅ 良い例: ジェネレータでメモリ効率化
+def frame_generator(video_path: str) -> Iterator[np.ndarray]:
+    """フレームをジェネレータで返す（メモリ効率的）"""
+    cap = cv2.VideoCapture(video_path)
+    try:
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
+            yield frame  # 1フレームずつ返す
+    finally:
+        cap.release()
+
+# 使用例
+for frame in frame_generator("video.mp4"):
+    detections = model.detect(frame)
+    process(detections)
+```
+
+## エラーハンドリング
+
+### 明示的な例外処理
+
+```python
+# ❌ 悪い例: 広範囲な例外キャッチ
+def load_video(path: str):
+    try:
+        cap = cv2.VideoCapture(path)
+        return cap
+    except:  # どんなエラーか不明
+        return None
+
+# ✅ 良い例: 具体的な例外処理
+def load_video(path: str) -> cv2.VideoCapture:
+    """動画ファイルを読み込む"""
+    if not Path(path).exists():
+        raise FileNotFoundError(f"動画ファイルが見つかりません: {path}")
+
+    try:
+        cap = cv2.VideoCapture(path)
+        if not cap.isOpened():
+            raise ValueError(f"動画ファイルを開けません: {path}")
+        return cap
+    except cv2.error as e:
+        logger.error(f"OpenCVエラー: {e}")
+        raise
+```
+
+### カスタム例外
+
+```python
+# src/exceptions.py
+class DetectionError(Exception):
+    """検出処理に関するエラー"""
+    pass
+
+class TransformError(Exception):
+    """座標変換に関するエラー"""
+    pass
+
+# 使用例
+def detect_persons(image: np.ndarray) -> List[Detection]:
+    """人物検出"""
+    if image is None or image.size == 0:
+        raise DetectionError("無効な画像が入力されました")
+
+    try:
+        detections = model(image)
+        return detections
+    except Exception as e:
+        raise DetectionError(f"検出処理に失敗: {e}") from e
+```
+
+## テスト駆動開発（TDD）
+
+### テストファースト
+
+```python
+# tests/test_coordinate_transformer.py
+
+def test_transform_single_point():
+    """1点の座標変換が正しく動作する"""
+    transformer = CoordinateTransformer(config)
+    point = (100, 100)
+
+    transformed = transformer.transform(point)
+
+    assert transformed is not None
+    assert len(transformed) == 2
+    assert transformed[0] > 0  # X座標が正
+    assert transformed[1] > 0  # Y座標が正
+
+def test_transform_with_origin_offset():
+    """原点オフセットが正しく適用される"""
+    transformer = CoordinateTransformer(config)
+    point = (0, 0)
+
+    transformed = transformer.transform(point)
+
+    # 原点オフセット (7, 9) が適用されているはず
+    assert transformed[0] == 7
+    assert transformed[1] == 9
+
+# 実装（テストが通るように書く）
+class CoordinateTransformer:
+    def transform(self, point: tuple) -> tuple:
+        # テストを満たす実装
+        pass
+```
+
+### テストカバレッジ
+
+```bash
+# カバレッジを測定
+pytest --cov=src --cov-report=html tests/
+
+# カバレッジ80%以上を目標
+pytest --cov=src --cov-fail-under=80 tests/
+```
+
+## ドキュメント作成
+
+### Docstring 規約（Google Style）
+
+```python
+def detect_persons(
+    image: np.ndarray,
+    confidence_threshold: float = 0.5,
+    device: str = "mps"
+) -> List[Detection]:
+    """画像から人物を検出する。
+
+    Args:
+        image: 入力画像（BGR形式、shape=(H, W, 3)）
+        confidence_threshold: 信頼度閾値（0.0-1.0）。この値以上の検出のみ返す
+        device: 使用デバイス（"mps", "cuda", "cpu"）
+
+    Returns:
+        検出結果のリスト。各要素はDetectionオブジェクト。
+        検出がない場合は空リスト。
+
+    Raises:
+        ValueError: imageが無効な場合
+        DetectionError: 検出処理に失敗した場合
+
+    Examples:
+        >>> import cv2
+        >>> image = cv2.imread("sample.jpg")
+        >>> detections = detect_persons(image, confidence_threshold=0.7)
+        >>> print(f"検出数: {len(detections)}")
+        検出数: 5
+
+    Note:
+        - 入力画像は前処理不要（内部で正規化）
+        - 初回実行時はモデルのロードで時間がかかる
+    """
+    pass
+```
+
+### 型ヒント（Type Hints）
+
+```python
+from typing import List, Optional, Union, Tuple, Dict, Any
+from pathlib import Path
+import numpy as np
+
+def process_video(
+    video_path: Union[str, Path],
+    config: ConfigManager,
+    output_dir: Optional[Path] = None
+) -> Dict[str, Any]:
+    """動画を処理する（型ヒント付き）"""
+    results: Dict[str, Any] = {
+        "frame_count": 0,
+        "detections": []
+    }
+    return results
+```
+
+### インラインコメント
+
+```python
+def calculate_iou(bbox1: BBox, bbox2: BBox) -> float:
+    """IoU（Intersection over Union）を計算"""
+    # 交差領域の座標を計算
+    x1 = max(bbox1.x1, bbox2.x1)
+    y1 = max(bbox1.y1, bbox2.y1)
+    x2 = min(bbox1.x2, bbox2.x2)
+    y2 = min(bbox1.y2, bbox2.y2)
+
+    # 交差領域がない場合
+    if x2 < x1 or y2 < y1:
+        return 0.0
+
+    # 交差面積と和集合面積を計算
+    intersection = (x2 - x1) * (y2 - y1)
+    area1 = (bbox1.x2 - bbox1.x1) * (bbox1.y2 - bbox1.y1)
+    area2 = (bbox2.x2 - bbox2.x1) * (bbox2.y2 - bbox2.y1)
+    union = area1 + area2 - intersection
+
+    return intersection / union if union > 0 else 0.0
+```
+
+## 開発環境の最適化
+
+### VS Code / Cursor 設定
+
+```json
+// .vscode/settings.json
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/venv/bin/python",
+  "python.linting.enabled": true,
+  "python.linting.flake8Enabled": true,
+  "python.formatting.provider": "black",
+  "python.testing.pytestEnabled": true,
+  "python.testing.unittestEnabled": false,
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": true
+  },
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/*.pyc": true
+  }
+}
+```
+
+### 推奨 VS Code 拡張機能
+
+- **Python**: Microsoft 公式 Python 拡張
+- **Pylance**: 高速な型チェック
+- **Black Formatter**: コードフォーマッター
+- **autoDocstring**: Docstring 自動生成
+- **GitLens**: Git 履歴可視化
+- **Error Lens**: エラーをインラインで表示
+- **Todo Tree**: TODO コメント管理
+
+## コードレビューチェックリスト
+
+### 機能性
+
+- [ ] 要件を満たしている
+- [ ] エッジケースを処理している
+- [ ] エラーハンドリングが適切
+
+### 可読性
+
+- [ ] 変数名・関数名が明確
+- [ ] 適切なコメント・Docstring
+- [ ] ネストが深くない（3 階層まで）
+- [ ] 関数が小さい（30 行以内が理想）
+
+### パフォーマンス
+
+- [ ] 不要なループがない
+- [ ] バッチ処理を活用
+- [ ] メモリリークがない
+
+### テスト
+
+- [ ] ユニットテストが追加されている
+- [ ] テストカバレッジ 80%以上
+- [ ] エッジケースのテストがある
+
+### ドキュメント
+
+- [ ] [README.md](mdc:README.md)が更新されている
+- [ ] [config.yaml](mdc:config.yaml)に必要な設定が追加されている
+- [ ] 型ヒントが記載されている
+
+## タスク管理
+
+### TODO コメント規約
+
+```python
+# TODO(username): 実装予定の機能
+# TODO: ViT-Detモデルのサポートを追加
+
+# FIXME(username): 修正が必要なバグ
+# FIXME: タイムスタンプが負の値になる問題を修正
+
+# HACK: 一時的な回避策（後で改善）
+# HACK: OpenCVのバグ回避のための処理
+
+# NOTE: 重要な注意事項
+# NOTE: この処理はMPSでのみ動作する
+
+# OPTIMIZE: パフォーマンス改善の余地
+# OPTIMIZE: この処理をNumPyベクトル化で高速化できる
+```
+
+### Issue 管理
+
+テンプレート例:
+
+```markdown
+## バグ報告
+
+**環境**
+
+- OS: macOS 14.0
+- Python: 3.10.12
+- PyTorch: 2.1.0
+
+**再現手順**
+
+1. `python main.py --input video.mov` を実行
+2. タイムスタンプ抽出で例外が発生
+
+**期待される動作**
+正常にタイムスタンプが抽出される
+
+**実際の動作**
+`pytesseract.TesseractNotFoundError` が発生
+
+**スクリーンショット**
+（該当する場合）
+
+**追加情報**
+Tesseract がインストールされていない環境で発生
+```
+
+## 継続的改善
+
+### リファクタリング指標
+
+- **循環的複雑度**: 10 以下が理想
+- **関数の長さ**: 30 行以内が理想
+- **クラスの長さ**: 300 行以内が理想
+- **引数の数**: 5 個以下が理想
+- **ネストの深さ**: 3 階層以内
+
+### 定期レビュー
+
+週次で以下を確認:
+
+- [ ] テストカバレッジ
+- [ ] コードの重複（DRY 原則）
+- [ ] 技術的負債の蓄積
+- [ ] パフォーマンスボトルネック
+- [ ] ドキュメントの更新状況
+
+## 生産性向上ツール
+
+### Makefile の活用
+
+```makefile
+# Makefile
+.PHONY: test lint format clean
+
+test:
+	pytest tests/ -v --cov=src
+
+lint:
+	flake8 src/ tests/
+	mypy src/
+
+format:
+	black src/ tests/
+	isort src/ tests/
+
+clean:
+	find . -type d -name "__pycache__" -exec rm -rf {} +
+	find . -type f -name "*.pyc" -delete
+	rm -rf .pytest_cache .coverage htmlcov
+
+install:
+	pip install -r requirements.txt
+
+run:
+	python main.py
+```
+
+使用例:
+
+```bash
+make test    # テスト実行
+make lint    # Lint実行
+make format  # フォーマット
+```
+
+### プレコミットフック
+
+```bash
+# .git/hooks/pre-commit
+#!/bin/bash
+echo "Running pre-commit checks..."
+
+# テスト実行
+pytest tests/ || exit 1
+
+# Lint実行
+flake8 src/ || exit 1
+
+# フォーマットチェック
+black --check src/ || exit 1
+
+echo "All checks passed!"
+```
+
+## パフォーマンス目標
+
+本プロジェクトの目標値:
+
+- **フレーム処理時間**: ≤ 2 秒/フレーム（MPS 使用時）
+- **メモリ使用量**: ≤ 12GB
+- **テストカバレッジ**: ≥ 80%
+- **Lint 警告**: 0 件
+- **ドキュメントカバレッジ**: 100%（全公開関数に docstring）
+
+## まとめ
+
+生産性向上の鍵:
+
+1. **コードの再利用性**: DRY 原則、モジュール化
+2. **早期バグ検出**: TDD、型ヒント、Lint
+3. **明確なドキュメント**: Docstring、README、コメント
+4. **効率的なデバッグ**: ログ、可視化、プロファイリング
+5. **継続的改善**: コードレビュー、リファクタリング
+
+これらを実践することで、保守性の高い高品質なコードベースを維持できます。
