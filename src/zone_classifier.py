@@ -16,7 +16,7 @@ class ZoneClassifier:
         zones: ゾーン定義のリスト
     """
     
-    def __init__(self, zones: List[Dict]):
+    def __init__(self, zones: List[Dict], allow_overlap: bool = True):
         """ZoneClassifierを初期化する
         
         Args:
@@ -25,14 +25,22 @@ class ZoneClassifier:
                 {
                     'id': 'zone_a',
                     'name': '会議室エリア',
-                    'polygon': [[x1, y1], [x2, y2], ...]
+                    'polygon': [[x1, y1], [x2, y2], ...],
+                    'priority': 1  # オプション
                 }
+            allow_overlap: Trueの場合は重複ゾーンを許可し、検出されたすべてのゾーンIDを返す。
+                            Falseの場合は優先順位ロジックに基づき1つのゾーンのみを返す。
                 
         Raises:
             ValueError: ゾーン定義が不正な場合
         """
+        self.allow_overlap = allow_overlap
         self.zones = self._validate_zones(zones)
-        logger.info(f"ZoneClassifierを初期化しました。ゾーン数: {len(self.zones)}")
+        logger.info(
+            "ZoneClassifierを初期化しました。ゾーン数: %d, allow_overlap=%s",
+            len(self.zones),
+            self.allow_overlap,
+        )
     
     def _validate_zones(self, zones: List[Dict]) -> List[Dict]:
         """ゾーン定義を検証する
@@ -87,8 +95,17 @@ class ZoneClassifier:
             validated_zone = {
                 'id': zone_id,
                 'name': zone.get('name', zone_id),
-                'polygon': validated_polygon
+                'polygon': validated_polygon,
+                'priority': None,
+                '_order': i,
             }
+
+            if 'priority' in zone and zone['priority'] is not None:
+                try:
+                    priority_value = float(zone['priority'])
+                except (TypeError, ValueError):
+                    raise ValueError(f"zones[{i}].priority は数値である必要があります。")
+                validated_zone['priority'] = priority_value
             validated_zones.append(validated_zone)
             
             logger.debug(f"ゾーン検証完了: {zone_id} ({len(validated_polygon)}頂点)")
@@ -107,17 +124,29 @@ class ZoneClassifier:
         Returns:
             所属するゾーンIDのリスト
         """
-        zone_ids = []
-        
+        matched_zones: List[Dict] = []
+
         for zone in self.zones:
             if self._point_in_polygon(floor_point, zone['polygon']):
-                zone_ids.append(zone['id'])
-        
-        if not zone_ids:
+                matched_zones.append(zone)
+
+        if not matched_zones:
             logger.debug(f"座標 {floor_point} はどのゾーンにも属しません。")
+            return []
+
+        if self.allow_overlap:
+            zone_ids = [zone['id'] for zone in matched_zones]
         else:
-            logger.debug(f"座標 {floor_point} はゾーン {zone_ids} に属します。")
-        
+            selected_zone = min(
+                matched_zones,
+                key=lambda z: (
+                    z['priority'] if z['priority'] is not None else float('inf'),
+                    z['_order'],
+                ),
+            )
+            zone_ids = [selected_zone['id']]
+
+        logger.debug(f"座標 {floor_point} はゾーン {zone_ids} に属します。")
         return zone_ids
     
     def classify_batch(self, floor_points: List[Tuple[float, float]]) -> List[List[str]]:

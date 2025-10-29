@@ -21,19 +21,21 @@ class FloormapVisualizer:
         zone_colors: ゾーンごとの色マップ
     """
     
-    def __init__(self, floormap_path: str, floormap_config: Dict, zones: List[Dict]):
+    def __init__(self, floormap_path: str, floormap_config: Dict, zones: List[Dict], camera_config: Optional[Dict] = None):
         """FloormapVisualizerを初期化する
         
         Args:
             floormap_path: フロアマップ画像のパス
             floormap_config: フロアマップ設定
             zones: ゾーン定義のリスト
+            camera_config: カメラ設定（オプション）
             
         Raises:
             FileNotFoundError: フロアマップ画像が見つからない場合
         """
         self.floormap_config = floormap_config
         self.zones = zones
+        self.camera_config = camera_config or {}
         
         # フロアマップ画像を読み込み
         if not Path(floormap_path).exists():
@@ -75,6 +77,64 @@ class FloormapVisualizer:
         colors['unclassified'] = (128, 128, 128)  # グレー
         
         return colors
+    
+    def draw_camera_position(self, image: np.ndarray) -> np.ndarray:
+        """カメラ位置を描画する
+        
+        Args:
+            image: 描画対象の画像
+            
+        Returns:
+            カメラ位置を描画した画像
+        """
+        if not self.camera_config.get('show_on_floormap', False):
+            return image
+        
+        camera_x = self.camera_config.get('position_x')
+        camera_y = self.camera_config.get('position_y')
+        
+        if camera_x is None or camera_y is None:
+            return image
+        
+        # カメラ位置座標
+        pos = (int(camera_x), int(camera_y))
+        
+        # マーカー設定
+        marker_color = tuple(self.camera_config.get('marker_color', [0, 0, 255]))  # デフォルト: 赤
+        marker_size = self.camera_config.get('marker_size', 15)
+        camera_height = self.camera_config.get('height_m', 0.0)
+        
+        # カメラアイコンを描画（三角形 + 円）
+        # 外側の円（白）
+        cv2.circle(image, pos, marker_size + 2, (255, 255, 255), -1)
+        # 内側の円（カメラ色）
+        cv2.circle(image, pos, marker_size, marker_color, -1)
+        # 中心点（黒）
+        cv2.circle(image, pos, 3, (0, 0, 0), -1)
+        
+        # 視野方向を示す線（下向き）
+        direction_length = marker_size * 2
+        end_point = (pos[0], pos[1] + direction_length)
+        cv2.line(image, pos, end_point, marker_color, 2)
+        cv2.circle(image, end_point, 3, marker_color, -1)
+        
+        # カメララベルを描画
+        label_offset_y = -marker_size - 10
+        label = f"Camera"
+        cv2.putText(image, label, (pos[0] - 25, pos[1] + label_offset_y),
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 3)
+        cv2.putText(image, label, (pos[0] - 25, pos[1] + label_offset_y),
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, marker_color, 1)
+        
+        # カメラ高さを表示
+        if camera_height > 0:
+            height_label = f"H={camera_height}m"
+            cv2.putText(image, height_label, (pos[0] - 30, pos[1] + label_offset_y - 20),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 2)
+            cv2.putText(image, height_label, (pos[0] - 30, pos[1] + label_offset_y - 20),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 0), 1)
+        
+        return image
     
     def draw_zones(self, image: np.ndarray, alpha: float = 0.3) -> np.ndarray:
         """ゾーンを描画する
@@ -159,13 +219,15 @@ class FloormapVisualizer:
     
     def visualize_frame(self, frame_result: FrameResult, 
                        draw_zones: bool = True,
-                       draw_labels: bool = True) -> np.ndarray:
+                       draw_labels: bool = True,
+                       draw_camera: bool = True) -> np.ndarray:
         """フレーム結果を可視化する
         
         Args:
             frame_result: フレーム処理結果
             draw_zones: ゾーンを描画するか
             draw_labels: ラベルを描画するか
+            draw_camera: カメラ位置を描画するか
             
         Returns:
             可視化画像
@@ -176,6 +238,10 @@ class FloormapVisualizer:
         # ゾーンを描画
         if draw_zones:
             image = self.draw_zones(image)
+        
+        # カメラ位置を描画
+        if draw_camera:
+            image = self.draw_camera_position(image)
         
         # 検出結果を描画
         image = self.draw_detections(image, frame_result.detections, draw_labels)

@@ -168,6 +168,10 @@ class ConfigManager:
         # zones セクションの検証
         self._validate_zones_config()
         
+        # camera セクションの検証（オプション）
+        if 'camera' in self.config:
+            self._validate_camera_config()
+        
         # output セクションの検証
         self._validate_output_config()
         
@@ -310,6 +314,53 @@ class ConfigManager:
                 
                 if not all(isinstance(coord, (int, float)) for coord in point):
                     raise ValueError(f"zones[{i}].polygon[{j}] の座標は数値である必要があります。")
+
+            # priority の検証（任意）
+            if 'priority' in zone and zone['priority'] is not None:
+                priority = zone['priority']
+                if not isinstance(priority, (int, float)):
+                    raise ValueError(f"zones[{i}].priority は数値である必要があります。")
+    
+    def _validate_camera_config(self):
+        """camera セクションの検証"""
+        camera_config = self.config.get('camera', {})
+        
+        # position_x の検証
+        if 'position_x' in camera_config:
+            pos_x = camera_config['position_x']
+            if not isinstance(pos_x, (int, float)) or pos_x < 0:
+                raise ValueError("camera.position_x は非負の数値である必要があります。")
+        
+        # position_y の検証
+        if 'position_y' in camera_config:
+            pos_y = camera_config['position_y']
+            if not isinstance(pos_y, (int, float)) or pos_y < 0:
+                raise ValueError("camera.position_y は非負の数値である必要があります。")
+        
+        # height_m の検証
+        if 'height_m' in camera_config:
+            height = camera_config['height_m']
+            if not isinstance(height, (int, float)) or height <= 0:
+                raise ValueError("camera.height_m は正の数値である必要があります。")
+        
+        # show_on_floormap の検証
+        if 'show_on_floormap' in camera_config:
+            if not isinstance(camera_config['show_on_floormap'], bool):
+                raise ValueError("camera.show_on_floormap はブール値である必要があります。")
+        
+        # marker_color の検証
+        if 'marker_color' in camera_config:
+            marker_color = camera_config['marker_color']
+            if not isinstance(marker_color, list) or len(marker_color) != 3:
+                raise ValueError("camera.marker_color は [B, G, R] 形式の3要素リストである必要があります。")
+            if not all(isinstance(c, int) and 0 <= c <= 255 for c in marker_color):
+                raise ValueError("camera.marker_color の各要素は0-255の整数である必要があります。")
+        
+        # marker_size の検証
+        if 'marker_size' in camera_config:
+            marker_size = camera_config['marker_size']
+            if not isinstance(marker_size, int) or marker_size <= 0:
+                raise ValueError("camera.marker_size は正の整数である必要があります。")
     
     def _validate_output_config(self):
         """output セクションの検証"""

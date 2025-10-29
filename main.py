@@ -21,7 +21,12 @@ from src.timestamp_extractor import TimestampExtractor
 from src.frame_sampler import FrameSampler
 from src.vit_detector import ViTDetector
 from src.evaluation_module import EvaluationModule
-from src.data_models import Detection
+from src.coordinate_transformer import CoordinateTransformer
+from src.zone_classifier import ZoneClassifier
+from src.aggregator import Aggregator
+from src.visualizer import Visualizer
+from src.floormap_visualizer import FloormapVisualizer
+from src.data_models import Detection, FrameResult
 
 
 # ロギング設定
@@ -396,28 +401,174 @@ def main():
         logger.info("=" * 80)
         
         # ========================================
-        # フェーズ3: 座標変換とゾーン判定（未実装）
+        # フェーズ3: 座標変換とゾーン判定
         # ========================================
         logger.info("=" * 80)
-        logger.info("フェーズ3: 座標変換とゾーン判定（未実装）")
+        logger.info("フェーズ3: 座標変換とゾーン判定")
         logger.info("=" * 80)
-        logger.info("座標変換とゾーン判定機能は今後実装予定です")
+        
+        # CoordinateTransformerの初期化
+        homography_matrix = config.get('homography.matrix')
+        floormap_config = config.get('floormap')
+        
+        if homography_matrix is None:
+            logger.error("ホモグラフィ行列が設定されていません")
+            return 1
+        
+        coordinate_transformer = CoordinateTransformer(homography_matrix, floormap_config)
+        logger.info("CoordinateTransformer initialized")
+        
+        # ZoneClassifierの初期化
+        zones = config.get('zones', [])
+        if not zones:
+            logger.warning("ゾーン定義が設定されていません")
+        
+        zone_classifier = ZoneClassifier(zones, allow_overlap=False)
+        logger.info(
+            "ZoneClassifier initialized with %d zones (allow_overlap=%s)",
+            len(zones),
+            False,
+        )
+        
+        # 座標変換とゾーン判定を実行
+        frame_results: List[FrameResult] = []
+        
+        for frame_num, timestamp, detections in tqdm(detection_results, desc="座標変換・ゾーン判定中"):
+            # 各検出結果に対して座標変換とゾーン判定を適用
+            for detection in detections:
+                # フロアマップ座標に変換（ピクセル単位）
+                try:
+                    floor_coords = coordinate_transformer.transform(detection.camera_coords)
+                    detection.floor_coords = floor_coords
+                    
+                    # mm単位にも変換
+                    floor_coords_mm = coordinate_transformer.pixel_to_mm(floor_coords)
+                    detection.floor_coords_mm = floor_coords_mm
+                    
+                    # 座標がフロアマップ範囲内かチェック
+                    if not coordinate_transformer.is_within_bounds(floor_coords):
+                        logger.debug(f"座標が範囲外: {floor_coords}")
+                    
+                    # ゾーン判定
+                    zone_ids = zone_classifier.classify(floor_coords)
+                    detection.zone_ids = zone_ids
+                    
+                except Exception as e:
+                    logger.error(f"座標変換/ゾーン判定エラー: {e}")
+                    detection.floor_coords = None
+                    detection.floor_coords_mm = None
+                    detection.zone_ids = []
+            
+            # FrameResultを作成（集計は次のフェーズで実行）
+            frame_result = FrameResult(
+                frame_number=frame_num,
+                timestamp=timestamp,
+                detections=detections,
+                zone_counts={}  # 後で集計
+            )
+            frame_results.append(frame_result)
+        
+        logger.info(f"座標変換とゾーン判定が完了: {len(frame_results)}フレーム")
         
         # ========================================
-        # フェーズ4: 集計とレポート生成（未実装）
+        # フェーズ4: 集計とレポート生成
         # ========================================
         logger.info("=" * 80)
-        logger.info("フェーズ4: 集計とレポート生成（未実装）")
+        logger.info("フェーズ4: 集計とレポート生成")
         logger.info("=" * 80)
-        logger.info("集計とレポート生成機能は今後実装予定です")
+        
+        # Aggregatorの初期化
+        aggregator = Aggregator()
+        
+        # フレームごとに集計
+        for frame_result in tqdm(frame_results, desc="集計中"):
+            zone_counts = aggregator.aggregate_frame(
+                frame_result.timestamp,
+                frame_result.detections
+            )
+            # FrameResultにゾーンカウントを設定
+            frame_result.zone_counts = zone_counts
+        
+        # 統計情報を表示
+        statistics = aggregator.get_statistics()
+        logger.info("=" * 80)
+        logger.info("集計統計:")
+        for zone_id, stats in statistics.items():
+            zone_name = next((z['name'] for z in zones if z['id'] == zone_id), zone_id)
+            logger.info(f"  {zone_name} ({zone_id}):")
+            logger.info(f"    平均: {stats['average']:.2f}人")
+            logger.info(f"    最大: {stats['max']}人")
+            logger.info(f"    最小: {stats['min']}人")
+        logger.info("=" * 80)
+        
+        # CSV出力
+        csv_path = output_path / 'zone_counts.csv'
+        aggregator.export_csv(str(csv_path))
+        logger.info(f"集計結果をCSVに出力しました: {csv_path}")
         
         # ========================================
-        # フェーズ5: 可視化（未実装）
+        # フェーズ5: 可視化
         # ========================================
         logger.info("=" * 80)
-        logger.info("フェーズ5: 可視化（未実装）")
+        logger.info("フェーズ5: 可視化")
         logger.info("=" * 80)
-        logger.info("可視化機能は今後実装予定です")
+        
+        # Visualizerの初期化
+        visualizer = Visualizer(debug_mode=args.debug)
+        
+        # 時系列グラフの生成
+        time_series_path = output_path / 'graphs' / 'time_series.png'
+        if visualizer.plot_time_series(aggregator, str(time_series_path)):
+            logger.info(f"時系列グラフを生成しました: {time_series_path}")
+        
+        # 統計グラフの生成
+        statistics_path = output_path / 'graphs' / 'statistics.png'
+        if visualizer.plot_zone_statistics(aggregator, str(statistics_path)):
+            logger.info(f"統計グラフを生成しました: {statistics_path}")
+        
+        # ヒートマップの生成
+        heatmap_path = output_path / 'graphs' / 'heatmap.png'
+        if visualizer.plot_heatmap(aggregator, str(heatmap_path)):
+            logger.info(f"ヒートマップを生成しました: {heatmap_path}")
+        
+        # FloormapVisualizerの初期化と可視化
+        save_floormap_images = config.get('output.save_floormap_images', True)
+        
+        if save_floormap_images:
+            floormap_path = config.get('floormap.image_path')
+            camera_config = config.get('camera', {})
+            
+            try:
+                floormap_visualizer = FloormapVisualizer(
+                    floormap_path,
+                    floormap_config,
+                    zones,
+                    camera_config
+                )
+                
+                # 各フレームのフロアマップ画像を生成
+                for frame_result in tqdm(frame_results, desc="フロアマップ可視化中"):
+                    # フロアマップ上に描画
+                    floormap_image = floormap_visualizer.visualize_frame(
+                        frame_result,
+                        draw_zones=True,
+                        draw_labels=True
+                    )
+                    
+                    # 保存
+                    floormap_output = output_path / 'floormaps' / f"floormap_{frame_result.timestamp.replace(':', '')}.png"
+                    floormap_visualizer.save_visualization(floormap_image, str(floormap_output))
+                
+                # 凡例を生成
+                legend_image = floormap_visualizer.create_legend()
+                legend_path = output_path / 'floormaps' / 'legend.png'
+                floormap_visualizer.save_visualization(legend_image, str(legend_path))
+                logger.info(f"フロアマップ凡例を生成しました: {legend_path}")
+                
+            except FileNotFoundError as e:
+                logger.warning(f"フロアマップ画像が見つかりません: {e}")
+            except Exception as e:
+                logger.error(f"フロアマップ可視化エラー: {e}", exc_info=True)
         
         # ========================================
         # 精度評価（オプション）

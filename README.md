@@ -4,12 +4,12 @@ Vision Transformer (ViT) ベースの物体検出モデルを使用して、オ�
 
 ## 特徴
 
-- **ViTベース検出**: DETR または ViT-Det による高精度な人物検出
-- **タイムスタンプベースサンプリング**: OCR によるタイムラプス動画からの5分刻みフレーム抽出
+- **ViT ベース検出**: DETR または ViT-Det による高精度な人物検出
+- **タイムスタンプベースサンプリング**: OCR によるタイムラプス動画からの 5 分刻みフレーム抽出
 - **ホモグラフィ変換**: カメラ座標からフロアマップ座標への射影変換
 - **ゾーン別集計**: 多角形ベースのゾーン判定と人数カウント
-- **MPS対応**: Apple Silicon GPU (MPS) による高速処理
-- **設定駆動**: YAML設定ファイルでコード変更なしに動作をカスタマイズ
+- **MPS 対応**: Apple Silicon GPU (MPS) による高速処理
+- **設定駆動**: YAML 設定ファイルでコード変更なしに動作をカスタマイズ
 
 ## 技術スタック
 
@@ -87,14 +87,14 @@ cp /path/to/your/floormap.png data/floormap.png
 # 動画入力設定
 video:
   input_path: "input/merged_moviefiles.mov"
-  frame_interval_minutes: 5  # サンプリング間隔
-  tolerance_seconds: 10      # 許容誤差
+  frame_interval_minutes: 5 # サンプリング間隔
+  tolerance_seconds: 10 # 許容誤差
 
 # 人物検出設定
 detection:
   model_name: "facebook/detr-resnet-50"
   confidence_threshold: 0.5
-  device: "mps"  # mps, cuda, cpu
+  device: "mps" # mps, cuda, cpu
 
 # ホモグラフィ変換行列（カメラ較正で取得）
 homography:
@@ -103,15 +103,44 @@ homography:
     - [0.05, 1.3, -30.0]
     - [0.0001, 0.0002, 1.0]
 
+# カメラ設定
+camera:
+  position_x: 859 # フロアマップ上のカメラ位置X座標（pixel）
+  position_y: 1040 # フロアマップ上のカメラ位置Y座標（pixel）
+  height_m: 2.2 # カメラ設置高さ（m）
+  show_on_floormap: true # フロアマップ上にカメラ位置を表示
+  marker_color: [0, 0, 255] # カメラマーカー色（BGR形式）
+  marker_size: 15 # カメラマーカーサイズ（pixel）
+
 # ゾーン定義
 zones:
-  - id: "zone_a"
-    name: "会議室エリア"
+  - id: "zone_1"
+    name: "ゾーン1（左）"
     polygon:
-      - [100, 200]
-      - [300, 200]
-      - [300, 400]
-      - [100, 400]
+      - [859, 912]
+      - [1095, 912]
+      - [1095, 1350]
+      - [859, 1350]
+    priority: 1
+
+  - id: "zone_2"
+    name: "ゾーン2（中央）"
+    polygon:
+      - [1095, 912]
+      - [1331, 912]
+      - [1331, 1350]
+      - [1095, 1350]
+    priority: 2
+
+  - id: "zone_3"
+    name: "ゾーン3（右）"
+    polygon:
+      - [1331, 912]
+      - [1567, 912]
+      - [1567, 1350]
+      - [1331, 1350]
+    priority: 3
+# ゾーン境界の人物は優先順位の最も高いゾーンにのみカウントされます
 ```
 
 ## 使用方法
@@ -145,23 +174,28 @@ python main.py --fine-tune
 
 ## 実装状況
 
-### ✅ 完了
+### ✅ 完了（タスク 1-9）
 
-- [x] プロジェクト構造とデータモデル
-- [x] 設定管理モジュール (ConfigManager)
-- [x] 動画処理 (VideoProcessor)
-- [x] タイムスタンプ抽出 (TimestampExtractor)
-- [x] フレームサンプリング (FrameSampler)
+- [x] プロジェクト構造とデータモデル (Detection, FrameResult, AggregationResult, EvaluationMetrics)
+- [x] 設定管理モジュール (ConfigManager) - YAML/JSON 対応、検証機能
+- [x] 動画処理 (VideoProcessor) - H.264 形式対応、フレーム取得
+- [x] タイムスタンプ抽出 (TimestampExtractor) - OCR (pytesseract)、前処理
+- [x] フレームサンプリング (FrameSampler) - 5 分刻みタイムスタンプベース抽出
+- [x] ViT 人物検出モジュール (ViTDetector) - DETR 対応、バッチ処理、Attention Map
+- [x] 座標変換 (CoordinateTransformer) - ホモグラフィ変換、原点オフセット対応
+- [x] ゾーン判定 (ZoneClassifier) - Ray Casting アルゴリズム
+- [x] 集計処理 (Aggregator) - ゾーン別カウント、統計情報、CSV 出力
+- [x] 可視化 (Visualizer) - 時系列グラフ、ヒートマップ、統計グラフ
+- [x] フロアマップ可視化 (FloormapVisualizer) - ゾーン・検出結果描画
+- [x] 精度評価 (EvaluationModule) - IoU 計算、Precision/Recall/F1
+- [x] メインパイプライン統合 - エンドツーエンドフロー完成
 
-### 🚧 実装予定
+### 🚧 実装予定（タスク 10-12）
 
-- [ ] ViT人物検出モジュール (ViTDetector)
-- [ ] 座標変換 (CoordinateTransformer)
-- [ ] ゾーン判定 (ZoneClassifier)
-- [ ] 集計処理 (Aggregator)
-- [ ] 可視化 (Visualizer)
-- [ ] 精度評価 (EvaluationModule)
-- [ ] メインパイプライン統合
+- [ ] ファインチューニングモジュール (FineTuner) - オプション機能
+- [ ] ユニットテスト - 各モジュールのテスト
+- [ ] 統合テスト - エンドツーエンド処理フロー
+- [ ] パフォーマンステスト - 処理時間・メモリ使用量測定
 
 ## 出力形式
 
@@ -183,9 +217,9 @@ timestamp,zone_id,count
 
 ## パフォーマンス目標
 
-- フレーム処理時間: ≤ 2秒/フレーム (MPS使用時)
+- フレーム処理時間: ≤ 2 秒/フレーム (MPS 使用時)
 - メモリ使用量: ≤ 12GB
-- 全処理時間: ≤ 10分 (1時間分のタイムラプス動画)
+- 全処理時間: ≤ 10 分 (1 時間分のタイムラプス動画)
 
 ## 開発
 
@@ -247,4 +281,3 @@ MIT License
 ## 作者
 
 Aeterlink - Office Person Detection Project
-
