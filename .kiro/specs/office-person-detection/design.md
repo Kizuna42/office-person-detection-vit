@@ -109,10 +109,20 @@ detection:
   device: "mps" # mps, cuda, cpu
   batch_size: 4
 
+floormap:
+  image_path: "data/floormap.png"
+  image_width: 1878 # 固定値（pixel）
+  image_height: 1369 # 固定値（pixel）
+  image_origin_x: 7 # 固定値（pixel）
+  image_origin_y: 9 # 固定値（pixel）
+  image_x_mm_per_pixel: 28.1926406926406 # 固定値（mm/pixel）
+  image_y_mm_per_pixel: 28.241430700447 # 固定値（mm/pixel）
+
 homography:
   matrix: [[1.2, 0.1, -50], [0.05, 1.3, -30], [0.0001, 0.0002, 1]]
 
 zones:
+  # 座標はフロアマップ上のピクセル座標（原点オフセット適用後）
   - id: "zone_a"
     name: "会議室エリア"
     polygon: [[100, 200], [300, 200], [300, 400], [100, 400]]
@@ -271,32 +281,57 @@ class Detection:
     class_id: int
     class_name: str
     camera_coords: Tuple[float, float]  # バウンディングボックス足元座標
-    floor_coords: Optional[Tuple[float, float]] = None  # 変換後座標
+    floor_coords: Optional[Tuple[float, float]] = None  # 変換後座標（ピクセル単位）
+    floor_coords_mm: Optional[Tuple[float, float]] = None  # 変換後座標（mm単位）
     zone_ids: List[str] = field(default_factory=list)
 ```
 
 ### 6. CoordinateTransformer
 
-ホモグラフィ変換によるカメラ座標 → フロアマップ座標変換。
+ホモグラフィ変換によるカメラ座標 → フロアマップ座標変換。フロアマップの固定パラメータに対応。
 
 ```python
 class CoordinateTransformer:
     """座標変換クラス"""
 
-    def __init__(self, homography_matrix: np.ndarray):
+    def __init__(self, homography_matrix: np.ndarray, floormap_config: dict):
         self.H = np.array(homography_matrix)
+        self.origin_x = floormap_config['image_origin_x']  # 7 pixel
+        self.origin_y = floormap_config['image_origin_y']  # 9 pixel
+        self.x_mm_per_pixel = floormap_config['image_x_mm_per_pixel']  # 28.19 mm/pixel
+        self.y_mm_per_pixel = floormap_config['image_y_mm_per_pixel']  # 28.24 mm/pixel
+        self.image_width = floormap_config['image_width']  # 1878 pixel
+        self.image_height = floormap_config['image_height']  # 1369 pixel
 
-    def transform(self, camera_point: Tuple[float, float]) -> Tuple[float, float]:
-        """カメラ座標をフロアマップ座標に変換"""
+    def transform(self, camera_point: Tuple[float, float], apply_origin_offset: bool = True) -> Tuple[float, float]:
+        """カメラ座標をフロアマップ座標（ピクセル単位）に変換
+        原点オフセットを自動適用
+        """
         pass
 
-    def transform_batch(self, camera_points: List[Tuple[float, float]]) -> List[Tuple[float, float]]:
+    def transform_batch(self, camera_points: List[Tuple[float, float]], apply_origin_offset: bool = True) -> List[Tuple[float, float]]:
         """バッチ変換"""
+        pass
+
+    def pixel_to_mm(self, pixel_point: Tuple[float, float]) -> Tuple[float, float]:
+        """ピクセル座標をmm座標に変換"""
+        pass
+
+    def mm_to_pixel(self, mm_point: Tuple[float, float]) -> Tuple[float, float]:
+        """mm座標をピクセル座標に変換"""
+        pass
+
+    def is_within_bounds(self, floor_point: Tuple[float, float]) -> bool:
+        """座標がフロアマップ範囲内（1878×1369）にあるか判定"""
         pass
 
     def get_foot_position(self, bbox: Tuple[float, float, float, float]) -> Tuple[float, float]:
         """バウンディングボックスから足元座標を計算"""
         # 中心下端: (x + width/2, y + height)
+        pass
+
+    def get_floormap_info(self) -> dict:
+        """フロアマップ情報を取得"""
         pass
 ```
 
@@ -348,28 +383,50 @@ class Aggregator:
         pass
 ```
 
-### 9. Visualizer
+### 9. FloormapVisualizer
 
-検出結果とフロアマップの可視化。
+フロアマップ上での検出結果の可視化（固定パラメータ対応）。
 
 ```python
-class Visualizer:
-    """可視化クラス"""
+class FloormapVisualizer:
+    """フロアマップ可視化クラス"""
 
-    def __init__(self, floormap_path: str, zones: List[dict]):
-        self.floormap = cv2.imread(floormap_path)
+    def __init__(self, floormap_path: str, floormap_config: dict, zones: List[dict]):
+        self.floormap_image = cv2.imread(floormap_path)  # 1878×1369 pixel
+        self.floormap_config = floormap_config
         self.zones = zones
+        self.zone_colors = self._generate_zone_colors()
+
+    def draw_zones(self, image: np.ndarray, alpha: float = 0.3) -> np.ndarray:
+        """ゾーンを半透明の多角形として色分けして描画"""
+        pass
+
+    def draw_detections(self, image: np.ndarray, detections: List[Detection], draw_labels: bool = True) -> np.ndarray:
+        """検出結果を円で描画（ゾーン別に色分け）"""
+        pass
+
+    def visualize_frame(self, frame_result: FrameResult, draw_zones: bool = True, draw_labels: bool = True) -> np.ndarray:
+        """フレーム結果を可視化（フレーム情報、ゾーン別カウント含む）"""
+        pass
+
+    def save_visualization(self, image: np.ndarray, output_path: str):
+        """可視化画像を保存"""
+        pass
+
+    def create_legend(self, width: int = 300, height: int = None) -> np.ndarray:
+        """ゾーンの凡例画像を作成"""
+        pass
+
+    def _generate_zone_colors(self) -> Dict[str, Tuple[int, int, int]]:
+        """ゾーンごとの色を生成"""
+        pass
+
+
+class Visualizer:
+    """検出結果の可視化クラス"""
 
     def draw_detections(self, frame: np.ndarray, detections: List[Detection]) -> np.ndarray:
-        """フレームに検出結果を描画"""
-        pass
-
-    def draw_floormap(self, detections: List[Detection], timestamp: str) -> np.ndarray:
-        """フロアマップに人物位置をプロット"""
-        pass
-
-    def draw_zones(self, image: np.ndarray) -> np.ndarray:
-        """ゾーンを色分けして描画"""
+        """フレームに検出結果（バウンディングボックス）を描画"""
         pass
 
     def plot_time_series(self, aggregator: Aggregator, output_path: str):
@@ -461,7 +518,8 @@ class Detection:
     class_id: int
     class_name: str
     camera_coords: Tuple[float, float]
-    floor_coords: Optional[Tuple[float, float]] = None
+    floor_coords: Optional[Tuple[float, float]] = None  # ピクセル単位
+    floor_coords_mm: Optional[Tuple[float, float]] = None  # mm単位
     zone_ids: List[str] = field(default_factory=list)
 ```
 

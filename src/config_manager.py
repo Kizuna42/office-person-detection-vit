@@ -25,6 +25,8 @@ class ConfigManager:
     REQUIRED_KEYS = {
         'video': ['input_path'],
         'detection': ['model_name', 'confidence_threshold', 'device'],
+        'floormap': ['image_path', 'image_width', 'image_height', 'image_origin_x', 'image_origin_y', 
+                     'image_x_mm_per_pixel', 'image_y_mm_per_pixel'],
         'homography': ['matrix'],
         'zones': [],
         'output': ['directory']
@@ -45,6 +47,15 @@ class ConfigManager:
             'patch_size': 16,
             'device': 'mps',
             'batch_size': 4
+        },
+        'floormap': {
+            'image_path': 'data/floormap.png',
+            'image_width': 1878,
+            'image_height': 1369,
+            'image_origin_x': 7,
+            'image_origin_y': 9,
+            'image_x_mm_per_pixel': 28.1926406926406,
+            'image_y_mm_per_pixel': 28.241430700447
         },
         'homography': {
             'matrix': [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
@@ -148,6 +159,9 @@ class ConfigManager:
         # detection セクションの検証
         self._validate_detection_config()
         
+        # floormap セクションの検証
+        self._validate_floormap_config()
+        
         # homography セクションの検証
         self._validate_homography_config()
         
@@ -209,6 +223,41 @@ class ConfigManager:
             batch_size = detection_config['batch_size']
             if not isinstance(batch_size, int) or batch_size <= 0:
                 raise ValueError("detection.batch_size は正の整数である必要があります。")
+    
+    def _validate_floormap_config(self):
+        """floormap セクションの検証"""
+        floormap_config = self.config.get('floormap', {})
+        
+        # image_path の型チェック
+        if not isinstance(floormap_config.get('image_path'), str):
+            raise ValueError("floormap.image_path は文字列である必要があります。")
+        
+        # 画像サイズの検証
+        width = floormap_config.get('image_width')
+        if not isinstance(width, int) or width <= 0:
+            raise ValueError("floormap.image_width は正の整数である必要があります。")
+        
+        height = floormap_config.get('image_height')
+        if not isinstance(height, int) or height <= 0:
+            raise ValueError("floormap.image_height は正の整数である必要があります。")
+        
+        # 原点オフセットの検証
+        origin_x = floormap_config.get('image_origin_x')
+        if not isinstance(origin_x, (int, float)) or origin_x < 0:
+            raise ValueError("floormap.image_origin_x は非負の数値である必要があります。")
+        
+        origin_y = floormap_config.get('image_origin_y')
+        if not isinstance(origin_y, (int, float)) or origin_y < 0:
+            raise ValueError("floormap.image_origin_y は非負の数値である必要があります。")
+        
+        # スケールの検証
+        x_scale = floormap_config.get('image_x_mm_per_pixel')
+        if not isinstance(x_scale, (int, float)) or x_scale <= 0:
+            raise ValueError("floormap.image_x_mm_per_pixel は正の数値である必要があります。")
+        
+        y_scale = floormap_config.get('image_y_mm_per_pixel')
+        if not isinstance(y_scale, (int, float)) or y_scale <= 0:
+            raise ValueError("floormap.image_y_mm_per_pixel は正の数値である必要があります。")
     
     def _validate_homography_config(self):
         """homography セクションの検証"""

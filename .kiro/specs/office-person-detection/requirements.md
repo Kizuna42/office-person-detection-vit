@@ -13,9 +13,10 @@
 - **Patch Embedding**: 画像を固定サイズのパッチに分割し、ベクトル表現に変換する処理
 - **Attention Map**: ViT の Self-Attention 層が生成する、画像領域間の関連性を示すマップ
 - **Camera Coordinates**: カメラ映像上のピクセル座標系
-- **Floor Map Coordinates**: フロアマップ上の実座標系
-- **Homography Transform**: カメラ座標からフロアマップ座標への変換行列
-- **Zone**: フロアマップ上で定義された多角形エリア
+- **Floor Map**: オフィスのフロアマップ画像（data/floormap.png、1878×1369 pixel、原点オフセット (7, 9) pixel、スケール 28.19/28.24 mm/pixel）
+- **Floor Map Coordinates**: フロアマップ上のピクセル座標系（原点は画像左上、右方向が X 軸、下方向が Y 軸）
+- **Homography Transform**: カメラ座標からフロアマップ座標への 3×3 射影変換行列
+- **Zone**: フロアマップ上で定義された多角形エリア（ピクセル座標で指定）
 - **Zone Count**: 各ゾーン内の人数カウント結果
 - **Batch Processing**: 録画済み動画ファイルの一括処理モード
 - **Frame Sampling**: タイムスタンプベースの 5 分刻みフレーム抽出（12:10, 12:15, 12:20 など、±10 秒許容誤差）
@@ -83,17 +84,22 @@
 6. THE System SHALL ファインチューニング後のモデルを保存し、検出処理で使用可能にする
 7. THE System SHALL ファインチューニング前後の精度比較レポート（Precision, Recall, F1-score, Attention Map）を出力する
 
-### 要件 4: ホモグラフィ変換
+### 要件 4: ホモグラフィ変換とフロアマップ座標系
 
 **ユーザーストーリー:** データアナリストとして、カメラ座標をフロアマップ座標に変換したい。これにより、data/floormap.png 上での人物位置を把握できる。
 
 #### 受入基準
 
 1. THE System SHALL 設定ファイルからホモグラフィ変換行列（3×3 行列）を読み込む
-2. THE System SHALL 検出された人物のバウンディングボックス足元座標（中心下端）をカメラ座標からフロアマップ座標に変換する
-3. THE System SHALL 変換後の座標を検出結果に追加する
-4. WHEN ホモグラフィ変換行列が設定されていない場合、THEN THE System SHALL エラーメッセージを出力し、処理を中断する
-5. THE System SHALL data/floormap.png を参照座標系として使用する
+2. THE System SHALL 設定ファイルからフロアマップパラメータ（画像サイズ 1878×1369 pixel、原点オフセット (7, 9) pixel、スケール 28.19/28.24 mm/pixel）を読み込む
+3. THE System SHALL 検出された人物のバウンディングボックス足元座標（中心下端）をカメラ座標からフロアマップ座標（ピクセル単位）に変換する
+4. THE System SHALL 変換後の座標に原点オフセット（7, 9 pixel）を適用する
+5. THE System SHALL フロアマップ座標（ピクセル単位）を mm 単位に変換する機能を提供する
+6. THE System SHALL 変換後の座標がフロアマップ画像範囲内（0 ≤ x < 1878, 0 ≤ y < 1369）にあるか検証する
+7. THE System SHALL 変換後の座標（ピクセル単位と mm 単位）を検出結果に追加する
+8. WHEN ホモグラフィ変換行列が設定されていない場合、THEN THE System SHALL エラーメッセージを出力し、処理を中断する
+9. WHEN フロアマップパラメータが設定されていない場合、THEN THE System SHALL エラーメッセージを出力し、処理を中断する
+10. THE System SHALL data/floormap.png（1878×1369 pixel）を参照座標系として使用する
 
 ### 要件 5: ゾーン判定
 
@@ -101,11 +107,12 @@
 
 #### 受入基準
 
-1. THE System SHALL 設定ファイルから複数のゾーン定義（多角形の頂点座標リスト）を読み込む
-2. THE System SHALL 各人物のフロアマップ座標が各ゾーン内に含まれるかを判定する（点 in 多角形アルゴリズム）
-3. THE System SHALL 各人物に対して、所属するゾーン ID を割り当てる
-4. WHERE 人物が複数のゾーンに重複する場合、THE System SHALL すべての該当ゾーンに人物をカウントする
-5. WHERE 人物がどのゾーンにも属さない場合、THE System SHALL "未分類" として扱う
+1. THE System SHALL 設定ファイルから複数のゾーン定義（多角形の頂点座標リスト、ピクセル単位）を読み込む
+2. THE System SHALL ゾーン座標がフロアマップ座標系（原点オフセット適用後）で定義されていることを前提とする
+3. THE System SHALL 各人物のフロアマップ座標（ピクセル単位、原点オフセット適用後）が各ゾーン内に含まれるかを判定する（点 in 多角形アルゴリズム）
+4. THE System SHALL 各人物に対して、所属するゾーン ID を割り当てる
+5. WHERE 人物が複数のゾーンに重複する場合、THE System SHALL すべての該当ゾーンに人物をカウントする
+6. WHERE 人物がどのゾーンにも属さない場合、THE System SHALL "未分類" として扱う
 
 ### 要件 6: ゾーン別集計
 
@@ -126,10 +133,13 @@
 #### 受入基準
 
 1. THE System SHALL 検出結果をバウンディングボックス付きの画像ファイルとして output ディレクトリに保存する
-2. THE System SHALL data/floormap.png 上に人物位置をプロットした画像を生成する
-3. THE System SHALL ゾーン別人数の時系列グラフ（PNG 形式）を生成する
-4. WHERE デバッグモードが有効な場合、THE System SHALL 中間処理結果（変換座標、ゾーン判定結果）を画像に重畳表示する
-5. THE System SHALL 各ゾーンを色分けしてフロアマップ上に表示する
+2. THE System SHALL data/floormap.png（1878×1369 pixel）上に人物位置（原点オフセット適用後のピクセル座標）をプロットした画像を生成する
+3. THE System SHALL フロアマップ上の人物位置を円で表示し、所属ゾーンに応じて色分けする
+4. THE System SHALL 各ゾーンを半透明の多角形として色分けしてフロアマップ上に表示する
+5. THE System SHALL フレーム番号、タイムスタンプ、ゾーン別人数カウントをフロアマップ画像に重畳表示する
+6. THE System SHALL ゾーン別人数の時系列グラフ（PNG 形式）を生成する
+7. WHERE デバッグモードが有効な場合、THE System SHALL 中間処理結果（変換座標、ゾーン判定結果、座標値）を画像に重畳表示する
+8. THE System SHALL ゾーンの凡例（ゾーン名と色の対応表）を生成する
 
 ### 要件 8: 設定管理
 

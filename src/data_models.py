@@ -14,7 +14,8 @@ class Detection:
         class_id: クラスID
         class_name: クラス名
         camera_coords: カメラ座標系でのバウンディングボックス足元座標 (x, y)
-        floor_coords: フロアマップ座標系での変換後座標 (x, y)
+        floor_coords: フロアマップ座標系での変換後座標 (x, y) ピクセル単位
+        floor_coords_mm: フロアマップ座標系での変換後座標 (x, y) mm単位
         zone_ids: 所属するゾーンIDのリスト
     """
     bbox: Tuple[float, float, float, float]
@@ -23,6 +24,7 @@ class Detection:
     class_name: str
     camera_coords: Tuple[float, float]
     floor_coords: Optional[Tuple[float, float]] = None
+    floor_coords_mm: Optional[Tuple[float, float]] = None
     zone_ids: List[str] = field(default_factory=list)
 
 
