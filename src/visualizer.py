@@ -1,8 +1,16 @@
 """Visualization module for detection results and attention maps."""
 
 import logging
+import os
+
 import cv2
 import numpy as np
+
+import matplotlib
+
+if os.environ.get("MPLBACKEND") is None:
+    matplotlib.use("Agg")
+
 import matplotlib.pyplot as plt
 from pathlib import Path
 from typing import List, Optional, Dict

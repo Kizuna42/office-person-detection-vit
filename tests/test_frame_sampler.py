@@ -24,3 +24,4 @@ def test_find_closest_frame_handles_midnight_wrap():
     frames = {100: "23:58", 200: "00:02"}
     assert sampler.find_closest_frame("00:00", frames) == 200
 
+

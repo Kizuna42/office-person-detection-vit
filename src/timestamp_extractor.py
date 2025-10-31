@@ -3,8 +3,9 @@
 import cv2
 import logging
 import re
+from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional, Tuple, Union
+from typing import Dict, Optional, Tuple, Union
 import numpy as np
 import pytesseract
 
@@ -20,6 +21,8 @@ class TimestampExtractor:
     Attributes:
         roi: タイムスタンプ領域の座標 (x, y, width, height)
     """
+
+    TIMESTAMP_FORMAT = "%Y/%m/%d %H:%M:%S"
     
     def __init__(self, roi: Optional[Tuple[int, int, int, int]] = None):
         """TimestampExtractorを初期化する
@@ -28,13 +31,16 @@ class TimestampExtractor:
             roi: タイムスタンプ領域の座標 (x, y, width, height)
                  デフォルトは右上領域 (900, 10, 350, 60)
         """
-        self.roi = roi or (900, 10, 350, 60)
+        # デフォルトROIを右方向・下方向に広げて日時全体を包含
+        self.roi = roi or (820, 0, 460, 90)
         logger.debug(f"TimestampExtractor初期化: ROI={self.roi}")
         self._debug_enabled = False
         self._debug_dir: Optional[Path] = None
         self._debug_save_intermediate = True
         self._debug_save_overlay = True
         self._debug_counter = 0
+        self._last_preprocess_debug: Dict[str, np.ndarray] = {}
+        self._last_timestamp: Optional[datetime] = None
     
     def enable_debug(
         self,
@@ -70,7 +76,7 @@ class TimestampExtractor:
             frame_index: デバッグ用のフレーム番号
             
         Returns:
-            タイムスタンプ文字列 (HH:MM形式)、失敗した場合None
+            タイムスタンプ文字列 (YYYY/MM/DD HH:MM:SS形式)、失敗した場合None
         """
         if frame is None or frame.size == 0:
             logger.warning("無効なフレームが渡されました")
@@ -101,7 +107,7 @@ class TimestampExtractor:
             # OCR実行
             ocr_text = pytesseract.image_to_string(
                 preprocessed,
-                config='--psm 7 --oem 3 -c tessedit_char_whitelist=0123456789:'
+                config='--psm 7 --oem 3 -c tessedit_char_whitelist=0123456789:/'
             )
             
             logger.debug(f"OCR結果: '{ocr_text.strip()}'")
@@ -131,6 +137,62 @@ class TimestampExtractor:
             logger.error(f"タイムスタンプ抽出中にエラーが発生しました: {e}")
             return None
     
+    def _focus_timestamp_band(self, gray_roi: np.ndarray) -> np.ndarray:
+        """ROIからタイムスタンプ行を抽出する"""
+
+        height, width = gray_roi.shape[:2]
+        blurred = cv2.GaussianBlur(gray_roi, (3, 3), 0)
+        _, binary = cv2.threshold(
+            blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
+        )
+
+        if np.mean(binary) > 127:
+            binary = cv2.bitwise_not(binary)
+
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (15, 3))
+        closed = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel, iterations=2)
+
+        contours, _ = cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        best_rect: Optional[Tuple[int, int, int, int]] = None
+        best_score = -1.0
+
+        for contour in contours:
+            x, y, w, h = cv2.boundingRect(contour)
+
+            if w < width * 0.4:
+                continue
+            if h < height * 0.1 or h > height * 0.8:
+                continue
+
+            width_score = w / max(width, 1)
+            top_score = max(0.0, 1.0 - (y / max(height, 1)))
+            score = width_score * 0.7 + top_score * 0.3
+
+            if score > best_score:
+                best_score = score
+                best_rect = (x, y, w, h)
+
+        if best_rect is None:
+            band_height = max(int(height * 0.45), 1)
+            band = gray_roi[:band_height, :]
+            return band if band.size > 0 else gray_roi
+
+        x, y, w, h = best_rect
+        margin_y = max(4, min(12, h // 2))
+        margin_x = max(4, min(20, w // 4))
+        y0 = max(0, y - margin_y)
+        y1 = min(height, y + h + margin_y)
+        x0 = max(0, x - margin_x)
+        x1 = min(width, x + w + margin_x)
+
+        if (x1 - x0) < width * 0.75:
+            x0 = 0
+            x1 = width
+
+        band = gray_roi[y0:y1, x0:x1]
+        return band if band.size > 0 else gray_roi
+
     def _preprocess_roi(self, roi_image: np.ndarray) -> np.ndarray:
         """OCR用の前処理を実行する
         
@@ -143,36 +205,55 @@ class TimestampExtractor:
             前処理済み画像
         """
         try:
-            # グレースケール変換
+            self._last_preprocess_debug = {}
+
             if len(roi_image.shape) == 3:
                 gray = cv2.cvtColor(roi_image, cv2.COLOR_BGR2GRAY)
             else:
                 gray = roi_image.copy()
-            
-            # コントラスト強調（CLAHE）
+
+            band = self._focus_timestamp_band(gray)
+
+            normalized = cv2.normalize(band, None, 0, 255, cv2.NORM_MINMAX)
+
             clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-            enhanced = clahe.apply(gray)
-            
-            # ノイズ除去（ガウシアンブラー）
-            denoised = cv2.GaussianBlur(enhanced, (3, 3), 0)
-            
-            # 二値化（大津の方法）
-            _, binary = cv2.threshold(denoised, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-            
-            # 反転（白背景に黒文字の場合）
-            # OCRは黒背景に白文字を期待するため、必要に応じて反転
-            mean_val = np.mean(binary)
-            if mean_val > 127:
+            enhanced = clahe.apply(normalized)
+
+            resized = cv2.resize(
+                enhanced,
+                None,
+                fx=2.0,
+                fy=2.0,
+                interpolation=cv2.INTER_CUBIC,
+            )
+
+            denoised = cv2.bilateralFilter(resized, d=5, sigmaColor=75, sigmaSpace=75)
+
+            _, binary = cv2.threshold(
+                denoised, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
+            )
+
+            if np.mean(binary) < 127:
                 binary = cv2.bitwise_not(binary)
-            
-            # モルフォロジー処理（ノイズ除去）
-            kernel = np.ones((2, 2), np.uint8)
-            cleaned = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
-            
+
+            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+            cleaned = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel, iterations=1)
+
+            self._last_preprocess_debug = {
+                "gray": gray,
+                "timestamp_band": band,
+                "normalized": normalized,
+                "enhanced": enhanced,
+                "resized": resized,
+                "denoised": denoised,
+                "binary": cleaned,
+            }
+
             return cleaned
             
         except Exception as e:
             logger.error(f"前処理中にエラーが発生しました: {e}")
+            self._last_preprocess_debug = {}
             return roi_image
     
     def parse_timestamp(self, ocr_text: str) -> Optional[str]:
@@ -182,49 +263,150 @@ class TimestampExtractor:
             ocr_text: OCRで読み取られたテキスト
             
         Returns:
-            正規化されたタイムスタンプ (HH:MM形式)、失敗した場合None
+            正規化されたタイムスタンプ (YYYY/MM/DD HH:MM:SS形式)、失敗した場合None
         """
         if not ocr_text:
             return None
-        
+
         try:
-            # 改行やスペースを除去
-            text = ocr_text.strip().replace('\n', '').replace(' ', '')
-            
-            # HH:MM形式のパターンを検索
-            # 例: 12:30, 09:15, 23:59
-            pattern = r'(\d{1,2}):(\d{2})'
-            match = re.search(pattern, text)
-            
+            text = ocr_text.strip()
+            if not text:
+                return None
+
+            translation_table = str.maketrans({
+                'O': '0',
+                'o': '0',
+                'D': '0',
+                'S': '5',
+                's': '5',
+                'I': '1',
+                'l': '1',
+                '|': '1',
+                'B': '8',
+                'b': '6',
+                'A': '4',
+            })
+
+            normalized = text.translate(translation_table)
+            normalized = re.sub(r'[\t\r\n]', ' ', normalized)
+            normalized = re.sub(r'\s+', ' ', normalized)
+            normalized = normalized.replace('／', '/').replace('：', ':').replace('－', '-')
+
+            pattern = r'(\d{4})\D*(\d{2})\D*(\d{2})\D*(\d{2})\D*(\d{2})(?:\D*(\d{2}))?'
+            match = re.search(pattern, normalized)
+
+            year = month = day = hour = minute = second = None
+
             if match:
-                hours = int(match.group(1))
-                minutes = int(match.group(2))
-                
-                # 時刻の妥当性チェック
-                if 0 <= hours <= 23 and 0 <= minutes <= 59:
-                    # HH:MM形式に正規化
-                    timestamp = f"{hours:02d}:{minutes:02d}"
-                    return timestamp
+                year, month, day, hour, minute, second = match.groups()
+            else:
+                digits_only = re.sub(r'[^0-9]', '', normalized)
+                if len(digits_only) >= 14:
+                    digits = digits_only[:14]
+                elif len(digits_only) == 12:
+                    digits = digits_only + '00'
                 else:
-                    logger.warning(f"無効な時刻: {hours}:{minutes}")
+                    logger.debug(f"タイムスタンプパターンが見つかりませんでした: '{normalized}'")
                     return None
-            
-            # コロンなしの4桁数字パターンも試す（例: 1230 -> 12:30）
-            pattern_no_colon = r'(\d{2})(\d{2})'
-            match_no_colon = re.search(pattern_no_colon, text)
-            
-            if match_no_colon:
-                hours = int(match_no_colon.group(1))
-                minutes = int(match_no_colon.group(2))
-                
-                if 0 <= hours <= 23 and 0 <= minutes <= 59:
-                    timestamp = f"{hours:02d}:{minutes:02d}"
-                    logger.debug(f"コロンなし形式から変換: {text} -> {timestamp}")
-                    return timestamp
-            
-            logger.debug(f"タイムスタンプパターンが見つかりませんでした: '{text}'")
-            return None
-            
+
+                year = digits[0:4]
+                month = digits[4:6]
+                day = digits[6:8]
+                hour = digits[8:10]
+                minute = digits[10:12]
+                second = digits[12:14]
+
+            if second is None:
+                second = '00'
+
+            # 数値化
+            try:
+                year_i = int(year) if year is not None else None
+            except (TypeError, ValueError):
+                year_i = None
+
+            try:
+                month_i = int(month) if month is not None else None
+            except (TypeError, ValueError):
+                month_i = None
+
+            try:
+                day_i = int(day) if day is not None else None
+            except (TypeError, ValueError):
+                day_i = None
+
+            try:
+                hour_i = int(hour)
+                minute_i = int(minute)
+                second_i = int(second)
+            except (TypeError, ValueError):
+                logger.debug(f"時刻部分の数値化に失敗: '{normalized}'")
+                return None
+
+            fallback_dt = self._last_timestamp
+
+            if not (0 <= hour_i <= 23 and 0 <= minute_i <= 59 and 0 <= second_i <= 59):
+                logger.debug(
+                    "無効な時刻値を検出: %s:%s:%s", hour, minute, second
+                )
+                if fallback_dt is None:
+                    return None
+                hour_i = fallback_dt.hour
+                minute_i = fallback_dt.minute
+                second_i = fallback_dt.second
+
+            if year_i is None or not (2000 <= year_i <= 2100):
+                if fallback_dt is not None:
+                    year_i = fallback_dt.year
+                else:
+                    logger.debug(f"年の解析に失敗: '{normalized}'")
+                    return None
+
+            if month_i is None or not (1 <= month_i <= 12):
+                if fallback_dt is not None:
+                    month_i = fallback_dt.month
+                else:
+                    logger.debug(f"月の解析に失敗: '{normalized}'")
+                    return None
+
+            if day_i is None or not (1 <= day_i <= 31):
+                if fallback_dt is not None:
+                    day_i = fallback_dt.day
+                else:
+                    logger.debug(f"日の解析に失敗: '{normalized}'")
+                    return None
+
+            try:
+                candidate = datetime(year_i, month_i, day_i, hour_i, minute_i, second_i)
+            except ValueError:
+                logger.debug(
+                    "無効な日付/時刻として破棄: %04d/%02d/%02d %02d:%02d:%02d",
+                    year_i,
+                    month_i,
+                    day_i,
+                    hour_i,
+                    minute_i,
+                    second_i,
+                )
+                if fallback_dt is None:
+                    return None
+                candidate = fallback_dt.replace(
+                    hour=hour_i,
+                    minute=minute_i,
+                    second=second_i,
+                    microsecond=0,
+                )
+
+            if fallback_dt is not None:
+                if candidate < fallback_dt - timedelta(hours=12):
+                    candidate += timedelta(days=1)
+                elif candidate > fallback_dt + timedelta(hours=12):
+                    candidate -= timedelta(days=1)
+
+            result = candidate.strftime(self.TIMESTAMP_FORMAT)
+            self._last_timestamp = candidate
+            return result
+
         except Exception as e:
             logger.error(f"タイムスタンプのパース中にエラーが発生しました: {e}")
             return None
@@ -261,7 +443,7 @@ class TimestampExtractor:
             # OCR実行（詳細データ付き）
             ocr_data = pytesseract.image_to_data(
                 preprocessed,
-                config='--psm 7 --oem 3 -c tessedit_char_whitelist=0123456789:',
+                config='--psm 7 --oem 3 -c tessedit_char_whitelist=0123456789:/',
                 output_type=pytesseract.Output.DICT
             )
             
@@ -302,9 +484,19 @@ class TimestampExtractor:
                 self._debug_counter += 1
             roi_path = self._debug_dir / f"{frame_tag}_roi.png"
             cv2.imwrite(str(roi_path), roi_image)
+
+            debug_images = getattr(self, "_last_preprocess_debug", {})
+
             if self._debug_save_intermediate:
-                preprocessed_path = self._debug_dir / f"{frame_tag}_preprocessed.png"
-                cv2.imwrite(str(preprocessed_path), preprocessed)
+                if preprocessed is not None:
+                    preprocessed_path = self._debug_dir / f"{frame_tag}_preprocessed.png"
+                    cv2.imwrite(str(preprocessed_path), preprocessed)
+
+                for name, image in debug_images.items():
+                    if image is None:
+                        continue
+                    debug_path = self._debug_dir / f"{frame_tag}_{name}.png"
+                    cv2.imwrite(str(debug_path), image)
             if self._debug_save_overlay:
                 overlay = frame.copy()
                 x, y, w, h = roi_bounds

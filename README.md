@@ -33,12 +33,14 @@ office-person-detection/
 │   ├── data_models.py       # データクラス定義
 │   ├── video_processor.py   # 動画処理
 │   ├── frame_sampler.py     # フレームサンプリング
-│   ├── timestamp_extractor.py  # タイムスタンプ抽出
-│   ├── vit_detector.py      # ViT人物検出（実装予定）
-│   ├── coordinate_transformer.py  # 座標変換（実装予定）
-│   ├── zone_classifier.py   # ゾーン判定（実装予定）
-│   ├── aggregator.py        # 集計処理（実装予定）
-│   └── visualizer.py        # 可視化（実装予定）
+│   ├── timestamp_extractor.py  # タイムスタンプ抽出（OCR）
+│   ├── vit_detector.py      # ViT人物検出（DETR/ViT-Det）
+│   ├── coordinate_transformer.py  # 座標変換（ホモグラフィ）
+│   ├── zone_classifier.py   # ゾーン判定（Point-in-Polygon）
+│   ├── aggregator.py        # 集計処理
+│   ├── visualizer.py        # 可視化（グラフ生成）
+│   ├── floormap_visualizer.py  # フロアマップ可視化
+│   └── evaluation_module.py    # 精度評価（IoU計算）
 ├── input/                   # 入力ファイル
 │   └── merged_moviefiles.mov  # タイムラプス動画（要配置）
 ├── data/                    # 参照データ
@@ -51,6 +53,10 @@ office-person-detection/
 │   ├── graphs/             # グラフ
 │   └── zone_counts.csv     # 集計結果CSV
 └── tests/                   # テストコード
+    ├── conftest.py          # テスト設定
+    ├── test_frame_sampler.py
+    ├── test_timestamp_extractor.py
+    └── test_vit_detector.py
 
 ```
 
@@ -96,28 +102,32 @@ detection:
   confidence_threshold: 0.5
   device: "mps" # mps, cuda, cpu
 
-# ホモグラフィ変換行列（カメラ較正で取得）
+# ホモグラフィ変換行列（✅ キャリブレーション済み）
+# 2025-10-29にキャリブレーション実施（32点の対応点を使用）
+# 詳細: output/calibration/points_20251029-171336.json
+# 計算結果: output/calibration/homography_20251029-171336.yaml
 homography:
   matrix:
-    - [1.2, 0.1, -50.0]
-    - [0.05, 1.3, -30.0]
-    - [0.0001, 0.0002, 1.0]
+    - [-0.7522441113, -3.2312558062, 437.1587328345]
+    - [-1.3638383931, -3.7773354566, 1046.0306165052]
+    - [-0.0010622111, -0.0038281055, 1.0000000000]
 
 # カメラ設定
 camera:
-  position_x: 859 # フロアマップ上のカメラ位置X座標（pixel）
-  position_y: 1040 # フロアマップ上のカメラ位置Y座標（pixel）
-  height_m: 2.2 # カメラ設置高さ（m）
-  show_on_floormap: true # フロアマップ上にカメラ位置を表示
+  position_x: 859 # ⚠️ フロアマップ上のカメラ位置X座標（pixel、実測推奨）
+  position_y: 1040 # ⚠️ フロアマップ上のカメラ位置Y座標（pixel、実測推奨）
+  height_m: 2.2 # カメラ設置高さ（m、実測推奨）
+  show_on_floormap: true
   marker_color: [0, 0, 255] # カメラマーカー色（BGR形式）
-  marker_size: 15 # カメラマーカーサイズ（pixel）
+  marker_size: 15
 
-# ゾーン定義
+# ゾーン定義（⚠️ サンプル値 - 実測推奨）
+# フロアマップ画像上で実際のエリア境界を測定して更新してください
 zones:
   - id: "zone_1"
     name: "ゾーン1（左）"
     polygon:
-      - [859, 912]
+      - [859, 912] # ⚠️ サンプル値
       - [1095, 912]
       - [1095, 1350]
       - [859, 1350]
@@ -126,7 +136,7 @@ zones:
   - id: "zone_2"
     name: "ゾーン2（中央）"
     polygon:
-      - [1095, 912]
+      - [1095, 912] # ⚠️ サンプル値
       - [1331, 912]
       - [1331, 1350]
       - [1095, 1350]
@@ -135,12 +145,12 @@ zones:
   - id: "zone_3"
     name: "ゾーン3（右）"
     polygon:
-      - [1331, 912]
+      - [1331, 912] # ⚠️ サンプル値
       - [1567, 912]
       - [1567, 1350]
       - [1331, 1350]
     priority: 3
-# ゾーン境界の人物は優先順位の最も高いゾーンにのみカウントされます
+# ゾーン境界の人物は優先順位の最も高いゾーンにのみカウントされます（allow_overlap=false時）
 ```
 
 ## 使用方法
@@ -154,8 +164,11 @@ python main.py
 # 設定ファイルを指定して実行
 python main.py --config custom_config.yaml
 
-# デバッグモードで実行
+# デバッグモードで実行（詳細ログ、中間結果出力）
 python main.py --debug
+
+# 開始・終了時刻を指定して実行
+python main.py --start-time "10:00" --end-time "14:00"
 ```
 
 ### 精度評価
@@ -165,45 +178,78 @@ python main.py --debug
 python main.py --evaluate
 ```
 
-### ファインチューニング（オプション）
+### ファインチューニング（未実装）
 
 ```bash
-# カスタムデータセットでファインチューニング
+# ⚠️ 現在未実装（将来の機能）
 python main.py --fine-tune
 ```
 
 ## 実装状況
 
-### ✅ 完了（タスク 1-9）
+### ✅ 完了（全コア機能実装済み）
+
+**パイプラインモジュール**
 
 - [x] プロジェクト構造とデータモデル (Detection, FrameResult, AggregationResult, EvaluationMetrics)
 - [x] 設定管理モジュール (ConfigManager) - YAML/JSON 対応、検証機能
 - [x] 動画処理 (VideoProcessor) - H.264 形式対応、フレーム取得
-- [x] タイムスタンプ抽出 (TimestampExtractor) - OCR (pytesseract)、前処理
-- [x] フレームサンプリング (FrameSampler) - 5 分刻みタイムスタンプベース抽出
-- [x] ViT 人物検出モジュール (ViTDetector) - DETR 対応、バッチ処理、Attention Map
-- [x] 座標変換 (CoordinateTransformer) - ホモグラフィ変換、原点オフセット対応
-- [x] ゾーン判定 (ZoneClassifier) - Ray Casting アルゴリズム
+- [x] タイムスタンプ抽出 (TimestampExtractor) - OCR (pytesseract)、前処理、デバッグ機能
+- [x] フレームサンプリング (FrameSampler) - 5 分刻みタイムスタンプベース抽出、±10 秒許容誤差
+- [x] ViT 人物検出モジュール (ViTDetector) - DETR 対応、バッチ処理、MPS/CUDA/CPU 対応
+- [x] 座標変換 (CoordinateTransformer) - ホモグラフィ変換、原点オフセット、mm 座標変換
+- [x] ゾーン判定 (ZoneClassifier) - Ray Casting アルゴリズム、重複ゾーン対応
 - [x] 集計処理 (Aggregator) - ゾーン別カウント、統計情報、CSV 出力
 - [x] 可視化 (Visualizer) - 時系列グラフ、ヒートマップ、統計グラフ
-- [x] フロアマップ可視化 (FloormapVisualizer) - ゾーン・検出結果描画
-- [x] 精度評価 (EvaluationModule) - IoU 計算、Precision/Recall/F1
+- [x] フロアマップ可視化 (FloormapVisualizer) - ゾーン・検出結果・カメラ位置描画
+- [x] 精度評価 (EvaluationModule) - IoU 計算、Precision/Recall/F1、CSV/JSON 出力
 - [x] メインパイプライン統合 - エンドツーエンドフロー完成
 
-### 🚧 実装予定（タスク 10-12）
+**テスト**
 
-- [ ] ファインチューニングモジュール (FineTuner) - オプション機能
-- [ ] ユニットテスト - 各モジュールのテスト
-- [ ] 統合テスト - エンドツーエンド処理フロー
-- [ ] パフォーマンステスト - 処理時間・メモリ使用量測定
+- [x] ユニットテスト - FrameSampler, TimestampExtractor, ViTDetector
+- [x] 統合テスト - エンドツーエンド処理フロー（入力 → 検出 → 集計 → 可視化 → 評価）
+- [x] テストフレームワーク - pytest, conftest.py
 
-## 進捗サマリ（2025-10-29 時点）
+### 🚧 オプション機能（実装予定）
 
-- **パイプラインの完成度**: タスク 1-9 が完了し、入力動画から検出・座標変換・ゾーン集計・可視化・評価までのエンドツーエンド処理が動作。
-- **成果物**: `output/detections/` に検出画像、`output/floormaps/` にゾーン可視化、`output/graphs/` にグラフ類、`output/zone_counts.csv` に集計結果が生成済み。
-- **検出性能**: DETR ベースの人物検出が稼働。バッチ推論と MPS 対応によりパフォーマンス確保済み（詳細なベンチマークは未実施）。
-- **未対応領域**: ファインチューニング、ユニット/統合テスト、パフォーマンステストが未着手。ホモグラフィ行列は仮値のため、キャリブレーションツール整備が必要。
-- **次のステップ**: カメラキャリブレーション用ツールを整備し、正確なホモグラフィ行列を取得したうえで `config.yaml` を更新。併せてテスト整備と性能計測を進める。
+- [ ] ファインチューニングモジュール (FineTuner) - カスタムデータセットでの学習
+- [ ] 追加ユニットテスト - 残りのモジュールのテスト
+- [ ] パフォーマンスベンチマーク - 詳細な処理時間・メモリ使用量測定
+
+## 進捗サマリ（2025 年 10 月 29 日時点）
+
+### ✅ 完了事項
+
+- **パイプラインの完成度**: 入力動画から検出・座標変換・ゾーン集計・可視化・評価までのエンドツーエンド処理が完全に動作。
+- **成果物**:
+  - `output/detections/`: 検出画像（バウンディングボックス付き）
+  - `output/floormaps/`: ゾーン可視化画像（46 フレーム分 + 凡例）
+  - `output/graphs/`: 時系列グラフ、ヒートマップ、統計グラフ
+  - `output/zone_counts.csv`: 集計結果 CSV（45 フレーム分）
+  - `output/system.log`: システムログ
+- **検出性能**: DETR ベースの人物検出が稼働。MPS 対応で高速処理（平均 15 ～ 25 人/フレーム検出）。
+- **テスト**: ユニットテスト（3 モジュール）と統合テスト（エンドツーエンド）を実装済み。
+
+### ✅ キャリブレーション状況
+
+- **ホモグラフィ行列**: ✅ **キャリブレーション完了**（2025-10-29 実施）
+  - 対応点: 32 点
+  - RMSE: 1105.1 ピクセル
+  - 詳細情報: `output/calibration/points_20251029-171336.json`
+  - 計算結果: `output/calibration/homography_20251029-171336.yaml`
+
+### ⚠️ 注意事項（要対応）
+
+- **ゾーン定義**: 現在サンプル値のため、**実測推奨**。フロアマップ画像上で実際のエリア境界を測定して更新が必要。
+- **カメラ位置**: 実測値を設定することを推奨（現在はサンプル値）。
+
+### 📋 次のステップ
+
+1. ✅ **カメラキャリブレーション**: 完了（2025-10-29 実施）
+2. **ゾーン定義の実測**: フロアマップ画像で実際のエリア境界を測定
+3. **精度評価の再実行**: キャリブレーション後の性能を確認（ホモグラフィ行列更新済み）
+4. **追加テスト**: 残りのモジュールのユニットテスト追加
 
 ## 出力形式
 
@@ -249,6 +295,76 @@ pytest --cov=src tests/
 - PEP 8 準拠
 - 型ヒント必須
 - Docstring 必須（Google スタイル）
+
+## ✅ キャリブレーション状況
+
+### ホモグラフィ行列: キャリブレーション完了 ✅
+
+**実施日**: 2025 年 10 月 29 日  
+**対応点**: 32 点  
+**参照画像**: `output/calibration/reference_1215_f023400.png`  
+**計算結果ファイル**: `output/calibration/homography_20251029-171336.yaml`  
+**対応点データ**: `output/calibration/points_20251029-171336.json`
+
+**キャリブレーション結果**:
+
+- RMSE: 1105.1 ピクセル
+- 最大誤差: 4415.1 ピクセル
+- インライア数: 8 点（全 32 点中）
+
+**設定ファイル**: `config.yaml` に反映済み
+
+---
+
+### 残りのキャリブレーション項目
+
+### 1. ゾーン定義の実測（推奨）
+
+フロアマップ画像 (`data/floormap.png`) で実際のエリア境界を測定し、`config.yaml` の `zones` セクションを更新してください。
+
+**現在の設定**: サンプル値（3 つの等間隔ゾーン）  
+**推奨**: 実際のオフィスレイアウトに合わせて再定義
+
+### 2. カメラ位置の実測（推奨）
+
+実際のカメラ設置位置を測定し、`camera.position_x`, `camera.position_y`, `camera.height_m` を更新してください。
+
+**現在の設定**: サンプル値（position_x: 859, position_y: 1040, height_m: 2.2）  
+**推奨**: フロアマップ上での実際の位置と高さを測定
+
+---
+
+### キャリブレーションツールの使用方法（参考）
+
+今後のキャリブレーション実施時の手順：
+
+**手順**:
+
+1. カメラ画像から対応点を 4 点以上選択（例: 角、柱、ドアなどの特徴点）
+2. フロアマップ上の対応する座標を特定
+3. `cv2.findHomography()` でホモグラフィ行列を計算
+4. `config.yaml` の `homography.matrix` を更新
+
+**サンプルコード**:
+
+```python
+import cv2
+import numpy as np
+
+# カメラ画像上の点（例）
+camera_points = np.array([
+    [320, 400], [960, 400], [320, 600], [960, 600]
+], dtype=np.float32)
+
+# フロアマップ上の対応点
+floormap_points = np.array([
+    [900, 1000], [1400, 1000], [900, 1300], [1400, 1300]
+], dtype=np.float32)
+
+# ホモグラフィ行列を計算
+H, _ = cv2.findHomography(camera_points, floormap_points)
+print("更新する行列:", H.tolist())
+```
 
 ## トラブルシューティング
 

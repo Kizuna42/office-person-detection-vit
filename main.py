@@ -8,6 +8,7 @@ Vision Transformer (ViT) ベースの物体検出モデルを使用して、
 """
 
 import argparse
+import json
 import logging
 import sys
 from pathlib import Path
@@ -131,6 +132,8 @@ def process_detections(
     Returns:
         検出結果のリスト [(frame_num, timestamp, detections), ...]
     """
+    import gc
+    
     results = []
     batch_size = config.get('detection.batch_size', 4)
     save_detection_images = config.get('output.save_detection_images', True)
@@ -160,6 +163,12 @@ def process_detections(
                         frame, detections, timestamp,
                         output_dir / 'detections', logger
                     )
+            
+            # バッチ処理後のメモリ解放
+            del batch_frames, batch_detections
+            # 定期的にガベージコレクションを実行
+            if (i // batch_size + 1) % 10 == 0:
+                gc.collect()
                     
         except Exception as e:
             logger.error(f"バッチ {i//batch_size + 1} の検出処理に失敗しました: {e}", exc_info=True)
@@ -167,6 +176,9 @@ def process_detections(
             for frame_num, timestamp, _ in batch:
                 results.append((frame_num, timestamp, []))
                 logger.warning(f"フレーム #{frame_num} をスキップしました")
+        finally:
+            # バッチ変数のクリーンアップ
+            del batch
     
     return results
 
@@ -192,35 +204,39 @@ def save_detection_image(
     try:
         output_dir.mkdir(parents=True, exist_ok=True)
         
-        # フレームをコピー
+        # フレームをコピー（描画用）
         result_image = frame.copy()
         
-        # バウンディングボックスを描画
-        for detection in detections:
-            x, y, w, h = detection.bbox
-            x, y, w, h = int(x), int(y), int(w), int(h)
+        try:
+            # バウンディングボックスを描画
+            for detection in detections:
+                x, y, w, h = detection.bbox
+                x, y, w, h = int(x), int(y), int(w), int(h)
+                
+                # ボックスを描画
+                cv2.rectangle(result_image, (x, y), (x + w, y + h), (0, 255, 0), 2)
+                
+                # 信頼度を表示
+                label = f"Person {detection.confidence:.2f}"
+                cv2.putText(
+                    result_image, label, (x, y - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2
+                )
+                
+                # 足元座標を描画
+                foot_x, foot_y = detection.camera_coords
+                cv2.circle(result_image, (int(foot_x), int(foot_y)), 5, (0, 0, 255), -1)
             
-            # ボックスを描画
-            cv2.rectangle(result_image, (x, y), (x + w, y + h), (0, 255, 0), 2)
+            # ファイル名を生成
+            filename = f"detection_{timestamp.replace(':', '')}.jpg"
+            output_path = output_dir / filename
             
-            # 信頼度を表示
-            label = f"Person {detection.confidence:.2f}"
-            cv2.putText(
-                result_image, label, (x, y - 10),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2
-            )
-            
-            # 足元座標を描画
-            foot_x, foot_y = detection.camera_coords
-            cv2.circle(result_image, (int(foot_x), int(foot_y)), 5, (0, 0, 255), -1)
-        
-        # ファイル名を生成
-        filename = f"detection_{timestamp.replace(':', '')}.jpg"
-        output_path = output_dir / filename
-        
-        # 保存
-        cv2.imwrite(str(output_path), result_image)
-        logger.debug(f"検出画像を保存しました: {output_path}")
+            # 保存
+            cv2.imwrite(str(output_path), result_image)
+            logger.debug(f"検出画像を保存しました: {output_path}")
+        finally:
+            # 描画用画像の参照を削除（メモリ節約）
+            del result_image
         
     except Exception as e:
         logger.error(f"検出画像の保存に失敗しました: {e}")
@@ -393,15 +409,65 @@ def main():
         # 人物検出実行
         detection_results = process_detections(sample_frames, detector, config, logger)
         
-        # 統計情報を表示
+        # 統計情報を計算
         total_detections = sum(len(dets) for _, _, dets in detection_results)
         avg_detections = total_detections / len(detection_results) if detection_results else 0
         
+        # 信頼度スコアの統計を計算
+        all_confidences = []
+        for _, _, detections in detection_results:
+            for detection in detections:
+                all_confidences.append(detection.confidence)
+        
+        if all_confidences:
+            confidence_stats = {
+                'total_detections': total_detections,
+                'avg_detections_per_frame': float(avg_detections),
+                'confidence': {
+                    'mean': float(np.mean(all_confidences)),
+                    'min': float(np.min(all_confidences)),
+                    'max': float(np.max(all_confidences)),
+                    'std': float(np.std(all_confidences)),
+                    'median': float(np.median(all_confidences))
+                },
+                'frame_count': len(detection_results)
+            }
+        else:
+            confidence_stats = {
+                'total_detections': 0,
+                'avg_detections_per_frame': 0.0,
+                'confidence': {
+                    'mean': 0.0,
+                    'min': 0.0,
+                    'max': 0.0,
+                    'std': 0.0,
+                    'median': 0.0
+                },
+                'frame_count': len(detection_results)
+            }
+        
+        # 統計情報を表示
         logger.info("=" * 80)
         logger.info("検出統計:")
         logger.info(f"  総検出数: {total_detections}人")
         logger.info(f"  平均検出数: {avg_detections:.2f}人/フレーム")
+        if all_confidences:
+            logger.info(f"  信頼度スコア統計:")
+            logger.info(f"    平均: {confidence_stats['confidence']['mean']:.4f}")
+            logger.info(f"    最小: {confidence_stats['confidence']['min']:.4f}")
+            logger.info(f"    最大: {confidence_stats['confidence']['max']:.4f}")
+            logger.info(f"    標準偏差: {confidence_stats['confidence']['std']:.4f}")
+            logger.info(f"    中央値: {confidence_stats['confidence']['median']:.4f}")
         logger.info("=" * 80)
+        
+        # 統計情報をJSONファイルに出力
+        detection_stats_path = output_path / 'detection_statistics.json'
+        try:
+            with open(detection_stats_path, 'w', encoding='utf-8') as f:
+                json.dump(confidence_stats, f, indent=2, ensure_ascii=False)
+            logger.info(f"検出統計情報をJSONに出力しました: {detection_stats_path}")
+        except Exception as e:
+            logger.error(f"検出統計情報のJSON出力に失敗しました: {e}")
         
         # ========================================
         # フェーズ3: 座標変換とゾーン判定
@@ -472,6 +538,61 @@ def main():
             frame_results.append(frame_result)
         
         logger.info(f"座標変換とゾーン判定が完了: {len(frame_results)}フレーム")
+        
+        # 座標変換結果をJSON形式で出力
+        coordinate_data = []
+        for frame_result in frame_results:
+            frame_data = {
+                'frame_number': frame_result.frame_number,
+                'timestamp': frame_result.timestamp,
+                'detections': []
+            }
+            
+            for detection in frame_result.detections:
+                detection_data = {
+                    'bbox': {
+                        'x': float(detection.bbox[0]),
+                        'y': float(detection.bbox[1]),
+                        'width': float(detection.bbox[2]),
+                        'height': float(detection.bbox[3])
+                    },
+                    'confidence': float(detection.confidence),
+                    'camera_coords': {
+                        'x': float(detection.camera_coords[0]),
+                        'y': float(detection.camera_coords[1])
+                    }
+                }
+                
+                # フロアマップ座標が存在する場合のみ追加
+                if detection.floor_coords is not None:
+                    detection_data['floor_coords'] = {
+                        'x': float(detection.floor_coords[0]),
+                        'y': float(detection.floor_coords[1])
+                    }
+                
+                if detection.floor_coords_mm is not None:
+                    detection_data['floor_coords_mm'] = {
+                        'x': float(detection.floor_coords_mm[0]),
+                        'y': float(detection.floor_coords_mm[1])
+                    }
+                
+                if detection.zone_ids:
+                    detection_data['zone_ids'] = detection.zone_ids
+                
+                frame_data['detections'].append(detection_data)
+            
+            coordinate_data.append(frame_data)
+        
+        # JSONファイルに出力
+        coordinate_output_path = output_path / 'coordinate_transformations.json'
+        try:
+            with open(coordinate_output_path, 'w', encoding='utf-8') as f:
+                json.dump(coordinate_data, f, indent=2, ensure_ascii=False)
+            logger.info(f"座標変換結果をJSONに出力しました: {coordinate_output_path}")
+            logger.info(f"  出力フレーム数: {len(coordinate_data)}")
+            logger.info(f"  総検出数: {sum(len(f['detections']) for f in coordinate_data)}")
+        except Exception as e:
+            logger.error(f"座標変換結果のJSON出力に失敗しました: {e}")
         
         # ========================================
         # フェーズ4: 集計とレポート生成
@@ -598,6 +719,8 @@ def main():
         logger.error(f"予期しないエラーが発生しました: {e}", exc_info=True)
         return 1
     finally:
+        import gc
+        
         # リソースのクリーンアップ
         if video_processor is not None:
             try:
@@ -616,6 +739,24 @@ def main():
                         torch.cuda.empty_cache()
             except Exception as e:
                 logger.error(f"メモリ解放中にエラーが発生しました: {e}")
+        
+        # 大きなデータ構造のクリーンアップ
+        try:
+            # ローカル変数を削除（大きなデータ構造）
+            if 'sample_frames' in locals():
+                del sample_frames
+            if 'detection_results' in locals():
+                del detection_results
+            if 'frame_results' in locals():
+                del frame_results
+            if 'aggregator' in locals():
+                del aggregator
+            
+            # ガベージコレクションを実行
+            gc.collect()
+            logger.debug("メモリクリーンアップを実行しました")
+        except Exception as e:
+            logger.debug(f"メモリクリーンアップ中にエラーが発生しました: {e}")
 
 
 if __name__ == "__main__":

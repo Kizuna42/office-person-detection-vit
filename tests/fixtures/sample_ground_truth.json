@@ -1,0 +1,22 @@
+{
+  "images": [
+    {
+      "id": 1,
+      "file_name": "frame1.jpg"
+    }
+  ],
+  "annotations": [
+    {
+      "id": 1,
+      "image_id": 1,
+      "category_id": 0,
+      "bbox": [100, 200, 50, 100]
+    }
+  ],
+  "categories": [
+    {
+      "id": 0,
+      "name": "person"
+    }
+  ]
+}
