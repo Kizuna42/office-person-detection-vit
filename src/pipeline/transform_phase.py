@@ -1,34 +1,28 @@
 """Transform and zone classification phase of the pipeline."""
 
 import json
-import logging
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 from tqdm import tqdm
 
-from src.config import ConfigManager
 from src.models import Detection, FrameResult
+from src.pipeline.base_phase import BasePhase
 from src.transform import CoordinateTransformer
 from src.zone import ZoneClassifier
 
 
-class TransformPhase:
+class TransformPhase(BasePhase):
     """座標変換とゾーン判定フェーズ"""
     
-    def __init__(
-        self,
-        config: ConfigManager,
-        logger: logging.Logger
-    ):
+    def __init__(self, config, logger):
         """初期化
         
         Args:
             config: ConfigManagerインスタンス
             logger: ロガー
         """
-        self.config = config
-        self.logger = logger
+        super().__init__(config, logger)
         self.coordinate_transformer: Optional[CoordinateTransformer] = None
         self.zone_classifier: Optional[ZoneClassifier] = None
     

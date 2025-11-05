@@ -1,35 +1,27 @@
 """Timestamp OCR-only mode."""
 
 import csv
-import logging
 from pathlib import Path
 from typing import Optional
 
 import cv2
 from tqdm import tqdm
 
-from src.config import ConfigManager
-from src.timestamp import TimestampExtractor
-from src.utils.image_utils import create_timestamp_overlay
-from src.video import FrameSampler, VideoProcessor
+from src.pipeline.base_phase import BasePhase
+from src.utils import create_timestamp_overlay
 
 
-class TimestampOCRMode:
+class TimestampOCRMode(BasePhase):
     """タイムスタンプOCRのみを実行するモード"""
     
-    def __init__(
-        self,
-        config: ConfigManager,
-        logger: logging.Logger
-    ):
+    def __init__(self, config, logger):
         """初期化
         
         Args:
             config: ConfigManagerインスタンス
             logger: ロガー
         """
-        self.config = config
-        self.logger = logger
+        super().__init__(config, logger)
         self.video_processor: Optional[VideoProcessor] = None
     
     def execute(
@@ -57,21 +49,13 @@ class TimestampOCRMode:
         self.logger.info(f"出力ディレクトリ: {output_dir.absolute()}")
         
         try:
-            # 動画処理の初期化
-            video_path = self.config.get('video.input_path')
-            self.logger.info(f"動画ファイル: {video_path}")
+            # 共通の初期化処理を使用
+            self.video_processor, timestamp_extractor, frame_sampler = \
+                self._setup_frame_sampling_components()
             
-            self.video_processor = VideoProcessor(video_path)
-            self.video_processor.open()
-            
-            # タイムスタンプ抽出器の初期化
-            timestamp_extractor = TimestampExtractor()
             roi = timestamp_extractor.roi
-            
-            # フレームサンプラーの初期化
             interval_minutes = self.config.get('video.frame_interval_minutes', 5)
             tolerance_seconds = self.config.get('video.tolerance_seconds', 10)
-            frame_sampler = FrameSampler(interval_minutes, tolerance_seconds)
             
             self.logger.info(f"サンプリング間隔: {interval_minutes}分")
             self.logger.info(f"許容誤差: ±{tolerance_seconds}秒")
@@ -191,9 +175,15 @@ class TimestampOCRMode:
             self.logger.error(f"予期しないエラーが発生しました: {e}", exc_info=True)
             return 1
         finally:
-            if self.video_processor is not None:
-                try:
-                    self.video_processor.release()
-                except Exception as e:
-                    self.logger.error(f"リソース解放中にエラーが発生しました: {e}")
+            self.cleanup()
+    
+    def cleanup(self) -> None:
+        """リソースをクリーンアップ"""
+        if self.video_processor is not None:
+            try:
+                self.video_processor.release()
+            except Exception as e:
+                self.logger.error(f"リソース解放中にエラーが発生しました: {e}")
+            finally:
+                self.video_processor = None
 

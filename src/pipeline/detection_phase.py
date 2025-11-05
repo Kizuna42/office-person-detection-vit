@@ -2,36 +2,32 @@
 
 import gc
 import json
-import logging
 from pathlib import Path
 from typing import List, Optional, Tuple
 
 import numpy as np
 from tqdm import tqdm
 
-from src.config import ConfigManager
 from src.detection import ViTDetector
 from src.models import Detection
-from src.utils.stats_utils import calculate_detection_statistics
-from src.utils.image_utils import save_detection_image
+from src.pipeline.base_phase import BasePhase
+from src.utils import (
+    calculate_detection_statistics,
+    save_detection_image,
+)
 
 
-class DetectionPhase:
+class DetectionPhase(BasePhase):
     """人物検出フェーズ"""
     
-    def __init__(
-        self,
-        config: ConfigManager,
-        logger: logging.Logger
-    ):
+    def __init__(self, config, logger):
         """初期化
         
         Args:
             config: ConfigManagerインスタンス
             logger: ロガー
         """
-        self.config = config
-        self.logger = logger
+        super().__init__(config, logger)
         self.detector: Optional[ViTDetector] = None
     
     def initialize(self) -> None:

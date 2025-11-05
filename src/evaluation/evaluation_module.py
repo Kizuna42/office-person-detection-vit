@@ -312,3 +312,56 @@ class EvaluationModule:
 
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(report, f, indent=2, ensure_ascii=False)
+
+
+def run_evaluation(
+    detection_results: List[Tuple[int, str, List[Detection]]],
+    config,
+    logger: logging.Logger
+) -> None:
+    """精度評価を実行するヘルパー関数
+    
+    Args:
+        detection_results: 検出結果のリスト [(frame_num, timestamp, detections), ...]
+        config: ConfigManager インスタンス
+        logger: ロガー
+    """
+    logger.info("=" * 60)
+    logger.info("精度評価を開始します")
+    logger.info("=" * 60)
+    
+    try:
+        # 評価モジュールの初期化
+        gt_path = config.get('evaluation.ground_truth_path')
+        iou_threshold = config.get('evaluation.iou_threshold', 0.5)
+        
+        evaluator = EvaluationModule(gt_path, iou_threshold)
+        
+        # 検出結果を辞書形式に変換
+        detections_dict = {}
+        for frame_num, timestamp, detections in detection_results:
+            filename = f"frame_{frame_num:06d}_{timestamp.replace(':', 'h')}m.jpg"
+            detections_dict[filename] = detections
+        
+        # 評価実行
+        metrics = evaluator.evaluate(detections_dict)
+        
+        # レポート出力
+        output_dir = Path(config.get('output.directory', 'output'))
+        evaluator.export_report(metrics, str(output_dir / 'evaluation_report.csv'), format='csv')
+        evaluator.export_report(metrics, str(output_dir / 'evaluation_report.json'), format='json')
+        
+        logger.info("=" * 60)
+        logger.info("評価結果:")
+        logger.info(f"  Precision: {metrics.precision:.4f}")
+        logger.info(f"  Recall: {metrics.recall:.4f}")
+        logger.info(f"  F1-score: {metrics.f1_score:.4f}")
+        logger.info(f"  True Positives: {metrics.true_positives}")
+        logger.info(f"  False Positives: {metrics.false_positives}")
+        logger.info(f"  False Negatives: {metrics.false_negatives}")
+        logger.info("=" * 60)
+        
+    except FileNotFoundError as e:
+        logger.error(f"Ground Truthファイルが見つかりません: {e}")
+    except Exception as e:
+        logger.error(f"評価処理中にエラーが発生しました: {e}", exc_info=True)

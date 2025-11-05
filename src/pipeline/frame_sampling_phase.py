@@ -1,32 +1,23 @@
 """Frame sampling phase of the pipeline."""
 
-import logging
-from pathlib import Path
 from typing import List, Optional, Tuple
 
 import numpy as np
 
-from src.config import ConfigManager
-from src.timestamp import TimestampExtractor
-from src.video import FrameSampler, VideoProcessor
+from src.pipeline.base_phase import BasePhase
 
 
-class FrameSamplingPhase:
+class FrameSamplingPhase(BasePhase):
     """フレームサンプリングフェーズ"""
     
-    def __init__(
-        self,
-        config: ConfigManager,
-        logger: logging.Logger
-    ):
+    def __init__(self, config, logger):
         """初期化
         
         Args:
             config: ConfigManagerインスタンス
             logger: ロガー
         """
-        self.config = config
-        self.logger = logger
+        super().__init__(config, logger)
         self.video_processor: Optional[VideoProcessor] = None
     
     def execute(
@@ -47,25 +38,9 @@ class FrameSamplingPhase:
         self.logger.info("フェーズ1: フレームサンプリング")
         self.logger.info("=" * 80)
         
-        # 動画処理の初期化
-        video_path = self.config.get('video.input_path')
-        self.logger.info(f"動画ファイル: {video_path}")
-        
-        self.video_processor = VideoProcessor(video_path)
-        self.video_processor.open()
-        
-        # タイムスタンプ抽出器の初期化
-        timestamp_extractor = TimestampExtractor()
-        output_dir = Path(self.config.get('output.directory', 'output'))
-        
-        if self.config.get('output.debug_mode', False):
-            debug_dir = output_dir / 'debug' / 'timestamps'
-            timestamp_extractor.enable_debug(debug_dir)
-        
-        # フレームサンプラーの初期化
-        interval_minutes = self.config.get('video.frame_interval_minutes', 5)
-        tolerance_seconds = self.config.get('video.tolerance_seconds', 10)
-        frame_sampler = FrameSampler(interval_minutes, tolerance_seconds)
+        # 共通の初期化処理を使用
+        self.video_processor, timestamp_extractor, frame_sampler = \
+            self._setup_frame_sampling_components()
         
         # フレームサンプリング実行
         self.logger.info("フレームサンプリングを開始します...")

@@ -1,33 +1,27 @@
 """Visualization phase of the pipeline."""
 
-import logging
 from pathlib import Path
 from typing import List
 
 from tqdm import tqdm
 
-from src.config import ConfigManager
-from src.models import FrameResult
 from src.aggregation import Aggregator
+from src.models import FrameResult
+from src.pipeline.base_phase import BasePhase
 from src.visualization import FloormapVisualizer, Visualizer
 
 
-class VisualizationPhase:
+class VisualizationPhase(BasePhase):
     """可視化フェーズ"""
     
-    def __init__(
-        self,
-        config: ConfigManager,
-        logger: logging.Logger
-    ):
+    def __init__(self, config, logger):
         """初期化
         
         Args:
             config: ConfigManagerインスタンス
             logger: ロガー
         """
-        self.config = config
-        self.logger = logger
+        super().__init__(config, logger)
     
     def execute(
         self,
