@@ -153,6 +153,10 @@ class ConfigManager:
 
         # 各セクションの必須項目チェック
         for section, required_keys in self.REQUIRED_KEYS.items():
+            # zonesセクションはリスト型なので、辞書型チェックをスキップ
+            if section == "zones":
+                continue
+            
             section_config = self.config.get(section, {})
             if not isinstance(section_config, dict):
                 raise ValueError(f"セクション '{section}' は辞書型である必要があります。")

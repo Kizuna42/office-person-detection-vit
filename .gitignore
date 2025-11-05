@@ -64,6 +64,12 @@ output/floormaps/*.jpg
 output/floormaps/*.png
 output/graphs/*.png
 output/*.csv
+output/*.json
+output/system.log
+
+# Diagnostics and experiment outputs
+output/diagnostics/
+output/calibration/timestamp_debug/
 
 # Keep directory structure but ignore contents
 output/detections/*
