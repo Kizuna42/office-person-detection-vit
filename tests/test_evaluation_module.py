@@ -53,7 +53,7 @@ def test_evaluate_metrics(ground_truth_path: Path):
     detections = {
         "frame1.jpg": [
             _make_detection((100, 200, 50, 100), confidence=0.9),  # True Positive
-            _make_detection((0, 0, 10, 10), confidence=0.8),        # False Positive
+            _make_detection((0, 0, 10, 10), confidence=0.8),  # False Positive
         ]
     }
 
@@ -89,5 +89,3 @@ def test_export_report_csv_and_json(tmp_path: Path, ground_truth_path: Path):
 
     assert csv_path.read_text(encoding="utf-8").startswith("Metric,Value")
     assert json_path.read_text(encoding="utf-8").strip().startswith("{")
-
-

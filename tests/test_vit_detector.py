@@ -88,13 +88,21 @@ def test_detect_batch(mock_preprocess_batch, mock_postprocess_batch, sample_fram
     first_call_frames = mock_preprocess_batch.call_args_list[0].args[0]
     second_call_frames = mock_preprocess_batch.call_args_list[1].args[0]
 
-    assert all(actual is expected for actual, expected in zip(first_call_frames, frames[:2]))
-    assert all(actual is expected for actual, expected in zip(second_call_frames, frames[2:]))
+    assert all(
+        actual is expected for actual, expected in zip(first_call_frames, frames[:2])
+    )
+    assert all(
+        actual is expected for actual, expected in zip(second_call_frames, frames[2:])
+    )
 
     first_model_kwargs = detector.model.call_args_list[0].kwargs
     second_model_kwargs = detector.model.call_args_list[1].kwargs
-    assert np.array_equal(first_model_kwargs["pixel_values"], first_batch_inputs["pixel_values"])
-    assert np.array_equal(second_model_kwargs["pixel_values"], second_batch_inputs["pixel_values"])
+    assert np.array_equal(
+        first_model_kwargs["pixel_values"], first_batch_inputs["pixel_values"]
+    )
+    assert np.array_equal(
+        second_model_kwargs["pixel_values"], second_batch_inputs["pixel_values"]
+    )
     assert detector.model.call_count == 2
 
     first_post_call = mock_postprocess_batch.call_args_list[0].args
@@ -113,5 +121,3 @@ def test_get_foot_position():
     detector = ViTDetector(device="cpu")
     foot = detector._get_foot_position((100.0, 200.0, 50.0, 100.0))
     assert foot == (125.0, 300.0)
-
-

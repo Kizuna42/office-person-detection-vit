@@ -84,5 +84,3 @@ def test_is_within_bounds():
     assert transformer.is_within_bounds((10.0, 10.0))
     assert not transformer.is_within_bounds((150.0, 10.0))
     assert not transformer.is_within_bounds((10.0, -1.0))
-
-

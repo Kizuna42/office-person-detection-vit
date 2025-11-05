@@ -1,0 +1,194 @@
+# オフィス人物検出システム - Makefile
+# Office Person Detection System - Makefile
+
+# Python実行コマンド（venvが存在する場合は優先）
+PYTHON := $(shell if [ -f venv/bin/python ]; then echo "venv/bin/python"; else echo "python3"; fi)
+
+# 設定ファイル（デフォルト）
+CONFIG := config.yaml
+
+# デフォルトターゲット
+.DEFAULT_GOAL := help
+
+# ========================================
+# ワークフロー実行コマンド
+# ========================================
+
+.PHONY: run
+run: ## 通常実行（メインパイプライン）
+	@echo "=========================================="
+	@echo "ワークフロー実行: 通常モード"
+	@echo "=========================================="
+	$(PYTHON) main.py --config $(CONFIG)
+
+.PHONY: run-debug
+run-debug: ## デバッグモードで実行（詳細ログ、中間結果出力）
+	@echo "=========================================="
+	@echo "ワークフロー実行: デバッグモード"
+	@echo "=========================================="
+	$(PYTHON) main.py --config $(CONFIG) --debug
+
+.PHONY: run-eval
+run-eval: ## 評価モードで実行（Ground Truthとの比較）
+	@echo "=========================================="
+	@echo "ワークフロー実行: 評価モード"
+	@echo "=========================================="
+	$(PYTHON) main.py --config $(CONFIG) --evaluate
+
+.PHONY: run-time
+run-time: ## 時刻指定で実行（例: make run-time START_TIME=10:00 END_TIME=14:00）
+	@if [ -z "$(START_TIME)" ] || [ -z "$(END_TIME)" ]; then \
+		echo "エラー: START_TIMEとEND_TIMEを指定してください"; \
+		echo "例: make run-time START_TIME=10:00 END_TIME=14:00"; \
+		exit 1; \
+	fi
+	@echo "=========================================="
+	@echo "ワークフロー実行: 時刻指定モード"
+	@echo "開始時刻: $(START_TIME)"
+	@echo "終了時刻: $(END_TIME)"
+	@echo "=========================================="
+	$(PYTHON) main.py --config $(CONFIG) --start-time $(START_TIME) --end-time $(END_TIME)
+
+# ========================================
+# クリーンアップコマンド
+# ========================================
+
+.PHONY: clean
+clean: ## outputディレクトリ内の生成ファイルを削除（labels/result_fixed.jsonとcalibration/は保持）
+	@echo "=========================================="
+	@echo "outputディレクトリをクリーンアップ中..."
+	@echo "=========================================="
+	@if [ -d output ]; then \
+		find output -type f -name "*.jpg" -o -name "*.png" -o -name "*.csv" -o -name "*.json" -o -name "*.log" | \
+		grep -v "labels/result_fixed.json" | \
+		grep -v "calibration/" | \
+		xargs rm -f 2>/dev/null || true; \
+		find output -type d -empty -delete 2>/dev/null || true; \
+		echo "✓ outputディレクトリをクリーンアップしました"; \
+	else \
+		echo "✓ outputディレクトリが存在しません"; \
+	fi
+
+.PHONY: clean-all
+clean-all: clean clean-cache ## output + Pythonキャッシュを削除
+
+.PHONY: clean-cache
+clean-cache: ## Pythonキャッシュ（__pycache__、*.pyc）を削除
+	@echo "=========================================="
+	@echo "Pythonキャッシュをクリーンアップ中..."
+	@echo "=========================================="
+	@find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+	@find . -type f -name "*.pyc" -delete 2>/dev/null || true
+	@find . -type f -name "*.pyo" -delete 2>/dev/null || true
+	@find . -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true
+	@find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
+	@find . -type d -name ".mypy_cache" -exec rm -rf {} + 2>/dev/null || true
+	@find . -type d -name ".coverage" -exec rm -rf {} + 2>/dev/null || true
+	@find . -type d -name "htmlcov" -exec rm -rf {} + 2>/dev/null || true
+	@echo "✓ Pythonキャッシュをクリーンアップしました"
+
+# ========================================
+# テストコマンド
+# ========================================
+
+.PHONY: test
+test: ## 全テストを実行
+	@echo "=========================================="
+	@echo "テスト実行中..."
+	@echo "=========================================="
+	$(PYTHON) -m pytest tests/ -v
+
+.PHONY: test-cov
+test-cov: ## カバレッジ付きでテスト実行
+	@echo "=========================================="
+	@echo "カバレッジ付きテスト実行中..."
+	@echo "=========================================="
+	$(PYTHON) -m pytest tests/ --cov=src --cov-report=html --cov-report=term -v
+	@echo ""
+	@echo "カバレッジレポート: htmlcov/index.html を開いてください"
+
+.PHONY: test-verbose
+test-verbose: ## 詳細出力付きでテスト実行
+	@echo "=========================================="
+	@echo "詳細出力付きテスト実行中..."
+	@echo "=========================================="
+	$(PYTHON) -m pytest tests/ -vv -s
+
+# ========================================
+# セットアップコマンド
+# ========================================
+
+.PHONY: install
+install: ## 依存関係をインストール
+	@echo "=========================================="
+	@echo "依存関係をインストール中..."
+	@echo "=========================================="
+	pip install -r requirements.txt
+	@echo "✓ 依存関係のインストールが完了しました"
+
+.PHONY: help
+help: ## 利用可能なコマンド一覧を表示
+	@echo "=========================================="
+	@echo "オフィス人物検出システム - Makefile"
+	@echo "=========================================="
+	@echo ""
+	@echo "利用可能なコマンド:"
+	@echo ""
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
+		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	@echo ""
+	@echo "例:"
+	@echo "  make run                    # 通常実行"
+	@echo "  make run-debug              # デバッグモード"
+	@echo "  make run-time START_TIME=10:00 END_TIME=14:00  # 時刻指定"
+	@echo "  make clean                  # outputクリーンアップ"
+	@echo "  make test                   # テスト実行"
+	@echo ""
+
+# ========================================
+# その他の便利コマンド
+# ========================================
+
+.PHONY: lint
+lint: ## Lintチェック（flake8、black、mypy）
+	@echo "=========================================="
+	@echo "Lintチェック実行中..."
+	@echo "=========================================="
+	@if command -v flake8 >/dev/null 2>&1; then \
+		echo "✓ flake8チェック中..."; \
+		flake8 src/ tests/ --max-line-length=120 --exclude=venv,__pycache__ || true; \
+	else \
+		echo "⚠ flake8がインストールされていません（スキップ）"; \
+	fi
+	@if command -v black >/dev/null 2>&1; then \
+		echo "✓ blackチェック中..."; \
+		black --check src/ tests/ || true; \
+	else \
+		echo "⚠ blackがインストールされていません（スキップ）"; \
+	fi
+	@if command -v mypy >/dev/null 2>&1; then \
+		echo "✓ mypyチェック中..."; \
+		mypy src/ --ignore-missing-imports || true; \
+	else \
+		echo "⚠ mypyがインストールされていません（スキップ）"; \
+	fi
+
+.PHONY: format
+format: ## コードフォーマット（black、isort）
+	@echo "=========================================="
+	@echo "コードフォーマット実行中..."
+	@echo "=========================================="
+	@if command -v black >/dev/null 2>&1; then \
+		echo "✓ blackでフォーマット中..."; \
+		black src/ tests/; \
+	else \
+		echo "⚠ blackがインストールされていません（スキップ）"; \
+	fi
+	@if command -v isort >/dev/null 2>&1; then \
+		echo "✓ isortでインポート整理中..."; \
+		isort src/ tests/; \
+	else \
+		echo "⚠ isortがインストールされていません（スキップ）"; \
+	fi
+	@echo "✓ フォーマットが完了しました"
+

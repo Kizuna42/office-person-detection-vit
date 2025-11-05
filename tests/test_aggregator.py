@@ -92,5 +92,3 @@ def test_clear_resets_state():
 
     assert aggregator.results == []
     assert len(aggregator._zone_data) == 0
-
-

@@ -71,5 +71,3 @@ def test_get_zone_info(sample_zones):
     assert zone_info["name"] == "Zone A"
     assert classifier.get_zone_count() == 2
     assert set(classifier.get_all_zone_ids()) == {"zone_a", "zone_b"}
-
-
