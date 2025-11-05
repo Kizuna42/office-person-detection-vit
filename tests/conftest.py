@@ -13,7 +13,7 @@ if str(PROJECT_ROOT) not in sys.path:
 import numpy as np  # noqa: E402
 import pytest  # noqa: E402
 
-from src.data_models import Detection  # noqa: E402
+from src.models import Detection  # noqa: E402
 
 
 @pytest.fixture

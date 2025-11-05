@@ -29,10 +29,9 @@ import numpy as np
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.config_manager import ConfigManager
-from src.frame_sampler import FrameSampler
-from src.timestamp_extractor import TimestampExtractor
-from src.video_processor import VideoProcessor
+from src.config import ConfigManager
+from src.video import FrameSampler, VideoProcessor
+from src.timestamp import TimestampExtractor
 
 
 logger = logging.getLogger(__name__)

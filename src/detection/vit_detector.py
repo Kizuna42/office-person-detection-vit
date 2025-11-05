@@ -8,7 +8,7 @@ import torch
 from PIL import Image
 from transformers import DetrForObjectDetection, DetrImageProcessor
 
-from src.data_models import Detection
+from src.models.data_models import Detection
 
 logger = logging.getLogger(__name__)
 

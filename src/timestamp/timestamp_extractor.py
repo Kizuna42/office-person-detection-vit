@@ -10,9 +10,9 @@ import cv2
 import numpy as np
 import pytesseract
 
-from src.ocr_engines import run_ocr, run_tesseract
-from src.preprocessing import apply_pipeline
-from src.timestamp_postprocess import parse_flexible_timestamp
+from src.timestamp.ocr_engines import run_ocr, run_tesseract
+from src.detection.preprocessing import apply_pipeline
+from src.timestamp.timestamp_postprocess import parse_flexible_timestamp
 from collections import Counter
 
 logger = logging.getLogger(__name__)

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from src.frame_sampler import FrameSampler
+from src.video import FrameSampler
 
 
 def test_find_target_timestamps_basic():

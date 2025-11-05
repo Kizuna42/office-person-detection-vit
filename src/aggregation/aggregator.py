@@ -5,7 +5,7 @@ import logging
 from collections import defaultdict
 from typing import Dict, List
 
-from src.data_models import AggregationResult, Detection
+from src.models.data_models import AggregationResult, Detection
 
 logger = logging.getLogger(__name__)
 

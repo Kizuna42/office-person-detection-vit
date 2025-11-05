@@ -7,7 +7,7 @@ from typing import Dict, List, Optional, Tuple
 import cv2
 import numpy as np
 
-from src.data_models import Detection, FrameResult
+from src.models.data_models import Detection, FrameResult
 
 logger = logging.getLogger(__name__)
 

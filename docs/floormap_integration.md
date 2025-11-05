@@ -54,8 +54,8 @@ floormap:
 #### 使用例
 
 ```python
-from src.coordinate_transformer import CoordinateTransformer
-from src.config_manager import ConfigManager
+from src.transform import CoordinateTransformer
+from src.config import ConfigManager
 
 # 設定を読み込み
 config = ConfigManager('config.yaml')
@@ -105,8 +105,8 @@ detection = Detection(
 #### 使用例
 
 ```python
-from src.floormap_visualizer import FloormapVisualizer
-from src.config_manager import ConfigManager
+from src.visualization import FloormapVisualizer
+from src.config import ConfigManager
 
 # 設定を読み込み
 config = ConfigManager('config.yaml')

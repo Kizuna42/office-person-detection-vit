@@ -9,8 +9,8 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 
-from src.timestamp_extractor import TimestampExtractor
-from src.video_processor import VideoProcessor
+from src.timestamp import TimestampExtractor
+from src.video.video_processor import VideoProcessor
 
 logger = logging.getLogger(__name__)
 

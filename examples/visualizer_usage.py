@@ -2,9 +2,9 @@
 
 import cv2
 import numpy as np
-from src.visualizer import Visualizer
-from src.aggregator import Aggregator
-from src.data_models import Detection, AggregationResult
+from src.visualization import Visualizer
+from src.aggregation import Aggregator
+from src.models import Detection, AggregationResult
 
 # Initialize visualizer
 visualizer = Visualizer(debug_mode=True)

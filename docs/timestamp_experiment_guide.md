@@ -24,7 +24,7 @@
 **使用例**:
 
 ```python
-from src.preprocessing import apply_pipeline
+from src.detection.preprocessing import apply_pipeline
 
 preproc_params = {
     "clahe": {"enabled": True, "clip_limit": 2.0, "tile_grid_size": [8, 8]},
@@ -50,7 +50,7 @@ processed_image = apply_pipeline(roi_image, preproc_params)
 **使用例**:
 
 ```python
-from src.ocr_engines import run_ocr
+from src.timestamp.ocr_engines import run_ocr
 
 # Tesseract
 text, confidence = run_ocr(image, engine="tesseract", psm=7, whitelist="0123456789/:")
@@ -75,7 +75,7 @@ text, confidence = run_ocr(image, engine="easyocr")
 **使用例**:
 
 ```python
-from src.timestamp_extractor import TimestampExtractor
+from src.timestamp import TimestampExtractor
 
 extractor = TimestampExtractor(
     roi=(900, 30, 360, 45),
@@ -101,7 +101,7 @@ timestamp, confidence = extractor.extract_with_confidence(frame)
 **使用例**:
 
 ```python
-from src.timestamp_postprocess import parse_flexible_timestamp
+from src.timestamp.timestamp_postprocess import parse_flexible_timestamp
 from datetime import datetime
 
 reference = datetime(2025, 10, 8, 12, 0, 0)

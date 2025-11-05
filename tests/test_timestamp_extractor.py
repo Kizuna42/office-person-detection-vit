@@ -3,7 +3,7 @@ from datetime import datetime
 import numpy as np
 import pytesseract
 
-from src.timestamp_extractor import TimestampExtractor
+from src.timestamp import TimestampExtractor
 
 
 def test_parse_timestamp_variants():

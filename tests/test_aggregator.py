@@ -7,8 +7,8 @@ from typing import Optional, Sequence
 
 import pytest
 
-from src.aggregator import Aggregator
-from src.data_models import Detection
+from src.aggregation import Aggregator
+from src.models import Detection
 
 
 def _make_detection(zone_ids: Optional[Sequence[str]] = None) -> Detection:

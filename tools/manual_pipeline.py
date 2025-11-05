@@ -16,15 +16,14 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.aggregator import Aggregator
-from src.config_manager import ConfigManager
-from src.coordinate_transformer import CoordinateTransformer
-from src.data_models import FrameResult
-from src.floormap_visualizer import FloormapVisualizer
-from src.visualizer import Visualizer
-from src.video_processor import VideoProcessor
-from src.vit_detector import ViTDetector
-from src.zone_classifier import ZoneClassifier
+from src.aggregation import Aggregator
+from src.config import ConfigManager
+from src.transform import CoordinateTransformer
+from src.models import FrameResult
+from src.visualization import FloormapVisualizer, Visualizer
+from src.video import VideoProcessor
+from src.detection import ViTDetector
+from src.zone import ZoneClassifier
 
 
 logger = logging.getLogger(__name__)

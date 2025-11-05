@@ -7,11 +7,11 @@ from unittest.mock import MagicMock, Mock, patch
 import numpy as np
 import pytest
 
-from src.vit_detector import ViTDetector
+from src.detection import ViTDetector
 
 
-@patch("src.vit_detector.DetrForObjectDetection")
-@patch("src.vit_detector.DetrImageProcessor")
+@patch("src.detection.vit_detector.DetrForObjectDetection")
+@patch("src.detection.vit_detector.DetrImageProcessor")
 def test_load_model_success(mock_processor_cls, mock_model_cls):
     """`load_model` がモデルとプロセッサをロードし、デバイスへ転送する。"""
 
@@ -31,8 +31,8 @@ def test_load_model_success(mock_processor_cls, mock_model_cls):
     assert detector.processor is mock_processor
 
 
-@patch("src.vit_detector.ViTDetector._postprocess")
-@patch("src.vit_detector.ViTDetector._preprocess")
+@patch("src.detection.vit_detector.ViTDetector._postprocess")
+@patch("src.detection.vit_detector.ViTDetector._preprocess")
 def test_detect_pipeline(mock_preprocess, mock_postprocess, sample_frame):
     """`detect` は前処理・推論・後処理を順番に呼び出す。"""
 
@@ -63,8 +63,8 @@ def test_detect_without_model_raises(sample_frame):
         detector.detect(sample_frame)
 
 
-@patch("src.vit_detector.ViTDetector._postprocess_batch")
-@patch("src.vit_detector.ViTDetector._preprocess_batch")
+@patch("src.detection.vit_detector.ViTDetector._postprocess_batch")
+@patch("src.detection.vit_detector.ViTDetector._preprocess_batch")
 def test_detect_batch(mock_preprocess_batch, mock_postprocess_batch, sample_frame):
     """`detect_batch` はバッチ単位で前処理・推論・後処理を実行する。"""
 

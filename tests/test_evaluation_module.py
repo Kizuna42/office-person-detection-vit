@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from src.data_models import Detection, EvaluationMetrics
-from src.evaluation_module import EvaluationModule
+from src.models import Detection, EvaluationMetrics
+from src.evaluation import EvaluationModule
 
 
 def _make_detection(bbox, confidence=0.9) -> Detection:

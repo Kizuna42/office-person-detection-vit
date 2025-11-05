@@ -15,8 +15,8 @@ from typing import Dict, List, Optional
 
 import matplotlib.pyplot as plt
 
-from src.aggregator import Aggregator
-from src.data_models import Detection
+from src.aggregation import Aggregator
+from src.models.data_models import Detection
 
 logger = logging.getLogger(__name__)
 

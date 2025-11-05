@@ -25,7 +25,7 @@ import yaml
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.config_manager import ConfigManager
+from src.config import ConfigManager
 
 
 LOGGER = logging.getLogger(__name__)

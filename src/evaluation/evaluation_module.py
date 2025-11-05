@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from src.data_models import Detection, EvaluationMetrics
+from src.models.data_models import Detection, EvaluationMetrics
 
 logger = logging.getLogger(__name__)
 

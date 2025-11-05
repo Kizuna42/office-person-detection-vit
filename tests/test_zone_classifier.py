@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.zone_classifier import ZoneClassifier
+from src.zone import ZoneClassifier
 
 
 @pytest.fixture

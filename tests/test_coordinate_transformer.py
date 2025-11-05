@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from src.coordinate_transformer import CoordinateTransformer
+from src.transform import CoordinateTransformer
 
 
 def test_validate_matrix_invalid_shape():
