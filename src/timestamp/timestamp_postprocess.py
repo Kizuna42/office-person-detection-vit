@@ -169,7 +169,7 @@ def generate_timestamp_candidates(
                             return candidates
 
                     normalized = (
-                        f"{year:04d}/{month:02d}/{month:02d} {hour:02d}:{minute:02d}:00"
+                        f"{year:04d}/{month:02d}/{day:02d} {hour:02d}:{minute:02d}:00"
                     )
                     candidates.append((normalized, dt))
         except (ValueError, OverflowError):

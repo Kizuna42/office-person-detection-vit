@@ -49,6 +49,13 @@ run-time: ## 時刻指定で実行（例: make run-time START_TIME=10:00 END_TIM
 	@echo "=========================================="
 	$(PYTHON) main.py --config $(CONFIG) --start-time $(START_TIME) --end-time $(END_TIME)
 
+.PHONY: run-timestamps
+run-timestamps: ## タイムスタンプOCRのみ実行（5分刻みフレーム抽出+OCR、CSV+オーバーレイ画像出力）
+	@echo "=========================================="
+	@echo "ワークフロー実行: タイムスタンプOCRモード"
+	@echo "=========================================="
+	$(PYTHON) main.py --config $(CONFIG) --timestamps-only --debug
+
 # ========================================
 # クリーンアップコマンド
 # ========================================
@@ -140,6 +147,7 @@ help: ## 利用可能なコマンド一覧を表示
 	@echo "例:"
 	@echo "  make run                    # 通常実行"
 	@echo "  make run-debug              # デバッグモード"
+	@echo "  make run-timestamps         # タイムスタンプOCRのみ実行"
 	@echo "  make run-time START_TIME=10:00 END_TIME=14:00  # 時刻指定"
 	@echo "  make clean                  # outputクリーンアップ"
 	@echo "  make test                   # テスト実行"

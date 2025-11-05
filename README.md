@@ -171,6 +171,26 @@ python main.py --debug
 python main.py --start-time "10:00" --end-time "14:00"
 ```
 
+### タイムスタンプ OCR のみ実行
+
+フレーム抽出とタイムスタンプ OCR のみを実行する場合（人物検出・集計はスキップ）：
+
+```bash
+# タイムスタンプOCRのみ実行（5分刻みフレーム抽出+OCR）
+python main.py --timestamps-only --debug
+
+# Makefileから実行
+make run-timestamps
+
+# 時刻範囲を指定して実行
+python main.py --timestamps-only --start-time "10:00" --end-time "14:00" --debug
+```
+
+**出力**:
+
+- `output/timestamps/frames_ocr.csv`: OCR 結果 CSV（フレーム番号、タイムスタンプ、信頼度、認識成功/失敗）
+- `output/timestamps/overlays/`: ROI 枠付きオーバーレイ画像（各フレーム）
+
 ### 精度評価
 
 ```bash

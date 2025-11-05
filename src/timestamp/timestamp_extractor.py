@@ -270,7 +270,18 @@ class TimestampExtractor:
         # スラッシュ欠落補正: 2025108/2616:05:26 -> 2025/10/08 16:05:26
         # パターン: 2025108/26... -> 2025/10/08 ...
         # スラッシュの位置を考慮: 2025108/26 の部分が 2025/10/08 を意味
-        # まず、数字列として解析してから補正
+        # まず、厳密なパターンが既にマッチするかチェック
+        if self.STRICT_PATTERN.search(normalized):
+            # 既に厳密なパターンがマッチする場合は、そのまま処理
+            match = self.STRICT_PATTERN.search(normalized)
+            ts_str = match.group(0)
+            try:
+                dt = datetime.strptime(ts_str, "%Y/%m/%d %H:%M:%S")
+                return dt.strftime(self.TIMESTAMP_FORMAT)
+            except ValueError:
+                pass
+        
+        # 数字列として解析してから補正（厳密なパターンがマッチしない場合のみ）
         digits_only = re.sub(r"[^0-9]", "", normalized)
         if len(digits_only) >= 14:
             # 202510826160526 (15桁) の場合: 2025/10/08 16:05:26
@@ -309,8 +320,11 @@ class TimestampExtractor:
         normalized = re.sub(
             r"(\d{4}/\d{2}/\d{2})(\d{2}):(\d{2}):(\d{2})", r"\1 \2:\3:\4", normalized
         )
+        
+        # スペース欠落補正: 2025/08/270:13:31 -> 2025/08/27 0:13:31
+        normalized = re.sub(r"(\d{4}/\d{2}/\d{2})(\d{1,2}:\d{2}:\d{2})", r"\1 \2", normalized)
 
-        # 最優先: 厳密なパターン
+        # 最優先: 厳密なパターン（前後の文字列を無視）
         match = self.STRICT_PATTERN.search(normalized)
         if match:
             ts_str = match.group(0)
@@ -526,9 +540,9 @@ class TimestampExtractor:
                 r"\1 \2:\3:\4",
                 normalized,
             )
-
-            # スペース欠落補正: 2025/08/270:13:31 -> 2025/08/27 0:13:31
-            normalized = re.sub(r"(\d{2})(\d{1,2}:\d{2}:\d{2})", r"\1 \2", normalized)
+            
+            # パターン5: スペース欠落補正: 2025/08/270:13:31 -> 2025/08/27 0:13:31
+            normalized = re.sub(r"(\d{4}/\d{2}/\d{2})(\d{1,2}:\d{2}:\d{2})", r"\1 \2", normalized)
 
             # 数字列から直接抽出を優先（スラッシュ欠落などの複雑なパターンに対応）
             digits_only = re.sub(r"[^0-9]", "", normalized)
@@ -553,6 +567,15 @@ class TimestampExtractor:
                     hour = digits[8:10]
                     minute = digits[10:12]
                     second = digits[12:14]
+            elif len(digits_only) == 13:
+                # 13桁の場合: 2025082751331 -> 2025/08/27 5:13:31（1桁時）
+                # または: 2025082701331 -> 2025/08/27 0:13:31（1桁時）
+                year = digits_only[0:4]
+                month = digits_only[4:6]
+                day = digits_only[6:8]
+                hour = digits_only[8:9]  # 1桁
+                minute = digits_only[9:11]
+                second = digits_only[11:13]
             elif len(digits_only) == 12:
                 digits = digits_only + "00"
                 year = digits[0:4]
@@ -562,7 +585,8 @@ class TimestampExtractor:
                 minute = digits[10:12]
                 second = digits[12:14]
             else:
-                # フォールバック: パターンマッチを試す
+                # フォールバック: パターンマッチを試す（スペース欠落や1桁時を許容）
+                # パターン1: 厳密な形式
                 pattern = (
                     r"(\d{4})\D*(\d{2})\D*(\d{2})\D*(\d{2})\D*(\d{2})(?:\D*(\d{2}))?"
                 )
@@ -570,8 +594,14 @@ class TimestampExtractor:
                 if match:
                     year, month, day, hour, minute, second = match.groups()
                 else:
-                    logger.debug(f"タイムスタンプパターンが見つかりませんでした: '{normalized}'")
-                    return None
+                    # パターン2: スペース欠落や1桁時を許容（2025/08/270:13:31形式、2025/08/27 5:13:31形式）
+                    pattern = r"(\d{4})\D*(\d{2})\D*(\d{2})\D*(\d{1,2})\D*(\d{2})\D*(\d{2})"
+                    match = re.search(pattern, normalized)
+                    if match:
+                        year, month, day, hour, minute, second = match.groups()
+                    else:
+                        logger.debug(f"タイムスタンプパターンが見つかりませんでした: '{normalized}'")
+                        return None
 
             if second is None:
                 second = "00"
