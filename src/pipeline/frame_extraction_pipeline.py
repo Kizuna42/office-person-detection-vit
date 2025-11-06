@@ -36,7 +36,7 @@ class FrameExtractionPipeline:
         fine_search_window_seconds: float = 30.0,
         fps: float = 30.0,
         roi_config: Dict[str, float] = None,
-        enabled_ocr_engines: List[str] = None
+        enabled_ocr_engines: List[str] = None,
     ):
         """FrameExtractionPipelineを初期化
 
@@ -62,17 +62,21 @@ class FrameExtractionPipeline:
         self.tolerance_seconds = tolerance_seconds
 
         # サンプラーと抽出器を初期化
-        self.coarse_sampler = CoarseSampler(video_path, interval_seconds=coarse_interval_seconds)
+        self.coarse_sampler = CoarseSampler(
+            video_path, interval_seconds=coarse_interval_seconds
+        )
         self.video_cap = cv2.VideoCapture(video_path)
         if not self.video_cap.isOpened():
             raise RuntimeError(f"Failed to open video: {video_path}")
-        self.fine_sampler = FineSampler(self.video_cap, search_window=fine_search_window_seconds)
+        self.fine_sampler = FineSampler(
+            self.video_cap, search_window=fine_search_window_seconds
+        )
 
         self.extractor = TimestampExtractorV2(
             confidence_threshold=confidence_threshold,
             roi_config=roi_config,
             fps=fps,
-            enabled_ocr_engines=enabled_ocr_engines
+            enabled_ocr_engines=enabled_ocr_engines,
         )
 
         # 目標タイムスタンプ生成
@@ -84,16 +88,11 @@ class FrameExtractionPipeline:
             end_datetime = datetime(2025, 8, 29, 13, 45, 0)
 
         self.target_timestamps = self._generate_target_timestamps(
-            start=start_datetime,
-            end=end_datetime,
-            interval_minutes=interval_minutes
+            start=start_datetime, end=end_datetime, interval_minutes=interval_minutes
         )
 
     def _generate_target_timestamps(
-        self,
-        start: datetime,
-        end: datetime,
-        interval_minutes: int
+        self, start: datetime, end: datetime, interval_minutes: int
     ) -> List[datetime]:
         """5分刻みの目標タイムスタンプリストを生成
 
@@ -120,7 +119,9 @@ class FrameExtractionPipeline:
         """
         results = []
 
-        logger.info(f"Starting frame extraction for {len(self.target_timestamps)} target timestamps")
+        logger.info(
+            f"Starting frame extraction for {len(self.target_timestamps)} target timestamps"
+        )
 
         try:
             for target_ts in tqdm(self.target_timestamps, desc="Extracting frames"):
@@ -134,13 +135,17 @@ class FrameExtractionPipeline:
             # 結果をCSV保存
             self._save_results_csv(results)
 
-            logger.info(f"Extraction completed: {len(results)}/{len(self.target_timestamps)} frames extracted")
+            logger.info(
+                f"Extraction completed: {len(results)}/{len(self.target_timestamps)} frames extracted"
+            )
             return results
 
         finally:
             self.cleanup()
 
-    def _extract_frame_for_target(self, target_ts: datetime) -> Optional[Dict[str, any]]:
+    def _extract_frame_for_target(
+        self, target_ts: datetime
+    ) -> Optional[Dict[str, any]]:
         """目標タイムスタンプに最も近いフレームを抽出
 
         Args:
@@ -172,11 +177,13 @@ class FrameExtractionPipeline:
         min_diff = timedelta(days=999)
         approx_frame_idx = None
 
+        # 粗サンプリングは進捗が分かりにくいため、サイレントモードで実行
+        # （メインループでプログレスバーが表示されるため）
         for frame_idx, frame in self.coarse_sampler.sample():
             result = self.extractor.extract(frame, frame_idx)
 
-            if result and result.get('timestamp'):
-                timestamp = result['timestamp']
+            if result and result.get("timestamp"):
+                timestamp = result["timestamp"]
                 diff = abs(timestamp - target_ts)
 
                 if diff < min_diff:
@@ -190,9 +197,7 @@ class FrameExtractionPipeline:
         return approx_frame_idx
 
     def _find_best_frame_around(
-        self,
-        target_ts: datetime,
-        approx_frame_idx: int
+        self, target_ts: datetime, approx_frame_idx: int
     ) -> Optional[Dict[str, any]]:
         """精密サンプリングで±10秒以内のベストフレームを探す
 
@@ -205,28 +210,34 @@ class FrameExtractionPipeline:
         """
         candidates = []
 
-        for frame_idx, frame in self.fine_sampler.sample_around_target(approx_frame_idx):
+        for frame_idx, frame in self.fine_sampler.sample_around_target(
+            approx_frame_idx
+        ):
             result = self.extractor.extract(frame, frame_idx)
 
-            if result and result.get('timestamp'):
-                timestamp = result['timestamp']
+            if result and result.get("timestamp"):
+                timestamp = result["timestamp"]
                 diff = abs((timestamp - target_ts).total_seconds())
 
                 # ±10秒以内なら候補に追加
                 if diff <= self.tolerance_seconds:
-                    candidates.append({
-                        **result,
-                        'frame': frame,
-                        'time_diff': diff,
-                        'target_timestamp': target_ts
-                    })
+                    candidates.append(
+                        {
+                            **result,
+                            "frame": frame,
+                            "time_diff": diff,
+                            "target_timestamp": target_ts,
+                        }
+                    )
 
         if not candidates:
-            logger.warning(f"No frames within ±{self.tolerance_seconds}s of {target_ts}")
+            logger.warning(
+                f"No frames within ±{self.tolerance_seconds}s of {target_ts}"
+            )
             return None
 
         # 時間差が最小のフレームを選択
-        best = min(candidates, key=lambda x: x['time_diff'])
+        best = min(candidates, key=lambda x: x["time_diff"])
         logger.info(
             f"Best frame for {target_ts}: {best['timestamp']} "
             f"(diff={best['time_diff']:.1f}s, confidence={best['confidence']:.2f})"
@@ -240,11 +251,11 @@ class FrameExtractionPipeline:
         Args:
             result: 抽出結果の辞書
         """
-        timestamp = result['timestamp']
-        timestamp_str = timestamp.strftime('%Y%m%d_%H%M%S')
+        timestamp = result["timestamp"]
+        timestamp_str = timestamp.strftime("%Y%m%d_%H%M%S")
         output_path = self.output_dir / f"frame_{timestamp_str}.jpg"
 
-        frame = result.get('frame')
+        frame = result.get("frame")
         if frame is not None:
             cv2.imwrite(str(output_path), frame)
             logger.debug(f"Saved frame: {output_path}")
@@ -255,31 +266,33 @@ class FrameExtractionPipeline:
         Args:
             results: 抽出結果のリスト
         """
-        csv_path = self.output_dir / 'extraction_results.csv'
+        csv_path = self.output_dir / "extraction_results.csv"
 
-        with csv_path.open('w', newline='', encoding='utf-8') as f:
+        with csv_path.open("w", newline="", encoding="utf-8") as f:
             fieldnames = [
-                'target_timestamp',
-                'extracted_timestamp',
-                'frame_index',
-                'confidence',
-                'time_diff_seconds',
-                'ocr_text'
+                "target_timestamp",
+                "extracted_timestamp",
+                "frame_index",
+                "confidence",
+                "time_diff_seconds",
+                "ocr_text",
             ]
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
 
             for r in results:
-                timestamp = r['timestamp']
-                target_ts = r.get('target_timestamp', timestamp)
-                writer.writerow({
-                    'target_timestamp': target_ts.strftime('%Y/%m/%d %H:%M:%S'),
-                    'extracted_timestamp': timestamp.strftime('%Y/%m/%d %H:%M:%S'),
-                    'frame_index': r['frame_idx'],
-                    'confidence': f"{r['confidence']:.4f}",
-                    'time_diff_seconds': f"{r.get('time_diff', 0):.2f}",
-                    'ocr_text': r.get('ocr_text', '')
-                })
+                timestamp = r["timestamp"]
+                target_ts = r.get("target_timestamp", timestamp)
+                writer.writerow(
+                    {
+                        "target_timestamp": target_ts.strftime("%Y/%m/%d %H:%M:%S"),
+                        "extracted_timestamp": timestamp.strftime("%Y/%m/%d %H:%M:%S"),
+                        "frame_index": r["frame_idx"],
+                        "confidence": f"{r['confidence']:.4f}",
+                        "time_diff_seconds": f"{r.get('time_diff', 0):.2f}",
+                        "ocr_text": r.get("ocr_text", ""),
+                    }
+                )
 
         logger.info(f"Results saved: {csv_path}")
 
@@ -289,4 +302,3 @@ class FrameExtractionPipeline:
         if self.video_cap is not None:
             self.video_cap.release()
         self.extractor.reset_validator()
-

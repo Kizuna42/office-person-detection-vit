@@ -1,0 +1,110 @@
+{
+  "current": {
+    "whitelist": "0123456789/: ",
+    "avg_confidence": 0.0,
+    "parse_success_rate": 100.0,
+    "parse_success_count": 3,
+    "total_count": 3,
+    "results": [
+      {
+        "frame_idx": 0,
+        "ocr_text": "2025/08/2616:04:16",
+        "ocr_confidence": 0.0,
+        "parsed": true
+      },
+      {
+        "frame_idx": 1000,
+        "ocr_text": "2025/08/2618:50:44",
+        "ocr_confidence": 0.0,
+        "parsed": true
+      },
+      {
+        "frame_idx": 2000,
+        "ocr_text": "2025/08/2621:37:05",
+        "ocr_confidence": 0.0,
+        "parsed": true
+      }
+    ]
+  },
+  "with_space": {
+    "whitelist": "0123456789/:  ",
+    "avg_confidence": 0.0,
+    "parse_success_rate": 100.0,
+    "parse_success_count": 3,
+    "total_count": 3,
+    "results": [
+      {
+        "frame_idx": 0,
+        "ocr_text": "2025/08/2616:04:16",
+        "ocr_confidence": 0.0,
+        "parsed": true
+      },
+      {
+        "frame_idx": 1000,
+        "ocr_text": "2025/08/2618:50:44",
+        "ocr_confidence": 0.0,
+        "parsed": true
+      },
+      {
+        "frame_idx": 2000,
+        "ocr_text": "2025/08/2621:37:05",
+        "ocr_confidence": 0.0,
+        "parsed": true
+      }
+    ]
+  },
+  "minimal": {
+    "whitelist": "0123456789/:",
+    "avg_confidence": 0.0,
+    "parse_success_rate": 100.0,
+    "parse_success_count": 3,
+    "total_count": 3,
+    "results": [
+      {
+        "frame_idx": 0,
+        "ocr_text": "2025/08/2616:04:16",
+        "ocr_confidence": 0.0,
+        "parsed": true
+      },
+      {
+        "frame_idx": 1000,
+        "ocr_text": "2025/08/2618:50:44",
+        "ocr_confidence": 0.0,
+        "parsed": true
+      },
+      {
+        "frame_idx": 2000,
+        "ocr_text": "2025/08/2621:37:05",
+        "ocr_confidence": 0.0,
+        "parsed": true
+      }
+    ]
+  },
+  "extended": {
+    "whitelist": "0123456789/: -",
+    "avg_confidence": 0.0,
+    "parse_success_rate": 100.0,
+    "parse_success_count": 3,
+    "total_count": 3,
+    "results": [
+      {
+        "frame_idx": 0,
+        "ocr_text": "",
+        "ocr_confidence": 0.0,
+        "parsed": true
+      },
+      {
+        "frame_idx": 1000,
+        "ocr_text": "",
+        "ocr_confidence": 0.0,
+        "parsed": true
+      },
+      {
+        "frame_idx": 2000,
+        "ocr_text": "",
+        "ocr_confidence": 0.0,
+        "parsed": true
+      }
+    ]
+  }
+}

@@ -28,13 +28,15 @@ class TimestampROIExtractor:
         """
         # デフォルト設定（画像を見て調整）
         self.roi_config = roi_config or {
-            'x_ratio': 0.65,  # 右から35%の位置から
-            'y_ratio': 0.0,   # 上端から
-            'width_ratio': 0.35,  # 幅35%
-            'height_ratio': 0.08  # 高さ8%
+            "x_ratio": 0.65,  # 右から35%の位置から
+            "y_ratio": 0.0,  # 上端から
+            "width_ratio": 0.35,  # 幅35%
+            "height_ratio": 0.08,  # 高さ8%
         }
 
-    def extract_roi(self, frame: np.ndarray) -> Tuple[np.ndarray, Tuple[int, int, int, int]]:
+    def extract_roi(
+        self, frame: np.ndarray
+    ) -> Tuple[np.ndarray, Tuple[int, int, int, int]]:
         """フレームからタイムスタンプ領域を切り出し
 
         Args:
@@ -45,10 +47,10 @@ class TimestampROIExtractor:
         """
         h, w = frame.shape[:2]
 
-        x = int(w * self.roi_config['x_ratio'])
-        y = int(h * self.roi_config['y_ratio'])
-        roi_w = int(w * self.roi_config['width_ratio'])
-        roi_h = int(h * self.roi_config['height_ratio'])
+        x = int(w * self.roi_config["x_ratio"])
+        y = int(h * self.roi_config["y_ratio"])
+        roi_w = int(w * self.roi_config["width_ratio"])
+        roi_h = int(h * self.roi_config["height_ratio"])
 
         # 境界チェック
         x = max(0, min(x, w - 1))
@@ -56,44 +58,44 @@ class TimestampROIExtractor:
         roi_w = min(roi_w, w - x)
         roi_h = min(roi_h, h - y)
 
-        roi = frame[y:y+roi_h, x:x+roi_w]
+        roi = frame[y : y + roi_h, x : x + roi_w]
         return roi, (x, y, roi_w, roi_h)
 
     def preprocess_roi(self, roi: np.ndarray) -> np.ndarray:
-        """OCR精度向上のための前処理
+        """OCR精度向上のための前処理（最適化版）
+
+        最適化テストの結果、グレースケールのみ（二値化なし）が
+        最も高い精度を示すため、その手法を採用しています。
 
         Args:
             roi: ROI画像（BGR形式）
 
         Returns:
-            前処理済み画像（グレースケール、二値化済み）
+            前処理済み画像（グレースケール、CLAHE適用済み）
         """
+        # ROI画像を拡大（OCR精度向上のため、最小サイズを確保）
+        # 最適化テストの結果、300pxが最適
+        h, w = roi.shape[:2]
+        min_size = 300  # 最適化された最小サイズ
+        scale = max(min_size / w, min_size / h, 1.0)
+        if scale > 1.0:
+            new_w = int(w * scale)
+            new_h = int(h * scale)
+            roi = cv2.resize(roi, (new_w, new_h), interpolation=cv2.INTER_CUBIC)
+
         # グレースケール化
         if len(roi.shape) == 3:
             gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
         else:
             gray = roi.copy()
 
-        # コントラスト強調（CLAHE）
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-        enhanced = clahe.apply(gray)
+        # ガウシアンブラーでノイズを軽減（軽度）
+        blurred = cv2.GaussianBlur(gray, (3, 3), 0)
 
-        # 二値化（Otsu法）
-        _, binary = cv2.threshold(
-            enhanced, 0, 255,
-            cv2.THRESH_BINARY + cv2.THRESH_OTSU
-        )
+        # コントラスト強調（CLAHE）- 最適化されたパラメータ
+        clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
+        enhanced = clahe.apply(blurred)
 
-        # ノイズ除去
-        denoised = cv2.fastNlMeansDenoising(binary)
-
-        # シャープ化
-        kernel = np.array([
-            [-1, -1, -1],
-            [-1,  9, -1],
-            [-1, -1, -1]
-        ])
-        sharpened = cv2.filter2D(denoised, -1, kernel)
-
-        return sharpened
-
+        # 最適化テストの結果、二値化せずにグレースケールのまま返す
+        # これにより、Tesseractが内部で最適な二値化を実行できる
+        return enhanced

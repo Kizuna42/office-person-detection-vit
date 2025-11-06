@@ -53,17 +53,26 @@ class TemporalValidator:
         upper_bound = expected_seconds + tolerance
 
         if lower_bound <= actual_diff <= upper_bound:
-            confidence = 1.0 - abs(actual_diff - expected_seconds) / max(expected_seconds, 1.0)
+            confidence = 1.0 - abs(actual_diff - expected_seconds) / max(
+                expected_seconds, 1.0
+            )
             confidence = max(0.0, min(1.0, confidence))  # 0.0-1.0にクランプ
             self.last_timestamp = timestamp
             self.last_frame_idx = frame_idx
-            return True, confidence, f"Valid: expected={expected_seconds:.1f}s, actual={actual_diff:.1f}s"
+            return (
+                True,
+                confidence,
+                f"Valid: expected={expected_seconds:.1f}s, actual={actual_diff:.1f}s",
+            )
         else:
-            return False, 0.0, f"Invalid: expected={expected_seconds:.1f}s, actual={actual_diff:.1f}s"
+            return (
+                False,
+                0.0,
+                f"Invalid: expected={expected_seconds:.1f}s, actual={actual_diff:.1f}s",
+            )
 
     def reset(self) -> None:
         """状態をリセット"""
         self.last_timestamp = None
         self.last_frame_idx = None
         logger.debug("TemporalValidator reset")
-

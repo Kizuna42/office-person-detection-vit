@@ -11,6 +11,8 @@ import logging
 import sys
 from pathlib import Path
 
+from tqdm import tqdm
+
 from src.cli import parse_arguments
 from src.config import ConfigManager
 from src.evaluation import run_evaluation
@@ -139,10 +141,21 @@ def main():
             logger.error("フレーム抽出に失敗しました")
             return 1
         
+        logger.info(f"フレーム抽出完了: {len(extraction_results)}フレーム")
+        
+        # タイムスタンプOCRのみの場合はここで終了
+        if args.timestamps_only:
+            logger.info("=" * 80)
+            logger.info("タイムスタンプOCR処理が正常に完了しました")
+            logger.info(f"抽出フレーム数: {len(extraction_results)}")
+            logger.info(f"出力ディレクトリ: {frame_extraction_output_dir.absolute()}")
+            logger.info("=" * 80)
+            return 0
+        
         # 抽出結果を後続処理用の形式に変換
         # DetectionPhaseは (frame_num, timestamp_str, frame) のタプルリストを期待
         sample_frames = []
-        for result in extraction_results:
+        for result in tqdm(extraction_results, desc="フレーム準備中"):
             frame = result.get('frame')
             if frame is None:
                 # フレームが保存されていない場合は動画から再取得
@@ -162,7 +175,7 @@ def main():
                 frame
             ))
         
-        logger.info(f"フレーム抽出完了: {len(sample_frames)}フレーム")
+        logger.info(f"後続処理用フレーム準備完了: {len(sample_frames)}フレーム")
         
         # ========================================
         # フェーズ2: ViT人物検出

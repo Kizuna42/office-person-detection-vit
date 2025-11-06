@@ -154,10 +154,10 @@ timestamp:
 
     # ROI設定（画像の右上領域）
     roi:
-      x_ratio: 0.65 # 右から35%の位置から
-      y_ratio: 0.0 # 上端から
-      width_ratio: 0.35 # 幅35%
-      height_ratio: 0.08 # 高さ8%
+      x_ratio: 0.70 # 右から35%の位置から
+      y_ratio: 0.045 # 上端から
+      width_ratio: 0.28 # 幅35%
+      height_ratio: 0.06 # 高さ8%
 
   # サンプリング設定
   sampling:

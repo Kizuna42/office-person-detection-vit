@@ -89,7 +89,9 @@ class FineSampler:
             if self.fps is None or self.fps <= 0:
                 raise RuntimeError("Failed to get FPS from video")
 
-    def sample_around_target(self, approx_frame_idx: int) -> Iterator[Tuple[int, np.ndarray]]:
+    def sample_around_target(
+        self, approx_frame_idx: int
+    ) -> Iterator[Tuple[int, np.ndarray]]:
         """目標時刻の前後を1秒間隔でサンプリング
 
         Args:
@@ -128,7 +130,7 @@ class AdaptiveSampler:
         self,
         base_interval: float = 10.0,
         min_interval: float = 1.0,
-        max_interval: float = 30.0
+        max_interval: float = 30.0,
     ):
         """AdaptiveSamplerを初期化
 
@@ -159,4 +161,3 @@ class AdaptiveSampler:
         else:
             # 通常: ベース間隔を使用
             return self.base_interval
-

@@ -1,0 +1,16 @@
+{
+  "extraction_success_rate": 100.0,
+  "extracted_count": 1,
+  "avg_confidence": 0.8298,
+  "min_confidence": 0.8298,
+  "max_confidence": 0.8298,
+  "temporal_consistency_score": 0.0,
+  "temporal_stats": {
+    "valid_pairs": 0,
+    "total_pairs": 0,
+    "avg_time_diff": 0.0
+  },
+  "avg_time_diff_seconds": 44.0,
+  "tolerance_rate_10s": 0.0,
+  "within_tolerance_count": 0
+}
