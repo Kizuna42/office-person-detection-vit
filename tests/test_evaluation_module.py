@@ -393,6 +393,7 @@ def test_export_csv_format(ground_truth_path: Path, tmp_path: Path):
     assert csv_path.exists()
 
     import csv
+
     with open(csv_path, "r", encoding="utf-8") as f:
         reader = csv.reader(f)
         rows = list(reader)
@@ -424,6 +425,7 @@ def test_export_json_format(ground_truth_path: Path, tmp_path: Path):
     assert json_path.exists()
 
     import json
+
     with open(json_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
@@ -453,4 +455,3 @@ def test_iou_threshold_parameter(ground_truth_path: Path, sample_detections):
     # 低い閾値の方がTrue Positiveが多い可能性が高い
     assert isinstance(metrics_low, EvaluationMetrics)
     assert isinstance(metrics_high, EvaluationMetrics)
-

@@ -21,22 +21,28 @@ def sample_config(tmp_path: Path) -> ConfigManager:
     config.set("output.debug_mode", False)
     config.set("output.save_floormap_images", True)
     config.set("floormap.image_path", str(tmp_path / "floormap.png"))
-    config.set("floormap", {
-        "image_width": 1878,
-        "image_height": 1369,
-        "image_origin_x": 7,
-        "image_origin_y": 9,
-        "image_x_mm_per_pixel": 28.1926406926406,
-        "image_y_mm_per_pixel": 28.241430700447,
-    })
-    config.set("zones", [
+    config.set(
+        "floormap",
         {
-            "id": "zone_a",
-            "name": "Zone A",
-            "polygon": [[0, 0], [100, 0], [100, 100], [0, 100]],
-            "priority": 1,
-        }
-    ])
+            "image_width": 1878,
+            "image_height": 1369,
+            "image_origin_x": 7,
+            "image_origin_y": 9,
+            "image_x_mm_per_pixel": 28.1926406926406,
+            "image_y_mm_per_pixel": 28.241430700447,
+        },
+    )
+    config.set(
+        "zones",
+        [
+            {
+                "id": "zone_a",
+                "name": "Zone A",
+                "polygon": [[0, 0], [100, 0], [100, 100], [0, 100]],
+                "priority": 1,
+            }
+        ],
+    )
     config.set("camera", {})
     return config
 
@@ -82,17 +88,20 @@ def sample_frame_results(sample_detections) -> list[FrameResult]:
 def sample_aggregator() -> Aggregator:
     """テスト用のAggregator"""
     aggregator = Aggregator()
-    aggregator.aggregate_frame("2025/08/26 16:05:00", [
-        Detection(
-            bbox=(100.0, 200.0, 50.0, 100.0),
-            confidence=0.9,
-            class_id=1,
-            class_name="person",
-            camera_coords=(125.0, 300.0),
-            floor_coords=(50.0, 50.0),
-            zone_ids=["zone_a"],
-        ),
-    ])
+    aggregator.aggregate_frame(
+        "2025/08/26 16:05:00",
+        [
+            Detection(
+                bbox=(100.0, 200.0, 50.0, 100.0),
+                confidence=0.9,
+                class_id=1,
+                class_name="person",
+                camera_coords=(125.0, 300.0),
+                floor_coords=(50.0, 50.0),
+                zone_ids=["zone_a"],
+            ),
+        ],
+    )
     return aggregator
 
 
@@ -160,8 +169,12 @@ def test_execute_with_floormap(
     phase.execute(sample_aggregator, sample_frame_results, output_path)
 
     mock_floormap_visualizer_class.assert_called_once()
-    assert mock_floormap_visualizer.visualize_frame.call_count == len(sample_frame_results)
-    assert mock_floormap_visualizer.save_visualization.call_count == len(sample_frame_results)
+    assert mock_floormap_visualizer.visualize_frame.call_count == len(
+        sample_frame_results
+    )
+    assert mock_floormap_visualizer.save_visualization.call_count == len(
+        sample_frame_results
+    )
 
 
 @patch("src.pipeline.visualization_phase.Visualizer")
@@ -274,4 +287,3 @@ def test_execute_graph_generation_failure(
 
     mock_visualizer.plot_time_series.assert_called_once()
     mock_visualizer.plot_zone_statistics.assert_called_once()
-

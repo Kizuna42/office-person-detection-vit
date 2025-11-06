@@ -459,3 +459,421 @@ camera:
 
     config = ConfigManager(str(config_path))
     assert config.validate() is True
+
+
+def test_validate_video_config_edge_cases(tmp_path: Path):
+    """video設定のエッジケース"""
+    # 無効なinput_path（None）
+    yaml_content = """
+video:
+  input_path: null
+detection:
+  model_name: "test_model"
+  confidence_threshold: 0.7
+  device: "cpu"
+floormap:
+  image_path: "test_floormap.png"
+  image_width: 100
+  image_height: 50
+  image_origin_x: 0
+  image_origin_y: 0
+  image_x_mm_per_pixel: 1.0
+  image_y_mm_per_pixel: 1.0
+homography:
+  matrix: [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+zones: []
+output:
+  directory: "output"
+"""
+    config_path = tmp_path / "test_config.yaml"
+    config_path.write_text(yaml_content, encoding="utf-8")
+
+    config = ConfigManager(str(config_path))
+    with pytest.raises(ValueError, match="video.input_path は文字列"):
+        config.validate()
+
+    # 無効なframe_interval_minutes（負の値）
+    yaml_content = """
+video:
+  input_path: "test_video.mov"
+  frame_interval_minutes: -5
+detection:
+  model_name: "test_model"
+  confidence_threshold: 0.7
+  device: "cpu"
+floormap:
+  image_path: "test_floormap.png"
+  image_width: 100
+  image_height: 50
+  image_origin_x: 0
+  image_origin_y: 0
+  image_x_mm_per_pixel: 1.0
+  image_y_mm_per_pixel: 1.0
+homography:
+  matrix: [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+zones: []
+output:
+  directory: "output"
+"""
+    config_path.write_text(yaml_content, encoding="utf-8")
+    config = ConfigManager(str(config_path))
+    with pytest.raises(ValueError, match="frame_interval_minutes"):
+        config.validate()
+
+
+def test_validate_detection_config_edge_cases(tmp_path: Path):
+    """detection設定のエッジケース"""
+    # 無効なconfidence_threshold（範囲外）
+    yaml_content = """
+video:
+  input_path: "test_video.mov"
+detection:
+  model_name: "test_model"
+  confidence_threshold: 1.5
+  device: "cpu"
+floormap:
+  image_path: "test_floormap.png"
+  image_width: 100
+  image_height: 50
+  image_origin_x: 0
+  image_origin_y: 0
+  image_x_mm_per_pixel: 1.0
+  image_y_mm_per_pixel: 1.0
+homography:
+  matrix: [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+zones: []
+output:
+  directory: "output"
+"""
+    config_path = tmp_path / "test_config.yaml"
+    config_path.write_text(yaml_content, encoding="utf-8")
+
+    config = ConfigManager(str(config_path))
+    with pytest.raises(ValueError, match="confidence_threshold"):
+        config.validate()
+
+    # 無効なdevice
+    yaml_content = """
+video:
+  input_path: "test_video.mov"
+detection:
+  model_name: "test_model"
+  confidence_threshold: 0.7
+  device: "invalid_device"
+floormap:
+  image_path: "test_floormap.png"
+  image_width: 100
+  image_height: 50
+  image_origin_x: 0
+  image_origin_y: 0
+  image_x_mm_per_pixel: 1.0
+  image_y_mm_per_pixel: 1.0
+homography:
+  matrix: [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+zones: []
+output:
+  directory: "output"
+"""
+    config_path.write_text(yaml_content, encoding="utf-8")
+    config = ConfigManager(str(config_path))
+    with pytest.raises(ValueError, match="device"):
+        config.validate()
+
+
+def test_validate_floormap_config_edge_cases(tmp_path: Path):
+    """floormap設定のエッジケース"""
+    # 無効なimage_width（負の値）
+    yaml_content = """
+video:
+  input_path: "test_video.mov"
+detection:
+  model_name: "test_model"
+  confidence_threshold: 0.7
+  device: "cpu"
+floormap:
+  image_path: "test_floormap.png"
+  image_width: -100
+  image_height: 50
+  image_origin_x: 0
+  image_origin_y: 0
+  image_x_mm_per_pixel: 1.0
+  image_y_mm_per_pixel: 1.0
+homography:
+  matrix: [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+zones: []
+output:
+  directory: "output"
+"""
+    config_path = tmp_path / "test_config.yaml"
+    config_path.write_text(yaml_content, encoding="utf-8")
+
+    config = ConfigManager(str(config_path))
+    with pytest.raises(ValueError, match="image_width"):
+        config.validate()
+
+    # 無効なimage_x_mm_per_pixel（ゼロ）
+    yaml_content = """
+video:
+  input_path: "test_video.mov"
+detection:
+  model_name: "test_model"
+  confidence_threshold: 0.7
+  device: "cpu"
+floormap:
+  image_path: "test_floormap.png"
+  image_width: 100
+  image_height: 50
+  image_origin_x: 0
+  image_origin_y: 0
+  image_x_mm_per_pixel: 0
+  image_y_mm_per_pixel: 1.0
+homography:
+  matrix: [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+zones: []
+output:
+  directory: "output"
+"""
+    config_path.write_text(yaml_content, encoding="utf-8")
+    config = ConfigManager(str(config_path))
+    with pytest.raises(ValueError, match="image_x_mm_per_pixel"):
+        config.validate()
+
+
+def test_validate_homography_config_edge_cases(tmp_path: Path):
+    """homography設定のエッジケース"""
+    # 無効なmatrix（行数が不足）
+    yaml_content = """
+video:
+  input_path: "test_video.mov"
+detection:
+  model_name: "test_model"
+  confidence_threshold: 0.7
+  device: "cpu"
+floormap:
+  image_path: "test_floormap.png"
+  image_width: 100
+  image_height: 50
+  image_origin_x: 0
+  image_origin_y: 0
+  image_x_mm_per_pixel: 1.0
+  image_y_mm_per_pixel: 1.0
+homography:
+  matrix: [[1, 0, 0], [0, 1, 0]]
+zones: []
+output:
+  directory: "output"
+"""
+    config_path = tmp_path / "test_config.yaml"
+    config_path.write_text(yaml_content, encoding="utf-8")
+
+    config = ConfigManager(str(config_path))
+    with pytest.raises(ValueError, match="3x3 行列"):
+        config.validate()
+
+    # 無効なmatrix（行の長さが不足）
+    yaml_content = """
+video:
+  input_path: "test_video.mov"
+detection:
+  model_name: "test_model"
+  confidence_threshold: 0.7
+  device: "cpu"
+floormap:
+  image_path: "test_floormap.png"
+  image_width: 100
+  image_height: 50
+  image_origin_x: 0
+  image_origin_y: 0
+  image_x_mm_per_pixel: 1.0
+  image_y_mm_per_pixel: 1.0
+homography:
+  matrix: [[1, 0], [0, 1], [0, 0]]
+zones: []
+output:
+  directory: "output"
+"""
+    config_path.write_text(yaml_content, encoding="utf-8")
+    config = ConfigManager(str(config_path))
+    with pytest.raises(ValueError, match="長さ3のリスト"):
+        config.validate()
+
+
+def test_validate_zones_config_edge_cases(tmp_path: Path):
+    """zones設定のエッジケース"""
+    # 無効なpolygon（頂点数が不足）
+    yaml_content = """
+video:
+  input_path: "test_video.mov"
+detection:
+  model_name: "test_model"
+  confidence_threshold: 0.7
+  device: "cpu"
+floormap:
+  image_path: "test_floormap.png"
+  image_width: 100
+  image_height: 50
+  image_origin_x: 0
+  image_origin_y: 0
+  image_x_mm_per_pixel: 1.0
+  image_y_mm_per_pixel: 1.0
+homography:
+  matrix: [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+zones:
+  - id: "zone1"
+    polygon: [[0, 0], [10, 10]]
+output:
+  directory: "output"
+"""
+    config_path = tmp_path / "test_config.yaml"
+    config_path.write_text(yaml_content, encoding="utf-8")
+
+    config = ConfigManager(str(config_path))
+    with pytest.raises(ValueError, match="少なくとも3つの頂点"):
+        config.validate()
+
+    # 無効なpolygon（座標が数値でない）
+    yaml_content = """
+video:
+  input_path: "test_video.mov"
+detection:
+  model_name: "test_model"
+  confidence_threshold: 0.7
+  device: "cpu"
+floormap:
+  image_path: "test_floormap.png"
+  image_width: 100
+  image_height: 50
+  image_origin_x: 0
+  image_origin_y: 0
+  image_x_mm_per_pixel: 1.0
+  image_y_mm_per_pixel: 1.0
+homography:
+  matrix: [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+zones:
+  - id: "zone1"
+    polygon: [[0, "invalid"], [10, 10], [20, 20]]
+output:
+  directory: "output"
+"""
+    config_path.write_text(yaml_content, encoding="utf-8")
+    config = ConfigManager(str(config_path))
+    with pytest.raises(ValueError, match="座標は数値"):
+        config.validate()
+
+
+def test_validate_camera_config_edge_cases(tmp_path: Path):
+    """camera設定のエッジケース"""
+    # 無効なposition_x（負の値）
+    yaml_content = """
+video:
+  input_path: "test_video.mov"
+detection:
+  model_name: "test_model"
+  confidence_threshold: 0.7
+  device: "cpu"
+floormap:
+  image_path: "test_floormap.png"
+  image_width: 100
+  image_height: 50
+  image_origin_x: 0
+  image_origin_y: 0
+  image_x_mm_per_pixel: 1.0
+  image_y_mm_per_pixel: 1.0
+homography:
+  matrix: [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+zones: []
+output:
+  directory: "output"
+camera:
+  position_x: -10
+"""
+    config_path = tmp_path / "test_config.yaml"
+    config_path.write_text(yaml_content, encoding="utf-8")
+
+    config = ConfigManager(str(config_path))
+    with pytest.raises(ValueError, match="position_x"):
+        config.validate()
+
+    # 無効なmarker_color（要素数が不足）
+    yaml_content = """
+video:
+  input_path: "test_video.mov"
+detection:
+  model_name: "test_model"
+  confidence_threshold: 0.7
+  device: "cpu"
+floormap:
+  image_path: "test_floormap.png"
+  image_width: 100
+  image_height: 50
+  image_origin_x: 0
+  image_origin_y: 0
+  image_x_mm_per_pixel: 1.0
+  image_y_mm_per_pixel: 1.0
+homography:
+  matrix: [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+zones: []
+output:
+  directory: "output"
+camera:
+  marker_color: [0, 0]
+"""
+    config_path.write_text(yaml_content, encoding="utf-8")
+    config = ConfigManager(str(config_path))
+    with pytest.raises(ValueError, match="3要素リスト"):
+        config.validate()
+
+
+def test_validate_output_config_edge_cases(tmp_path: Path):
+    """output設定のエッジケース"""
+    # 無効なdirectory（None）
+    yaml_content = """
+video:
+  input_path: "test_video.mov"
+detection:
+  model_name: "test_model"
+  confidence_threshold: 0.7
+  device: "cpu"
+floormap:
+  image_path: "test_floormap.png"
+  image_width: 100
+  image_height: 50
+  image_origin_x: 0
+  image_origin_y: 0
+  image_x_mm_per_pixel: 1.0
+  image_y_mm_per_pixel: 1.0
+homography:
+  matrix: [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+zones: []
+output:
+  directory: null
+  save_detection_images: "not_bool"
+"""
+    config_path = tmp_path / "test_config.yaml"
+    config_path.write_text(yaml_content, encoding="utf-8")
+
+    config = ConfigManager(str(config_path))
+    with pytest.raises(ValueError, match="directory"):
+        config.validate()
+
+
+def test_save_file_permissions_error(tmp_path: Path):
+    """ファイル権限エラーのテスト"""
+    import os
+
+    config = ConfigManager("nonexistent.yaml")
+
+    # 読み取り専用ディレクトリを作成
+    read_only_dir = tmp_path / "readonly"
+    read_only_dir.mkdir()
+    read_only_dir.chmod(0o555)
+
+    output_path = read_only_dir / "config.yaml"
+
+    # 権限エラーが発生することを確認（Windowsでは異なる動作）
+    if os.name != "nt":  # Windows以外
+        with pytest.raises((PermissionError, OSError, ValueError)):
+            config.save(str(output_path))
+
+    # クリーンアップ
+    read_only_dir.chmod(0o755)

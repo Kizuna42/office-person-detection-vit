@@ -388,7 +388,9 @@ def test_calculate_similarity_with_levenshtein():
         from Levenshtein import ratio
 
         ocr = MultiEngineOCR(enabled_engines=[])
-        similarity = ocr._calculate_similarity("2025/08/26 16:07:45", "2025/08/26 16:07:46")
+        similarity = ocr._calculate_similarity(
+            "2025/08/26 16:07:45", "2025/08/26 16:07:46"
+        )
 
         # Levenshteinが使用されている場合、類似度は計算される
         assert 0.0 <= similarity <= 1.0
@@ -403,6 +405,7 @@ def test_calculate_similarity_without_levenshtein():
     """Levenshteinなしの類似度計算"""
     # Levenshteinをインポートできないようにする
     import sys
+
     original_import = __import__
 
     def mock_import(name, *args, **kwargs):
@@ -415,11 +418,15 @@ def test_calculate_similarity_without_levenshtein():
         ocr = MultiEngineOCR(enabled_engines=[])
 
         # 同一テキスト
-        similarity = ocr._calculate_similarity("2025/08/26 16:07:45", "2025/08/26 16:07:45")
+        similarity = ocr._calculate_similarity(
+            "2025/08/26 16:07:45", "2025/08/26 16:07:45"
+        )
         assert similarity == 1.0
 
         # 異なるテキスト
-        similarity = ocr._calculate_similarity("2025/08/26 16:07:45", "2025/08/27 17:08:46")
+        similarity = ocr._calculate_similarity(
+            "2025/08/26 16:07:45", "2025/08/27 17:08:46"
+        )
         assert 0.0 <= similarity < 1.0
 
 

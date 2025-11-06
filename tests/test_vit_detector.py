@@ -249,7 +249,9 @@ def test_detect_error_handling(mock_processor_cls, mock_model_cls, sample_frame)
 
 @patch("src.detection.vit_detector.DetrForObjectDetection")
 @patch("src.detection.vit_detector.DetrImageProcessor")
-def test_postprocess_with_person_detections(mock_processor_cls, mock_model_cls, sample_frame):
+def test_postprocess_with_person_detections(
+    mock_processor_cls, mock_model_cls, sample_frame
+):
     """人物検出結果の後処理"""
     import torch
 
@@ -262,11 +264,13 @@ def test_postprocess_with_person_detections(mock_processor_cls, mock_model_cls, 
     mock_result = {
         "scores": torch.tensor([0.9, 0.8, 0.3]),  # 3つの検出（最後は信頼度低い）
         "labels": torch.tensor([1, 1, 2]),  # 1=person, 2=other
-        "boxes": torch.tensor([
-            [100.0, 200.0, 150.0, 300.0],  # person
-            [200.0, 300.0, 260.0, 420.0],  # person
-            [50.0, 50.0, 100.0, 100.0],  # other
-        ]),
+        "boxes": torch.tensor(
+            [
+                [100.0, 200.0, 150.0, 300.0],  # person
+                [200.0, 300.0, 260.0, 420.0],  # person
+                [50.0, 50.0, 100.0, 100.0],  # other
+            ]
+        ),
     }
     mock_processor.post_process_object_detection.return_value = [mock_result]
 
@@ -333,10 +337,12 @@ def test_postprocess_batch(mock_processor_cls, mock_model_cls, sample_frame):
         {
             "scores": torch.tensor([0.8, 0.7]),
             "labels": torch.tensor([1, 1]),
-            "boxes": torch.tensor([
-                [200.0, 300.0, 260.0, 420.0],
-                [300.0, 400.0, 360.0, 520.0],
-            ]),
+            "boxes": torch.tensor(
+                [
+                    [200.0, 300.0, 260.0, 420.0],
+                    [300.0, 400.0, 360.0, 520.0],
+                ]
+            ),
         },
     ]
     mock_processor.post_process_object_detection.return_value = mock_results
@@ -346,7 +352,9 @@ def test_postprocess_batch(mock_processor_cls, mock_model_cls, sample_frame):
 
     mock_outputs = MagicMock()
     frames = [sample_frame.copy() for _ in range(2)]
-    batch_detections = detector._postprocess_batch(mock_outputs, [frame.shape for frame in frames])
+    batch_detections = detector._postprocess_batch(
+        mock_outputs, [frame.shape for frame in frames]
+    )
 
     assert len(batch_detections) == 2
     assert len(batch_detections[0]) == 1
@@ -409,7 +417,9 @@ def test_preprocess_batch(mock_processor_cls, mock_model_cls, sample_frame):
 
 @patch("src.detection.vit_detector.DetrForObjectDetection")
 @patch("src.detection.vit_detector.DetrImageProcessor")
-def test_confidence_threshold_filtering(mock_processor_cls, mock_model_cls, sample_frame):
+def test_confidence_threshold_filtering(
+    mock_processor_cls, mock_model_cls, sample_frame
+):
     """信頼度閾値によるフィルタリング"""
     import torch
 
@@ -422,11 +432,13 @@ def test_confidence_threshold_filtering(mock_processor_cls, mock_model_cls, samp
     mock_result = {
         "scores": torch.tensor([0.9, 0.6, 0.4]),  # 0.5以上のみが残る
         "labels": torch.tensor([1, 1, 1]),
-        "boxes": torch.tensor([
-            [100.0, 200.0, 150.0, 300.0],
-            [200.0, 300.0, 260.0, 420.0],
-            [300.0, 400.0, 360.0, 520.0],
-        ]),
+        "boxes": torch.tensor(
+            [
+                [100.0, 200.0, 150.0, 300.0],
+                [200.0, 300.0, 260.0, 420.0],
+                [300.0, 400.0, 360.0, 520.0],
+            ]
+        ),
     }
     mock_processor.post_process_object_detection.return_value = [mock_result]
 

@@ -248,4 +248,3 @@ def test_60fps_validation(validator_60fps: TemporalValidatorV2):
     assert is_valid is True
     assert confidence > 0.0
     assert "Valid" in reason
-

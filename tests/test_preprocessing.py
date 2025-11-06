@@ -348,3 +348,96 @@ def test_apply_pipeline_invert_order(sample_bgr_image: np.ndarray):
     result = apply_pipeline(sample_bgr_image, params)
 
     assert len(result.shape) == 2
+
+
+def test_apply_threshold_auto_switch(sample_grayscale_image: np.ndarray):
+    """自動切替機能のテスト"""
+    import cv2
+
+    # 低コントラスト画像を作成（標準偏差が小さい）
+    low_contrast_image = np.full((100, 100), 128, dtype=np.uint8).astype(np.int16)
+    low_contrast_image += np.random.randint(-10, 10, (100, 100), dtype=np.int16)
+    low_contrast_image = np.clip(low_contrast_image, 0, 255).astype(np.uint8)
+
+    # auto_switchが有効な場合、低コントラストではadaptive thresholdに切替
+    result = apply_threshold(low_contrast_image, method="otsu", auto_switch=True)
+
+    assert result.shape == low_contrast_image.shape
+    assert result.dtype == np.uint8
+
+    # 高コントラスト画像（標準偏差が大きい）ではOtsuを使用
+    high_contrast_image = np.random.randint(0, 255, (100, 100), dtype=np.uint8)
+    result2 = apply_threshold(high_contrast_image, method="otsu", auto_switch=True)
+
+    assert result2.shape == high_contrast_image.shape
+
+
+def test_apply_deskew_with_lines(sample_grayscale_image: np.ndarray):
+    """線検出がある場合のdeskew"""
+    import cv2
+
+    # 水平線を含む画像を作成
+    image_with_lines = np.zeros((100, 100), dtype=np.uint8)
+    # 水平線を描画
+    image_with_lines[50, :] = 255
+
+    result, angle = apply_deskew(image_with_lines, enabled=True)
+
+    assert result.shape == image_with_lines.shape
+    assert isinstance(angle, float)
+
+
+def test_apply_deskew_no_lines(sample_grayscale_image: np.ndarray):
+    """線検出がない場合のdeskew"""
+    # 線が検出されない画像（均一な画像）
+    uniform_image = np.full((100, 100), 128, dtype=np.uint8)
+
+    result, angle = apply_deskew(uniform_image, enabled=True)
+
+    assert result.shape == uniform_image.shape
+    assert isinstance(angle, float)
+    # 線が検出されない場合、角度は0に近い
+    assert abs(angle) < 1.0
+
+
+def test_apply_pipeline_threshold_auto_switch(sample_bgr_image: np.ndarray):
+    """パイプライン内での自動切替"""
+    import cv2
+
+    # 低コントラスト画像を作成
+    low_contrast_gray = np.full((100, 100), 128, dtype=np.uint8).astype(np.int16)
+    low_contrast_gray += np.random.randint(-10, 10, (100, 100), dtype=np.int16)
+    low_contrast_gray = np.clip(low_contrast_gray, 0, 255).astype(np.uint8)
+    # BGR画像に変換
+    low_contrast_bgr = cv2.cvtColor(low_contrast_gray, cv2.COLOR_GRAY2BGR)
+
+    params = {
+        "threshold": {"enabled": True, "method": "otsu", "auto_switch": True},
+    }
+
+    result = apply_pipeline(low_contrast_bgr, params)
+
+    assert len(result.shape) == 2
+    assert result.dtype == np.uint8
+
+
+def test_apply_pipeline_deskew_with_angle(sample_bgr_image: np.ndarray):
+    """傾きがある場合のdeskew"""
+    import cv2
+
+    # 傾きのある画像を作成（回転変換を使用）
+    center = (50, 50)
+    rotation_matrix = cv2.getRotationMatrix2D(center, 5.0, 1.0)  # 5度回転
+    rotated_image = cv2.warpAffine(
+        sample_bgr_image, rotation_matrix, (100, 100), borderValue=(255, 255, 255)
+    )
+
+    params = {
+        "threshold": {"enabled": True, "method": "otsu"},
+        "deskew": {"enabled": True, "max_angle": 10.0},
+    }
+
+    result = apply_pipeline(rotated_image, params)
+
+    assert len(result.shape) == 2
+    assert result.dtype == np.uint8

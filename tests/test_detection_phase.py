@@ -39,9 +39,21 @@ def sample_logger():
 def sample_frames() -> list[tuple[int, str, np.ndarray]]:
     """テスト用のフレームリスト"""
     return [
-        (0, "2025/08/26 16:05:00", np.random.randint(0, 255, (720, 1280, 3), dtype=np.uint8)),
-        (1, "2025/08/26 16:10:00", np.random.randint(0, 255, (720, 1280, 3), dtype=np.uint8)),
-        (2, "2025/08/26 16:15:00", np.random.randint(0, 255, (720, 1280, 3), dtype=np.uint8)),
+        (
+            0,
+            "2025/08/26 16:05:00",
+            np.random.randint(0, 255, (720, 1280, 3), dtype=np.uint8),
+        ),
+        (
+            1,
+            "2025/08/26 16:10:00",
+            np.random.randint(0, 255, (720, 1280, 3), dtype=np.uint8),
+        ),
+        (
+            2,
+            "2025/08/26 16:15:00",
+            np.random.randint(0, 255, (720, 1280, 3), dtype=np.uint8),
+        ),
     ]
 
 
@@ -75,15 +87,15 @@ def test_initialize(mock_detector_class, sample_config, sample_logger):
     phase = DetectionPhase(sample_config, sample_logger)
     phase.initialize()
 
-    mock_detector_class.assert_called_once_with(
-        "facebook/detr-resnet-50", 0.5, "cpu"
-    )
+    mock_detector_class.assert_called_once_with("facebook/detr-resnet-50", 0.5, "cpu")
     mock_detector.load_model.assert_called_once()
     assert phase.detector is mock_detector
 
 
 @patch("src.pipeline.detection_phase.ViTDetector")
-def test_execute_success(mock_detector_class, sample_config, sample_logger, sample_frames, sample_detections):
+def test_execute_success(
+    mock_detector_class, sample_config, sample_logger, sample_frames, sample_detections
+):
     """executeが正しく動作する"""
     mock_detector = MagicMock()
     # バッチサイズ2なので、最初の2フレームが1バッチ、最後の1フレームが1バッチ
@@ -109,7 +121,9 @@ def test_execute_success(mock_detector_class, sample_config, sample_logger, samp
 
 
 @patch("src.pipeline.detection_phase.ViTDetector")
-def test_execute_without_initialize(mock_detector_class, sample_config, sample_logger, sample_frames):
+def test_execute_without_initialize(
+    mock_detector_class, sample_config, sample_logger, sample_frames
+):
     """初期化前にexecuteを呼ぶとエラー"""
     phase = DetectionPhase(sample_config, sample_logger)
 
@@ -249,7 +263,9 @@ def test_execute_empty_frames(mock_detector_class, sample_config, sample_logger)
 
 
 @patch("src.pipeline.detection_phase.ViTDetector")
-def test_output_path_setting(mock_detector_class, sample_config, sample_logger, tmp_path):
+def test_output_path_setting(
+    mock_detector_class, sample_config, sample_logger, tmp_path
+):
     """output_pathが設定されている場合"""
     mock_detector = MagicMock()
     mock_detector_class.return_value = mock_detector
@@ -260,4 +276,3 @@ def test_output_path_setting(mock_detector_class, sample_config, sample_logger, 
     phase.initialize()
 
     assert phase.output_path == custom_output_path
-

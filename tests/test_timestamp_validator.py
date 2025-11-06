@@ -178,7 +178,9 @@ def test_backward_timestamp(validator_30fps: TemporalValidatorV2):
     # リカバリーされた場合でも、信頼度は低いはず
     if is_valid:
         # リカバリーされた場合、信頼度は低い
-        assert confidence < 0.5, f"Confidence should be low for backward timestamp, got {confidence}"
+        assert (
+            confidence < 0.5
+        ), f"Confidence should be low for backward timestamp, got {confidence}"
     else:
         # 無効として扱われた場合
         assert confidence == 0.0

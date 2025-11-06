@@ -17,20 +17,23 @@ from src.pipeline.aggregation_phase import AggregationPhase
 def sample_config(tmp_path: Path) -> ConfigManager:
     """テスト用のConfigManager"""
     config = ConfigManager("nonexistent_config.yaml")
-    config.set("zones", [
-        {
-            "id": "zone_a",
-            "name": "Zone A",
-            "polygon": [[0, 0], [100, 0], [100, 100], [0, 100]],
-            "priority": 1,
-        },
-        {
-            "id": "zone_b",
-            "name": "Zone B",
-            "polygon": [[100, 0], [200, 0], [200, 100], [100, 100]],
-            "priority": 2,
-        },
-    ])
+    config.set(
+        "zones",
+        [
+            {
+                "id": "zone_a",
+                "name": "Zone A",
+                "polygon": [[0, 0], [100, 0], [100, 100], [0, 100]],
+                "priority": 1,
+            },
+            {
+                "id": "zone_b",
+                "name": "Zone B",
+                "polygon": [[100, 0], [200, 0], [200, 100], [100, 100]],
+                "priority": 2,
+            },
+        ],
+    )
     return config
 
 
@@ -124,7 +127,9 @@ def test_execute_empty_results(sample_config, sample_logger, tmp_path):
     assert (output_path / "zone_counts.csv").exists()
 
 
-def test_execute_with_no_zones(sample_config, sample_logger, sample_frame_results, tmp_path):
+def test_execute_with_no_zones(
+    sample_config, sample_logger, sample_frame_results, tmp_path
+):
     """ゾーン定義がない場合"""
     sample_config.set("zones", [])
 
@@ -139,7 +144,9 @@ def test_execute_with_no_zones(sample_config, sample_logger, sample_frame_result
     assert (output_path / "zone_counts.csv").exists()
 
 
-def test_execute_csv_output_format(sample_config, sample_logger, sample_frame_results, tmp_path):
+def test_execute_csv_output_format(
+    sample_config, sample_logger, sample_frame_results, tmp_path
+):
     """CSV出力フォーマットが正しい"""
     phase = AggregationPhase(sample_config, sample_logger)
 
@@ -152,6 +159,7 @@ def test_execute_csv_output_format(sample_config, sample_logger, sample_frame_re
     assert csv_path.exists()
 
     import csv
+
     with open(csv_path, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         rows = list(reader)
@@ -165,7 +173,9 @@ def test_execute_csv_output_format(sample_config, sample_logger, sample_frame_re
     assert any(row["zone_id"] == "zone_a" for row in rows)
 
 
-def test_execute_statistics(sample_config, sample_logger, sample_frame_results, tmp_path):
+def test_execute_statistics(
+    sample_config, sample_logger, sample_frame_results, tmp_path
+):
     """統計情報が正しく計算される"""
     phase = AggregationPhase(sample_config, sample_logger)
 
@@ -179,4 +189,3 @@ def test_execute_statistics(sample_config, sample_logger, sample_frame_results, 
     assert "zone_b" in statistics
     assert statistics["zone_a"]["average"] > 0
     assert statistics["zone_b"]["average"] > 0
-

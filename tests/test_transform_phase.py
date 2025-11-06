@@ -19,22 +19,28 @@ def sample_config(tmp_path: Path) -> ConfigManager:
     """テスト用のConfigManager"""
     config = ConfigManager("nonexistent_config.yaml")
     config.set("homography.matrix", [[1, 0, 0], [0, 1, 0], [0, 0, 1]])
-    config.set("floormap", {
-        "image_width": 1878,
-        "image_height": 1369,
-        "image_origin_x": 7,
-        "image_origin_y": 9,
-        "image_x_mm_per_pixel": 28.1926406926406,
-        "image_y_mm_per_pixel": 28.241430700447,
-    })
-    config.set("zones", [
+    config.set(
+        "floormap",
         {
-            "id": "zone_a",
-            "name": "Zone A",
-            "polygon": [[0, 0], [100, 0], [100, 100], [0, 100]],
-            "priority": 1,
-        }
-    ])
+            "image_width": 1878,
+            "image_height": 1369,
+            "image_origin_x": 7,
+            "image_origin_y": 9,
+            "image_x_mm_per_pixel": 28.1926406926406,
+            "image_y_mm_per_pixel": 28.241430700447,
+        },
+    )
+    config.set(
+        "zones",
+        [
+            {
+                "id": "zone_a",
+                "name": "Zone A",
+                "polygon": [[0, 0], [100, 0], [100, 100], [0, 100]],
+                "priority": 1,
+            }
+        ],
+    )
     return config
 
 
@@ -68,7 +74,9 @@ def sample_detections() -> list[Detection]:
 
 
 @pytest.fixture
-def sample_detection_results(sample_detections) -> list[tuple[int, str, list[Detection]]]:
+def sample_detection_results(
+    sample_detections,
+) -> list[tuple[int, str, list[Detection]]]:
     """テスト用の検出結果リスト"""
     return [
         (0, "2025/08/26 16:05:00", sample_detections),
@@ -125,7 +133,9 @@ def test_execute_success(sample_config, sample_logger, sample_detection_results)
         assert isinstance(detection.zone_ids, list)
 
 
-def test_execute_without_initialize(sample_config, sample_logger, sample_detection_results):
+def test_execute_without_initialize(
+    sample_config, sample_logger, sample_detection_results
+):
     """初期化前にexecuteを呼ぶとエラー"""
     phase = TransformPhase(sample_config, sample_logger)
 
@@ -145,7 +155,9 @@ def test_execute_empty_detections(sample_config, sample_logger):
     assert len(results[0].detections) == 0
 
 
-def test_execute_coordinate_transform_error(sample_config, sample_logger, sample_detection_results):
+def test_execute_coordinate_transform_error(
+    sample_config, sample_logger, sample_detection_results
+):
     """座標変換でエラーが発生した場合"""
     phase = TransformPhase(sample_config, sample_logger)
     phase.initialize()
@@ -169,7 +181,9 @@ def test_execute_coordinate_transform_error(sample_config, sample_logger, sample
     assert results[0].detections[0].zone_ids == []
 
 
-def test_export_results(sample_config, sample_logger, sample_detection_results, tmp_path):
+def test_export_results(
+    sample_config, sample_logger, sample_detection_results, tmp_path
+):
     """結果のエクスポートが正しく動作する"""
     phase = TransformPhase(sample_config, sample_logger)
     phase.initialize()
@@ -185,6 +199,7 @@ def test_export_results(sample_config, sample_logger, sample_detection_results, 
     assert json_path.exists()
 
     import json
+
     with open(json_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
@@ -209,6 +224,7 @@ def test_export_results_empty(sample_config, sample_logger, tmp_path):
     assert json_path.exists()
 
     import json
+
     with open(json_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
@@ -249,10 +265,10 @@ def test_export_results_with_missing_coords(sample_config, sample_logger, tmp_pa
     assert json_path.exists()
 
     import json
+
     with open(json_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
     assert len(data) == 1
     assert "floor_coords" not in data[0]["detections"][0]
     assert "floor_coords_mm" not in data[0]["detections"][0]
-
