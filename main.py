@@ -25,12 +25,16 @@ from src.pipeline import (
 from src.utils import (
     cleanup_resources,
     setup_logging,
+    setup_mps_compatibility,
     setup_output_directories,
 )
 
 
 def main():
     """メイン処理"""
+    # MPS互換性設定を適用（警告抑制）
+    setup_mps_compatibility()
+    
     # コマンドライン引数のパース
     args = parse_arguments()
     

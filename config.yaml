@@ -144,7 +144,8 @@ timestamp:
   extraction:
     # 信頼度閾値（0.0-1.0）
     # この値未満のOCR結果は除外される（施策10）
-    confidence_threshold: 0.3
+    # 0.3から0.2に引き下げ（抽出成功率改善のため）
+    confidence_threshold: 0.2
 
     # 最後のフレーム検証設定（施策9）
     final_frame_validation:
