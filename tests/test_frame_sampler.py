@@ -98,13 +98,13 @@ def test_fine_sampler_search_window(mock_video_capture):
 
 def test_fine_sampler_interval(mock_video_capture):
     """FineSamplerのサンプリング間隔テスト"""
-    sampler = FineSampler(mock_video_capture, search_window=30.0)
+    sampler = FineSampler(mock_video_capture, search_window=30.0, interval_seconds=0.1)
     sampler.fps = 30.0
 
     approx_frame_idx = 1000
     frames = list(sampler.sample_around_target(approx_frame_idx))
 
-    # 1秒間隔（30フレーム）でサンプリングされていることを確認
+    # 0.1秒間隔（3フレーム）でサンプリングされていることを確認
     if len(frames) >= 2:
         frame_indices = [idx for idx, _ in frames]
         intervals = [
@@ -112,9 +112,10 @@ def test_fine_sampler_interval(mock_video_capture):
             for i in range(len(frame_indices) - 1)
         ]
 
-        # すべての間隔が30フレーム（1秒）であることを確認
+        # すべての間隔が3フレーム（0.1秒）であることを確認
+        # 0.1秒間隔 = fps * 0.1 = 30 * 0.1 = 3フレーム間隔
         for interval in intervals:
-            assert interval == 30
+            assert interval == 3
 
 
 def test_fine_sampler_boundary_check(mock_video_capture):

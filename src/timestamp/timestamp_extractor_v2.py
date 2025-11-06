@@ -1,7 +1,6 @@
 """Integrated timestamp extraction module (V2)."""
 
 import logging
-from datetime import datetime
 from typing import Dict, Optional
 
 import numpy as np
@@ -10,6 +9,7 @@ from src.timestamp.ocr_engine import MultiEngineOCR
 from src.timestamp.roi_extractor import TimestampROIExtractor
 from src.timestamp.timestamp_parser import TimestampParser
 from src.timestamp.timestamp_validator import TemporalValidator
+from src.timestamp.timestamp_validator_v2 import TemporalValidatorV2
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +27,12 @@ class TimestampExtractorV2:
         roi_config: Dict[str, float] = None,
         fps: float = 30.0,
         enabled_ocr_engines: list = None,
+        use_improved_validator: bool = False,
+        base_tolerance_seconds: float = 10.0,
+        history_size: int = 10,
+        z_score_threshold: float = 2.0,
+        use_weighted_consensus: bool = False,
+        use_voting_consensus: bool = False,
     ):
         """TimestampExtractorV2を初期化
 
@@ -35,11 +41,36 @@ class TimestampExtractorV2:
             roi_config: ROI設定（Noneの場合はデフォルト）
             fps: 動画のフレームレート
             enabled_ocr_engines: 有効にするOCRエンジンのリスト
+            use_improved_validator: TemporalValidatorV2を使用するか（デフォルト: True）
+            base_tolerance_seconds: ベース許容範囲（秒、TemporalValidatorV2用）
+            history_size: 履歴サイズ（TemporalValidatorV2用）
+            z_score_threshold: Z-score閾値（TemporalValidatorV2用）
+            use_weighted_consensus: 重み付けスキームを使用するか（デフォルト: False）
+            use_voting_consensus: 投票ロジックを使用するか（デフォルト: False）
         """
         self.roi_extractor = TimestampROIExtractor(roi_config)
-        self.ocr_engine = MultiEngineOCR(enabled_engines=enabled_ocr_engines)
+        self.ocr_engine = MultiEngineOCR(
+            enabled_engines=enabled_ocr_engines,
+            use_weighted_consensus=use_weighted_consensus,
+            use_voting_consensus=use_voting_consensus,
+        )
         self.parser = TimestampParser()
-        self.validator = TemporalValidator(fps=fps)
+
+        # 改善されたバリデーターを使用するか選択
+        if use_improved_validator:
+            self.validator = TemporalValidatorV2(
+                fps=fps,
+                base_tolerance_seconds=base_tolerance_seconds,
+                history_size=history_size,
+                z_score_threshold=z_score_threshold,
+            )
+            logger.info(
+                "Using TemporalValidatorV2 (adaptive tolerance and outlier recovery)"
+            )
+        else:
+            self.validator = TemporalValidator(fps=fps)
+            logger.info("Using TemporalValidator (baseline)")
+
         self.confidence_threshold = confidence_threshold
 
     def extract(
@@ -115,10 +146,18 @@ class TimestampExtractorV2:
                         "roi_coords": roi_coords,
                     }
                 else:
-                    logger.debug(
-                        f"Frame {frame_idx}: Low confidence ({total_confidence:.2f}), "
-                        f"valid={is_valid}, {reason}"
-                    )
+                    # デバッグ情報を詳細に出力（時系列検証の失敗原因を確認）
+                    if not is_valid:
+                        logger.warning(
+                            f"Frame {frame_idx}: Temporal validation failed - {reason}, "
+                            f"confidence={total_confidence:.2f}, "
+                            f"threshold={self.confidence_threshold:.2f}"
+                        )
+                    else:
+                        logger.debug(
+                            f"Frame {frame_idx}: Low confidence ({total_confidence:.2f}), "
+                            f"valid={is_valid}, {reason}"
+                        )
             except Exception as e:
                 logger.error(
                     f"Frame {frame_idx}: Error during extraction (attempt {attempt+1}/{retry_count}): {e}"

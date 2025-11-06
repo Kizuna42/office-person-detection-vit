@@ -7,10 +7,10 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 import cv2
-import numpy as np
 from tqdm import tqdm
 
 from src.timestamp.timestamp_extractor_v2 import TimestampExtractorV2
+from src.video import VideoProcessor
 from src.video.frame_sampler import CoarseSampler, FineSampler
 
 logger = logging.getLogger(__name__)
@@ -32,11 +32,18 @@ class FrameExtractionPipeline:
         interval_minutes: int = 5,
         tolerance_seconds: float = 10.0,
         confidence_threshold: float = 0.7,
-        coarse_interval_seconds: float = 10.0,
-        fine_search_window_seconds: float = 30.0,
+        coarse_interval_seconds: float = 2.0,
+        fine_search_window_seconds: float = 60.0,
+        fine_interval_seconds: float = 0.1,
         fps: float = 30.0,
         roi_config: Dict[str, float] = None,
         enabled_ocr_engines: List[str] = None,
+        use_improved_validator: bool = False,
+        base_tolerance_seconds: float = 10.0,
+        history_size: int = 10,
+        z_score_threshold: float = 2.0,
+        use_weighted_consensus: bool = False,
+        use_voting_consensus: bool = False,
     ):
         """FrameExtractionPipelineを初期化
 
@@ -50,9 +57,16 @@ class FrameExtractionPipeline:
             confidence_threshold: 信頼度閾値
             coarse_interval_seconds: 粗サンプリング間隔（秒）
             fine_search_window_seconds: 精密サンプリングの探索ウィンドウ（秒）
+            fine_interval_seconds: 精密サンプリング間隔（秒）
             fps: 動画のフレームレート
             roi_config: ROI設定
             enabled_ocr_engines: 有効にするOCRエンジンのリスト
+            use_improved_validator: TemporalValidatorV2を使用するか（デフォルト: False）
+            base_tolerance_seconds: ベース許容範囲（秒、TemporalValidatorV2用）
+            history_size: 履歴サイズ（TemporalValidatorV2用）
+            z_score_threshold: Z-score閾値（TemporalValidatorV2用）
+            use_weighted_consensus: 重み付けスキームを使用するか（デフォルト: False）
+            use_voting_consensus: 投票ロジックを使用するか（デフォルト: False）
         """
         self.video_path = video_path
         self.output_dir = Path(output_dir)
@@ -68,8 +82,11 @@ class FrameExtractionPipeline:
         self.video_cap = cv2.VideoCapture(video_path)
         if not self.video_cap.isOpened():
             raise RuntimeError(f"Failed to open video: {video_path}")
+        # 精密サンプリング間隔を設定
         self.fine_sampler = FineSampler(
-            self.video_cap, search_window=fine_search_window_seconds
+            self.video_cap,
+            search_window=fine_search_window_seconds,
+            interval_seconds=fine_interval_seconds,
         )
 
         self.extractor = TimestampExtractorV2(
@@ -77,6 +94,12 @@ class FrameExtractionPipeline:
             roi_config=roi_config,
             fps=fps,
             enabled_ocr_engines=enabled_ocr_engines,
+            use_improved_validator=use_improved_validator,
+            base_tolerance_seconds=base_tolerance_seconds,
+            history_size=history_size,
+            z_score_threshold=z_score_threshold,
+            use_weighted_consensus=use_weighted_consensus,
+            use_voting_consensus=use_voting_consensus,
         )
 
         # 目標タイムスタンプ生成
@@ -251,9 +274,13 @@ class FrameExtractionPipeline:
         Args:
             result: 抽出結果の辞書
         """
+        # フレーム保存用のディレクトリ（frames/サブディレクトリを使用）
+        frames_dir = self.output_dir / "frames"
+        frames_dir.mkdir(parents=True, exist_ok=True)
+
         timestamp = result["timestamp"]
         timestamp_str = timestamp.strftime("%Y%m%d_%H%M%S")
-        output_path = self.output_dir / f"frame_{timestamp_str}.jpg"
+        output_path = frames_dir / f"frame_{timestamp_str}.jpg"
 
         frame = result.get("frame")
         if frame is not None:
@@ -295,6 +322,199 @@ class FrameExtractionPipeline:
                 )
 
         logger.info(f"Results saved: {csv_path}")
+
+    def run_with_auto_targets(
+        self,
+        max_frames: Optional[int] = None,
+        disable_validation: bool = False,
+    ) -> List[Dict[str, any]]:
+        """5分刻みフレーム抽出（自動目標タイムスタンプ生成）
+
+        指定範囲のフレームからタイムスタンプを全て抽出し、
+        5分刻みの目標タイムスタンプを自動生成して、
+        各目標に最も近いフレームを選択・保存します。
+
+        Args:
+            max_frames: 最大処理フレーム数（Noneの場合は全フレーム）
+            disable_validation: タイムスタンプ検証を無効化するか（デフォルト: False）
+
+        Returns:
+            抽出結果のリスト
+        """
+        # 検証を無効化する場合のダミーバリデーター
+        original_validator = None
+        if disable_validation:
+
+            class NoOpValidator:
+                def validate(self, timestamp, frame_idx):
+                    return True, 1.0, "Validation disabled"
+
+                def reset(self):
+                    pass
+
+            original_validator = self.extractor.validator
+            self.extractor.validator = NoOpValidator()
+
+        try:
+            # ステップ1: 指定範囲のフレームからタイムスタンプを全て抽出
+            logger.info("ステップ1: フレームからタイムスタンプを抽出中...")
+            video_processor = VideoProcessor(self.video_path)
+            video_processor.open()
+
+            try:
+                total_video_frames = video_processor.total_frames
+                if max_frames is None:
+                    max_frames = total_video_frames
+                process_frames = min(max_frames, total_video_frames)
+
+                all_extracted_frames = []
+                for frame_idx in tqdm(range(process_frames), desc="タイムスタンプ抽出中"):
+                    frame = video_processor.get_frame(frame_idx)
+                    if frame is None:
+                        continue
+
+                    result = self.extractor.extract(frame, frame_idx)
+                    if result and result.get("timestamp"):
+                        all_extracted_frames.append(
+                            {
+                                "frame_index": frame_idx,
+                                "timestamp": result["timestamp"],
+                                "confidence": result.get("confidence", 0.0),
+                                "ocr_text": result.get("ocr_text", ""),
+                                "frame": frame,
+                            }
+                        )
+
+            finally:
+                video_processor.release()
+
+            if not all_extracted_frames:
+                logger.error("タイムスタンプを抽出できたフレームがありません")
+                return []
+
+            logger.info(f"タイムスタンプ抽出成功: {len(all_extracted_frames)}フレーム")
+
+            # ステップ2: 5分刻みの目標タイムスタンプを生成
+            first_timestamp = all_extracted_frames[0]["timestamp"]
+            last_timestamp = all_extracted_frames[-1]["timestamp"]
+
+            # 先頭フレームの時刻を5分刻みに切り上げ（例: 16:04:16 -> 16:05:00）
+            start_minute = (
+                first_timestamp.minute // self.interval_minutes + 1
+            ) * self.interval_minutes
+            if start_minute >= 60:
+                start_minute = 0
+                start_hour = first_timestamp.hour + 1
+            else:
+                start_hour = first_timestamp.hour
+
+            start_target = first_timestamp.replace(
+                hour=start_hour, minute=start_minute, second=0, microsecond=0
+            )
+
+            # 終了時刻を5分刻みに切り下げ
+            end_minute = (
+                last_timestamp.minute // self.interval_minutes
+            ) * self.interval_minutes
+            end_target = last_timestamp.replace(
+                minute=end_minute, second=0, microsecond=0
+            )
+
+            # 5分刻みの目標タイムスタンプを生成
+            target_timestamps = []
+            current = start_target
+            while current <= end_target:
+                target_timestamps.append(current)
+                current += timedelta(minutes=self.interval_minutes)
+
+            logger.info(f"ステップ2: 5分刻みの目標タイムスタンプを生成 ({len(target_timestamps)}個)")
+            logger.info(
+                f"  抽出範囲: {first_timestamp.strftime('%Y-%m-%d %H:%M:%S')} ～ "
+                f"{last_timestamp.strftime('%Y-%m-%d %H:%M:%S')}"
+            )
+
+            # ステップ3: 各目標タイムスタンプに最も近いフレームを選択
+            logger.info("ステップ3: 各目標タイムスタンプに最も近いフレームを選択中...")
+            selected_frames = []
+            tolerance_seconds = max(self.tolerance_seconds, 60.0)  # 最低60秒の許容範囲
+
+            for target_ts in target_timestamps:
+                best_frame = None
+                min_diff = float("inf")
+
+                for extracted in all_extracted_frames:
+                    timestamp = extracted["timestamp"]
+                    diff = abs((timestamp - target_ts).total_seconds())
+
+                    if diff < min_diff and diff <= tolerance_seconds:
+                        min_diff = diff
+                        best_frame = extracted
+
+                if best_frame:
+                    selected_frames.append(
+                        {
+                            "target_timestamp": target_ts,
+                            "frame_index": best_frame["frame_index"],
+                            "timestamp": best_frame["timestamp"],
+                            "time_diff": min_diff,
+                            "confidence": best_frame["confidence"],
+                            "ocr_text": best_frame["ocr_text"],
+                            "frame": best_frame["frame"],
+                        }
+                    )
+                    logger.info(
+                        f"  目標: {target_ts.strftime('%Y-%m-%d %H:%M:%S')} -> "
+                        f"フレーム{best_frame['frame_index']}: "
+                        f"{best_frame['timestamp'].strftime('%Y-%m-%d %H:%M:%S')} "
+                        f"(差={min_diff:.1f}秒)"
+                    )
+                else:
+                    logger.warning(
+                        f"  目標: {target_ts.strftime('%Y-%m-%d %H:%M:%S')} -> "
+                        f"±{tolerance_seconds}秒以内のフレームが見つかりませんでした"
+                    )
+
+            # ステップ4: 選択されたフレームのみを保存
+            logger.info(f"ステップ4: {len(selected_frames)}枚のフレームを保存中...")
+            results = []
+
+            # フレーム保存用のディレクトリ（frames/サブディレクトリを使用）
+            frames_dir = self.output_dir / "frames"
+            frames_dir.mkdir(parents=True, exist_ok=True)
+
+            for selected in selected_frames:
+                target_str = selected["target_timestamp"].strftime("%Y%m%d_%H%M%S")
+                output_path_frame = (
+                    frames_dir / f"frame_{target_str}_idx{selected['frame_index']}.jpg"
+                )
+
+                cv2.imwrite(str(output_path_frame), selected["frame"])
+
+                results.append(
+                    {
+                        "target_timestamp": selected["target_timestamp"],
+                        "timestamp": selected["timestamp"],
+                        "frame_idx": selected["frame_index"],
+                        "confidence": selected["confidence"],
+                        "ocr_text": selected["ocr_text"],
+                        "time_diff": selected["time_diff"],
+                        "frame": selected["frame"],
+                    }
+                )
+
+                logger.debug(f"保存: {output_path_frame.name}")
+
+            # 結果をCSV保存
+            self._save_results_csv(results)
+
+            logger.info(f"抽出完了: {len(results)}/{len(target_timestamps)}フレームを抽出・保存しました")
+
+            return results
+
+        finally:
+            if disable_validation:
+                self.extractor.validator = original_validator
+            self.extractor.reset_validator()
 
     def cleanup(self) -> None:
         """リソースを解放"""

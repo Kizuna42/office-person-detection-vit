@@ -28,7 +28,6 @@ sys.path.insert(0, str(project_root))
 from src.config import ConfigManager
 from src.utils import setup_logging
 
-
 LOGGER = logging.getLogger(__name__)
 
 
@@ -41,7 +40,9 @@ class PointCollector:
     color: Tuple[int, int, int]
     points: List[Tuple[int, int]]
 
-    def __init__(self, image: np.ndarray, window_name: str, color: Tuple[int, int, int]):
+    def __init__(
+        self, image: np.ndarray, window_name: str, color: Tuple[int, int, int]
+    ):
         self.image = image
         self.window_name = window_name
         self.color = color
@@ -74,14 +75,14 @@ class PointCollector:
             )
 
         cv2.rectangle(canvas, (0, 0), (canvas.shape[1], 30), (0, 0, 0), -1)
-        cv2.putText(canvas, status_text, (10, 20), font, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
+        cv2.putText(
+            canvas, status_text, (10, 20), font, 0.6, (255, 255, 255), 1, cv2.LINE_AA
+        )
         return canvas
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="カメラ画像とフロアマップの対応点からホモグラフィを計算します。"
-    )
+    parser = argparse.ArgumentParser(description="カメラ画像とフロアマップの対応点からホモグラフィを計算します。")
 
     parser.add_argument(
         "--config",
@@ -159,7 +160,9 @@ def collect_points_interactively(
     floormap_image: np.ndarray,
     min_points: int,
 ) -> Tuple[List[Tuple[int, int]], List[Tuple[int, int]]]:
-    LOGGER.info("クリック操作で対応点を収集します。左クリックで点を追加、'u' で取り消し、'c' で全消去、's' または Enter で確定、'q' で終了します。")
+    LOGGER.info(
+        "クリック操作で対応点を収集します。左クリックで点を追加、'u' で取り消し、'c' で全消去、's' または Enter で確定、'q' で終了します。"
+    )
 
     camera_collector = PointCollector(camera_image, "Camera", (0, 180, 255))
     floormap_collector = PointCollector(floormap_image, "Floormap", (0, 255, 0))
@@ -203,9 +206,9 @@ def collect_points_interactively(
             if key in (ord("q"), 27):
                 raise KeyboardInterrupt("ユーザーにより中断されました")
             if key in (ord("s"), 13):
-                if len(floormap_collector.points) >= min_points and len(camera_collector.points) == len(
-                    floormap_collector.points
-                ):
+                if len(floormap_collector.points) >= min_points and len(
+                    camera_collector.points
+                ) == len(floormap_collector.points):
                     LOGGER.info("%d 組の対応点が確定しました。", len(floormap_collector.points))
                     break
                 LOGGER.warning("対応点が不足しています (必要: %d)", min_points)
@@ -335,7 +338,9 @@ def save_homography_yaml(
     return path
 
 
-def update_config_homography(config_path: Path, matrix: np.ndarray, backup_dir: Path) -> None:
+def update_config_homography(
+    config_path: Path, matrix: np.ndarray, backup_dir: Path
+) -> None:
     backup_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     backup_path = backup_dir / f"homography_{timestamp}.yaml"
@@ -360,7 +365,9 @@ def update_config_homography(config_path: Path, matrix: np.ndarray, backup_dir: 
     insert_index = matrix_line_index + 1
     indent = ""
     if insert_index < len(original):
-        indent = original[insert_index][: len(original[insert_index]) - len(original[insert_index].lstrip())]
+        indent = original[insert_index][
+            : len(original[insert_index]) - len(original[insert_index].lstrip())
+        ]
     if not indent:
         indent = "    "
 
@@ -381,7 +388,9 @@ def update_config_homography(config_path: Path, matrix: np.ndarray, backup_dir: 
     LOGGER.info("config.yaml の homography.matrix を更新しました。")
 
 
-def load_points_from_json(path: Path) -> Tuple[List[Tuple[int, int]], List[Tuple[int, int]]]:
+def load_points_from_json(
+    path: Path,
+) -> Tuple[List[Tuple[int, int]], List[Tuple[int, int]]]:
     with path.open("r", encoding="utf-8") as f:
         data = json.load(f)
 
@@ -401,7 +410,11 @@ def main() -> None:
     config = ConfigManager(args.config)
     output_dir = Path(args.output_dir)
     reference_path = Path(args.reference_image)
-    floormap_path = Path(args.floormap_image) if args.floormap_image else Path(config.get("floormap.image_path"))
+    floormap_path = (
+        Path(args.floormap_image)
+        if args.floormap_image
+        else Path(config.get("floormap.image_path"))
+    )
 
     if not reference_path.exists():
         raise FileNotFoundError(f"参照画像が存在しません: {reference_path}")
@@ -419,8 +432,12 @@ def main() -> None:
             args.min_points,
         )
 
-    points_json = save_points_json(output_dir, camera_points, floormap_points, reference_path, floormap_path)
-    H, mask, metrics = compute_homography(camera_points, floormap_points, args.method, args.ransac_threshold)
+    points_json = save_points_json(
+        output_dir, camera_points, floormap_points, reference_path, floormap_path
+    )
+    H, mask, metrics = compute_homography(
+        camera_points, floormap_points, args.method, args.ransac_threshold
+    )
     homography_yaml = save_homography_yaml(output_dir, H, metrics, points_json)
 
     if args.update_config:
@@ -433,4 +450,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

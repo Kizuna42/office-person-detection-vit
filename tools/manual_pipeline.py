@@ -15,18 +15,15 @@ from pathlib import Path
 from typing import List, Tuple
 
 import numpy as np
+from tqdm import tqdm
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.config import ConfigManager
-from src.pipeline import (
-    AggregationPhase,
-    DetectionPhase,
-    TransformPhase,
-    VisualizationPhase,
-)
+from src.pipeline import (AggregationPhase, DetectionPhase, TransformPhase,
+                          VisualizationPhase)
 from src.utils import setup_logging, setup_output_directories
 from src.video import VideoProcessor
 
@@ -70,7 +67,7 @@ def run_manual_pipeline(config_path: str = "config.yaml") -> None:
     try:
         # サンプルフレームの準備
         sample_frames: List[Tuple[int, str, np.ndarray]] = []
-        for frame_number, timestamp_label in SAMPLE_FRAMES:
+        for frame_number, timestamp_label in tqdm(SAMPLE_FRAMES, desc="フレーム準備中"):
             frame = video_processor.get_frame(frame_number)
             if frame is None:
                 logger.warning("フレーム %d を取得できませんでした", frame_number)
@@ -107,7 +104,7 @@ def run_manual_pipeline(config_path: str = "config.yaml") -> None:
 
         # 座標変換結果をJSON形式で出力（デバッグ用）
         coordinate_records = []
-        for frame_result in frame_results:
+        for frame_result in tqdm(frame_results, desc="座標変換結果出力中"):
             for det in frame_result.detections:
                 record = {
                     "frame_number": frame_result.frame_number,
@@ -137,7 +134,9 @@ def run_manual_pipeline(config_path: str = "config.yaml") -> None:
                 }
                 coordinate_records.append(record)
 
-        coordinate_json_path = manual_output_dir / "coordinate_transformations_manual.json"
+        coordinate_json_path = (
+            manual_output_dir / "coordinate_transformations_manual.json"
+        )
         with open(coordinate_json_path, "w", encoding="utf-8") as fp:
             json.dump(coordinate_records, fp, indent=2, ensure_ascii=False)
         logger.info(f"座標変換結果をJSONに出力しました: {coordinate_json_path}")
@@ -157,4 +156,3 @@ def run_manual_pipeline(config_path: str = "config.yaml") -> None:
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     run_manual_pipeline()
-

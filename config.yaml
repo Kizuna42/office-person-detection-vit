@@ -132,6 +132,10 @@ output:
   # 出力ディレクトリ
   directory: "output"
 
+  # セッション管理を有効化するか
+  # trueの場合、各実行を独立したセッションとして管理
+  use_session_management: true
+
   # 検出結果画像を保存するか
   save_detection_images: true
 
@@ -142,15 +146,48 @@ output:
   # trueの場合、中間処理結果やAttention Mapを出力
   debug_mode: false
 
+  # セッション管理設定
+  session:
+    # アーカイブ対象の日数（この日数以上古いセッションをアーカイブ）
+    archive_days: 30
+    # アーカイブ削除対象の日数（この日数以上古いアーカイブを削除）
+    delete_archive_days: 90
+
 # タイムスタンプ抽出設定（V2）
 timestamp:
   extraction:
     # 信頼度閾値（0.0-1.0）
     # この値未満のOCR結果は除外される
-    confidence_threshold: 0.7
+    # タイムラプス動画用に0.5に調整（0.49-0.50の信頼度でも受け入れる）
+    confidence_threshold: 0.5
 
     # リトライ回数
     retry_count: 3
+
+    # 改善機能の有効化
+    # TemporalValidatorV2: 適応的許容範囲と異常値リカバリー
+    # タイムラプス動画の特性（時間圧縮率約313.4倍）に対応するため有効化
+    use_improved_validator: true
+    # 重み付けスキーム: エンジン別の重み付けによるコンセンサス（デフォルト: false）
+    # 複数エンジン使用時に有効化を推奨
+    use_weighted_consensus: false
+    # 投票ロジック: 2/3以上のエンジンが一致した結果を採用（デフォルト: false）
+    # 複数エンジン使用時に有効化を推奨
+    use_voting_consensus: false
+
+    # TemporalValidatorV2の設定
+    # タイムラプス動画の特性を考慮（時間圧縮率: 約313.4倍）
+    # 5分間隔のフレーム抽出の場合、実際の時間差は300秒（5分）
+    validator:
+      # ベース許容範囲（秒）
+      # タイムラプス動画用: 実際の5分間隔（300秒）+ 許容誤差10秒 = 310秒
+      # 適応的許容範囲により動的に調整される
+      base_tolerance_seconds: 300.0
+      # 履歴サイズ（過去N個のフレーム間隔を保持）
+      history_size: 10
+      # Z-score閾値（外れ値検出用、大きいほど厳格）
+      # タイムラプス動画の変動を考慮して緩和
+      z_score_threshold: 3.0
 
     # ROI設定（画像の右上領域）
     roi:
@@ -159,14 +196,35 @@ timestamp:
       width_ratio: 0.28 # 幅35%
       height_ratio: 0.06 # 高さ8%
 
+  # フレーム抽出モード
+  # "auto_targets": 自動目標タイムスタンプ生成モード
+  #   指定範囲のフレームからタイムスタンプを全て抽出し、
+  #   5分刻みの目標タイムスタンプを自動生成して各目標に最も近いフレームを選択
+  # "manual_targets": 手動目標タイムスタンプ指定モード（デフォルト）
+  #   設定ファイルで指定した目標タイムスタンプに最も近いフレームを抽出
+  extraction_mode: "auto_targets" # "auto_targets" または "manual_targets"
+
+  # 自動目標タイムスタンプ生成モード用の設定
+  auto_targets:
+    # 最大処理フレーム数（Noneの場合は全フレームを処理）
+    # テスト用に先頭100フレームのみ処理する場合は 100 を指定
+    # 本番環境では null に設定して全フレームを処理
+    max_frames: 100 # テスト用: 100, 本番用: null
+    # タイムスタンプ検証を無効化するか（タイムラプス動画では推奨）
+    disable_validation: true
+
   # サンプリング設定
+  # タイムラプス動画の特性を考慮（時間圧縮率: 約313.4倍）
+  # 動画の1秒 = 実際の約313秒（約5.2分）
+  # 1フレーム = 実際の約10.4秒
   sampling:
     # 粗サンプリング間隔（秒）
-    coarse_interval_seconds: 10
+    coarse_interval_seconds: 1.0
     # 精密サンプリング間隔（秒）
-    fine_interval_seconds: 1
+    # 1秒 → 0.1秒に変更（実際の約31秒間隔、より精密な探索）
+    fine_interval_seconds: 0.033
     # 精密サンプリングの探索ウィンドウ（秒）
-    search_window_seconds: 30
+    search_window_seconds: 0.1
 
   # 目標タイムスタンプ設定
   target:
@@ -188,7 +246,7 @@ ocr:
     # - paddleocr  # オプション
   # Tesseract設定
   tesseract:
-    config: "--psm 7 --oem 3"
+    config: "--psm 8 --oem 3" # PSM 8: 単一の単語（最適化テストの結果、PSM 8が最も正確）
     whitelist: "0123456789/:  "
 
 # 精度評価設定

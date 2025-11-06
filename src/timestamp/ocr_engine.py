@@ -42,15 +42,24 @@ class MultiEngineOCR:
     コンセンサスアルゴリズムで最も信頼性の高い結果を返します。
     """
 
-    def __init__(self, enabled_engines: List[str] = None):
+    def __init__(
+        self,
+        enabled_engines: List[str] = None,
+        use_weighted_consensus: bool = False,
+        use_voting_consensus: bool = False,
+    ):
         """MultiEngineOCRを初期化
 
         Args:
             enabled_engines: 有効にするエンジンのリスト
                             Noneの場合は利用可能な全エンジンを使用
+            use_weighted_consensus: 重み付けスキームを使用するか（デフォルト: False）
+            use_voting_consensus: 投票ロジックを使用するか（デフォルト: False）
         """
         self.engines: Dict[str, callable] = {}
         self.enabled_engines = enabled_engines or []
+        self.use_weighted_consensus = use_weighted_consensus
+        self.use_voting_consensus = use_voting_consensus
 
         # 利用可能なエンジンを初期化
         if TESSERACT_AVAILABLE and (
@@ -73,7 +82,7 @@ class MultiEngineOCR:
 
     def _init_tesseract(self) -> callable:
         """Tesseract: 高速、数字に強い"""
-        import pytesseract
+        import pytesseract  # noqa: F811
 
         # PSM 8: 単一の単語（最適化テストの結果、PSM 8が最も正確）
         config = r"--psm 8 --oem 3 -c tessedit_char_whitelist=0123456789/: "
@@ -85,7 +94,7 @@ class MultiEngineOCR:
 
     def _init_easyocr(self) -> callable:
         """EasyOCR: 高精度、やや遅い"""
-        import easyocr
+        import easyocr  # noqa: F811
 
         reader = easyocr.Reader(["en"], gpu=False)  # GPU利用は環境に応じて調整
 
@@ -97,7 +106,7 @@ class MultiEngineOCR:
 
     def _init_paddleocr(self) -> callable:
         """PaddleOCR: 中国語カメラでも対応"""
-        from paddleocr import PaddleOCR
+        from paddleocr import PaddleOCR  # noqa: F811
 
         # 新しいバージョンではuse_gpuの代わりにdeviceを使用
         try:
@@ -121,6 +130,8 @@ class MultiEngineOCR:
     def extract_with_consensus(self, roi: np.ndarray) -> Tuple[Optional[str], float]:
         """複数エンジンの結果を統合（コンセンサスアルゴリズム）
 
+        改善されたアルゴリズム（重み付けスキーム、投票ロジック）をサポート
+
         Args:
             roi: 前処理済みROI画像
 
@@ -132,6 +143,28 @@ class MultiEngineOCR:
             logger.error("No OCR engines available")
             return None, 0.0
 
+        # 投票ロジックが有効な場合は優先
+        if self.use_voting_consensus and len(self.engines) > 1:
+            return self._extract_with_voting(roi)
+
+        # 重み付けスキームが有効な場合
+        if self.use_weighted_consensus:
+            return self._extract_with_weighted_consensus(roi)
+
+        # デフォルトのコンセンサスアルゴリズム
+        return self._extract_with_baseline_consensus(roi)
+
+    def _extract_with_baseline_consensus(
+        self, roi: np.ndarray
+    ) -> Tuple[Optional[str], float]:
+        """ベースラインのコンセンサスアルゴリズム（既存実装）
+
+        Args:
+            roi: 前処理済みROI画像
+
+        Returns:
+            (抽出テキスト, 信頼度) のタプル
+        """
         results: List[Dict[str, any]] = []
 
         for engine_name, engine_func in self.engines.items():
@@ -170,6 +203,126 @@ class MultiEngineOCR:
         best = results[0]
         logger.debug(
             f"Best result from {best['engine']}: {best['text']} (confidence={best['confidence']:.2f})"
+        )
+        return best["text"], best["confidence"]
+
+    def _extract_with_weighted_consensus(
+        self, roi: np.ndarray
+    ) -> Tuple[Optional[str], float]:
+        """重み付けスキームによるコンセンサス
+
+        Args:
+            roi: 前処理済みROI画像
+
+        Returns:
+            (抽出テキスト, 信頼度) のタプル
+        """
+        results: List[Dict[str, any]] = []
+
+        for engine_name, engine_func in self.engines.items():
+            try:
+                text = engine_func(roi)
+                confidence = self._calculate_confidence(text)
+
+                # エンジン別の重み（Tesseractを優先）
+                weight = 1.0 if engine_name == "tesseract" else 0.8
+                weighted_confidence = confidence * weight
+
+                results.append(
+                    {
+                        "engine": engine_name,
+                        "text": text.strip(),
+                        "confidence": confidence,
+                        "weighted_confidence": weighted_confidence,
+                    }
+                )
+            except Exception as e:
+                logger.debug(f"{engine_name} failed: {e}")
+
+        if not results:
+            return None, 0.0
+
+        # 重み付け信頼度でソート
+        results.sort(key=lambda x: x["weighted_confidence"], reverse=True)
+
+        # エンジン間の一致度を評価
+        if len(results) >= 2:
+            top1, top2 = results[0], results[1]
+            similarity = self._calculate_similarity(top1["text"], top2["text"])
+
+            # 一致度が高い場合は信頼度を向上
+            if similarity > 0.8:
+                avg_confidence = (
+                    top1["weighted_confidence"] + top2["weighted_confidence"]
+                ) / 2
+                avg_confidence = min(avg_confidence * 1.1, 1.0)  # 10%向上
+                logger.debug(
+                    f"Weighted consensus reached: {top1['text']} (similarity={similarity:.2f}, "
+                    f"weighted_confidence={avg_confidence:.2f})"
+                )
+                return top1["text"], avg_confidence
+
+        best = results[0]
+        logger.debug(
+            f"Best weighted result from {best['engine']}: {best['text']} "
+            f"(weighted_confidence={best['weighted_confidence']:.2f})"
+        )
+        return best["text"], best["weighted_confidence"]
+
+    def _extract_with_voting(self, roi: np.ndarray) -> Tuple[Optional[str], float]:
+        """投票ロジックによるコンセンサス
+
+        Args:
+            roi: 前処理済みROI画像
+
+        Returns:
+            (抽出テキスト, 信頼度) のタプル
+        """
+        results: List[Dict[str, any]] = []
+
+        for engine_name, engine_func in self.engines.items():
+            try:
+                text = engine_func(roi)
+                confidence = self._calculate_confidence(text)
+                results.append(
+                    {
+                        "engine": engine_name,
+                        "text": text.strip(),
+                        "confidence": confidence,
+                    }
+                )
+            except Exception as e:
+                logger.debug(f"{engine_name} failed: {e}")
+
+        if not results:
+            return None, 0.0
+
+        # テキストごとに投票
+        text_votes: Dict[str, List[float]] = {}
+        for r in results:
+            text = r["text"]
+            if text not in text_votes:
+                text_votes[text] = []
+            text_votes[text].append(r["confidence"])
+
+        # 2/3以上のエンジンが一致したテキストを採用
+        threshold = len(self.engines) * 2 / 3
+        for text, confidences in text_votes.items():
+            if len(confidences) >= threshold:
+                avg_confidence = sum(confidences) / len(confidences)
+                logger.debug(
+                    f"Voting consensus reached: {text} "
+                    f"({len(confidences)}/{len(self.engines)} engines, "
+                    f"confidence={avg_confidence:.2f})"
+                )
+                return text, avg_confidence
+
+        # 2/3一致がない場合は最高信頼度を返す
+        results.sort(key=lambda x: x["confidence"], reverse=True)
+        best = results[0]
+        logger.debug(
+            f"No voting consensus, using best result from {best['engine']}: "
+            f"{best['text']} (confidence={best['confidence']:.2f})"
         )
         return best["text"], best["confidence"]
 

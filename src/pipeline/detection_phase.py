@@ -26,6 +26,7 @@ class DetectionPhase(BasePhase):
         """
         super().__init__(config, logger)
         self.detector: Optional[ViTDetector] = None
+        self.output_path: Optional[Path] = None  # 検出画像の保存先
 
     def initialize(self) -> None:
         """検出器を初期化"""
@@ -61,8 +62,19 @@ class DetectionPhase(BasePhase):
         results = []
         batch_size = self.config.get("detection.batch_size", 4)
         save_detection_images = self.config.get("output.save_detection_images", True)
-        output_dir = Path(self.config.get("output.directory", "output"))
+        # output_pathが設定されている場合はそれを使用、なければ設定から取得
+        if self.output_path:
+            detection_images_dir = self.output_path / "images"
+        else:
+            detection_images_dir = (
+                Path(self.config.get("output.directory", "output")) / "detections"
+            )
 
+        # ディレクトリを確実に作成
+        detection_images_dir.mkdir(parents=True, exist_ok=True)
+
+        if save_detection_images:
+            self.logger.info(f"検出画像の保存先: {detection_images_dir}")
         self.logger.info(f"バッチサイズ: {batch_size}")
 
         # バッチ処理
@@ -86,13 +98,24 @@ class DetectionPhase(BasePhase):
                     )
 
                     # 検出画像を保存（オプション）
-                    if save_detection_images and detections:
-                        save_detection_image(
-                            frame,
-                            detections,
-                            timestamp,
-                            output_dir / "detections",
-                            self.logger,
+                    if save_detection_images:
+                        if detections:
+                            self.logger.debug(
+                                f"検出画像を保存します: {detection_images_dir}, "
+                                f"タイムスタンプ={timestamp}, 検出数={len(detections)}"
+                            )
+                            save_detection_image(
+                                frame,
+                                detections,
+                                timestamp,
+                                detection_images_dir,
+                                self.logger,
+                            )
+                        else:
+                            self.logger.debug(f"フレーム #{frame_num}: 検出結果が空のため画像を保存しません")
+                    else:
+                        self.logger.debug(
+                            f"フレーム #{frame_num}: save_detection_imagesがFalseのため画像を保存しません"
                         )
 
                 # バッチ処理後のメモリ解放
@@ -127,6 +150,11 @@ class DetectionPhase(BasePhase):
             output_path: 出力ディレクトリ
         """
         stats = calculate_detection_statistics(detection_results)
+
+        # 検出画像の保存先を更新（output_pathを使用）
+        save_detection_images = self.config.get("output.save_detection_images", True)
+        if save_detection_images:
+            _ = output_path / "images"  # 将来の拡張用
 
         # 統計情報を表示
         self.logger.info("=" * 80)

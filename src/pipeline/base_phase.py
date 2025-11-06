@@ -2,10 +2,8 @@
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Optional
 
 from src.config import ConfigManager
-from src.video import VideoProcessor
 
 
 class BasePhase(ABC):

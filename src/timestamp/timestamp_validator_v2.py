@@ -128,7 +128,6 @@ class TemporalValidatorV2:
 
         # 過去の間隔の標準偏差を計算
         intervals = list(self.interval_history)
-        mean_interval = np.mean(intervals)
         std_interval = np.std(intervals)
 
         # 適応的許容範囲 = ベース許容範囲 + 標準偏差の倍数

@@ -1,7 +1,7 @@
 """テキスト評価指標（CER, WER, Precision/Recall/F1）を計算するユーティリティ"""
 
 import re
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 
 def normalize_text(text: str) -> str:

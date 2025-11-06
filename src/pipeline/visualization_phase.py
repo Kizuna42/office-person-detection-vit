@@ -53,11 +53,6 @@ class VisualizationPhase(BasePhase):
         if visualizer.plot_zone_statistics(aggregator, str(statistics_path)):
             self.logger.info(f"統計グラフを生成しました: {statistics_path}")
 
-        # ヒートマップの生成
-        heatmap_path = output_path / "graphs" / "heatmap.png"
-        if visualizer.plot_heatmap(aggregator, str(heatmap_path)):
-            self.logger.info(f"ヒートマップを生成しました: {heatmap_path}")
-
         # FloormapVisualizerの初期化と可視化
         save_floormap_images = self.config.get("output.save_floormap_images", True)
 
@@ -88,12 +83,6 @@ class VisualizationPhase(BasePhase):
                     floormap_visualizer.save_visualization(
                         floormap_image, str(floormap_output)
                     )
-
-                # 凡例を生成
-                legend_image = floormap_visualizer.create_legend()
-                legend_path = output_path / "floormaps" / "legend.png"
-                floormap_visualizer.save_visualization(legend_image, str(legend_path))
-                self.logger.info(f"フロアマップ凡例を生成しました: {legend_path}")
 
             except FileNotFoundError as e:
                 self.logger.warning(f"フロアマップ画像が見つかりません: {e}")

@@ -1,0 +1,12 @@
+{
+  "total_detections": 85,
+  "avg_detections_per_frame": 21.25,
+  "confidence": {
+    "mean": 0.8505682706832886,
+    "min": 0.5269927978515625,
+    "max": 0.9920637011528015,
+    "std": 0.12951858079037762,
+    "median": 0.8909894824028015
+  },
+  "frame_count": 4
+}

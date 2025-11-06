@@ -4,6 +4,7 @@ from src.utils.image_utils import (create_timestamp_overlay,
                                    save_detection_image)
 from src.utils.logging_utils import setup_logging
 from src.utils.memory_utils import cleanup_resources
+from src.utils.output_manager import OutputManager
 from src.utils.output_utils import setup_output_directories
 from src.utils.stats_utils import (DetectionStatistics,
                                    calculate_detection_statistics)
@@ -14,6 +15,7 @@ from src.utils.torch_utils import get_device, setup_mps_compatibility
 __all__ = [
     "setup_logging",
     "setup_output_directories",
+    "OutputManager",
     "calculate_detection_statistics",
     "DetectionStatistics",
     "cleanup_resources",

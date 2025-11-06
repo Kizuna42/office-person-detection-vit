@@ -67,19 +67,30 @@ class CoarseSampler:
 class FineSampler:
     """精密サンプリング: 目標時刻の±10秒以内のベストフレームを特定
 
-    目標時刻の前後30秒範囲を1秒間隔でサンプリングし、
+    目標時刻の前後60秒範囲を0.1秒間隔でサンプリングし、
     最も目標時刻に近いフレームを特定します。
+
+    タイムラプス動画の特性を考慮（時間圧縮率: 約313.4倍）:
+    - 動画の0.1秒 = 実際の約31秒
+    - より精密な探索により目標時刻誤差を最小化
     """
 
-    def __init__(self, video: cv2.VideoCapture, search_window: float = 30.0):
+    def __init__(
+        self,
+        video: cv2.VideoCapture,
+        search_window: float = 60.0,
+        interval_seconds: float = 0.1,
+    ):
         """FineSamplerを初期化
 
         Args:
             video: OpenCV VideoCaptureオブジェクト
             search_window: 探索ウィンドウ（秒）。目標時刻の前後この秒数分を探索
+            interval_seconds: サンプリング間隔（秒）。デフォルト: 0.1秒
         """
         self.video = video
         self.search_window = search_window
+        self.interval_seconds = interval_seconds
         self.fps: float = None
 
     def _ensure_fps(self) -> None:
@@ -92,7 +103,7 @@ class FineSampler:
     def sample_around_target(
         self, approx_frame_idx: int
     ) -> Iterator[Tuple[int, np.ndarray]]:
-        """目標時刻の前後を1秒間隔でサンプリング
+        """目標時刻の前後を指定間隔でサンプリング
 
         Args:
             approx_frame_idx: 近似フレーム番号（探索の中心）
@@ -108,8 +119,9 @@ class FineSampler:
         start_frame = max(0, approx_frame_idx - window_frames)
         end_frame = min(total_frames, approx_frame_idx + window_frames)
 
-        # 1秒間隔でサンプリング
-        frame_interval = int(self.fps)
+        # 指定間隔でサンプリング（デフォルト: 0.1秒間隔）
+        # 0.1秒間隔 = fps * 0.1 = 30 * 0.1 = 3フレーム間隔
+        frame_interval = max(1, int(self.fps * self.interval_seconds))
 
         for frame_idx in range(start_frame, end_frame, frame_interval):
             self.video.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
