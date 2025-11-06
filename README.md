@@ -62,17 +62,136 @@ office-person-detection/
 
 ## セットアップ
 
+### クイックスタート（推奨）
+
+```bash
+# 一括セットアップ（仮想環境作成 + 依存関係インストール + 確認）
+make setup
+
+# 仮想環境を有効化
+source venv/bin/activate
+
+# システム依存関係の確認
+make setup-system
+
+# 実行
+make run
+```
+
 ### 1. 依存関係のインストール
+
+#### 1.1 Python環境の確認
 
 ```bash
 # Python 3.10以上が必要
 python --version
+# Python 3.10.12 などが表示されることを確認
+```
 
+#### 1.2 仮想環境の作成（推奨）
+
+**Makefileを使用（推奨）**:
+
+```bash
+# 仮想環境を作成
+make setup-venv
+
+# 仮想環境を有効化（macOS/Linux）
+source venv/bin/activate
+
+# 仮想環境を有効化（Windows）
+# venv\Scripts\activate
+```
+
+**手動で作成**:
+
+```bash
+# 仮想環境を作成
+python -m venv venv
+
+# 仮想環境を有効化（macOS/Linux）
+source venv/bin/activate
+
+# 仮想環境を有効化（Windows）
+# venv\Scripts\activate
+```
+
+#### 1.3 Pythonパッケージのインストール
+
+**Makefileを使用（推奨）**:
+
+```bash
+# 依存関係をインストール（pip upgrade + requirements.txt）
+make setup-deps
+```
+
+**手動でインストール**:
+
+```bash
 # 依存関係をインストール
+pip install --upgrade pip
 pip install -r requirements.txt
+```
 
-# Tesseract OCRのインストール（macOS）
+**注意**: 初回インストールには時間がかかります（特にPaddleOCR、EasyOCRはモデルをダウンロードします）。
+
+#### 1.4 システム依存関係のインストール
+
+**Tesseract OCR**（必須）:
+
+```bash
+# macOS
 brew install tesseract tesseract-lang
+
+# Ubuntu/Debian
+sudo apt-get update
+sudo apt-get install tesseract-ocr tesseract-ocr-jpn
+
+# インストール確認
+tesseract --version
+```
+
+**PaddleOCR**（オプション、高精度が必要な場合）:
+
+```bash
+# requirements.txtに含まれていますが、明示的にインストールする場合
+# CPU版（Apple Silicon対応）
+pip install paddlepaddle paddleocr
+
+# GPU版を使用する場合（CUDA環境が必要）
+# 参考: https://www.paddlepaddle.org.cn/install/quick
+```
+
+**EasyOCR**（オプション、多言語対応が必要な場合）:
+
+```bash
+# requirements.txtに含まれています
+# 初回実行時にモデルを自動ダウンロードします
+```
+
+#### 1.5 インストール確認
+
+**Makefileを使用（推奨）**:
+
+```bash
+# インストール状況を確認
+make setup-check
+```
+
+**手動で確認**:
+
+```bash
+# 依存関係の確認スクリプトを実行
+python scripts/check_dependencies.py
+
+# または、個別に確認
+python -c "import torch; print(f'PyTorch: {torch.__version__}')"
+python -c "import cv2; print(f'OpenCV: {cv2.__version__}')"
+python -c "import pytesseract; print('Tesseract: OK')"
+
+# OCRエンジンの確認（オプション）
+python -c "from paddleocr import PaddleOCR; print('PaddleOCR: OK')" 2>/dev/null || echo "PaddleOCR: 未インストール（オプション）"
+python -c "import easyocr; print('EasyOCR: OK')" 2>/dev/null || echo "EasyOCR: 未インストール（オプション）"
 ```
 
 ### 2. 入力ファイルの配置

@@ -141,12 +141,85 @@ test-verbose: ## 詳細出力付きでテスト実行
 # セットアップコマンド
 # ========================================
 
-.PHONY: install
-install: ## 依存関係をインストール
+.PHONY: setup
+setup: setup-venv setup-deps setup-check ## 一括セットアップ（仮想環境作成 + 依存関係インストール + 確認）
 	@echo "=========================================="
+	@echo "✓ セットアップが完了しました！"
+	@echo "=========================================="
+	@echo ""
+	@echo "次のステップ:"
+	@echo "  1. 仮想環境を有効化: source venv/bin/activate"
+	@echo "  2. システム依存関係をインストール: make setup-system"
+	@echo "  3. 実行: make run"
+	@echo ""
+
+.PHONY: setup-venv
+setup-venv: ## 仮想環境を作成（既に存在する場合はスキップ）
+	@echo "=========================================="
+	@echo "仮想環境を作成中..."
+	@echo "=========================================="
+	@if [ -d venv ]; then \
+		echo "✓ 仮想環境は既に存在します（スキップ）"; \
+	else \
+		echo "仮想環境を作成中..."; \
+		$(PYTHON) -m venv venv; \
+		echo "✓ 仮想環境を作成しました"; \
+	fi
+	@echo ""
+	@echo "仮想環境を有効化するには:"
+	@echo "  source venv/bin/activate  # macOS/Linux"
+	@echo "  venv\\Scripts\\activate     # Windows"
+
+.PHONY: setup-deps
+setup-deps: ## Python依存関係をインストール（pip upgrade + requirements.txt）
+	@echo "=========================================="
+	@echo "Python依存関係をインストール中..."
+	@echo "=========================================="
+	@echo "pipをアップグレード中..."
+	@$(PYTHON) -m pip install --upgrade pip
 	@echo "依存関係をインストール中..."
+	@echo "（初回インストールには時間がかかります。特にPaddleOCR、EasyOCRはモデルをダウンロードします）"
+	@$(PYTHON) -m pip install -r requirements.txt
+	@echo "✓ Python依存関係のインストールが完了しました"
+
+.PHONY: setup-system
+setup-system: ## システム依存関係のインストール確認とガイド表示
 	@echo "=========================================="
-	pip install -r requirements.txt
+	@echo "システム依存関係の確認"
+	@echo "=========================================="
+	@echo ""
+	@echo "【Tesseract OCR】"
+	@if command -v tesseract >/dev/null 2>&1; then \
+		echo "✓ Tesseract OCR がインストールされています"; \
+		tesseract --version | head -1; \
+	else \
+		echo "❌ Tesseract OCR がインストールされていません"; \
+		echo ""; \
+		echo "インストール方法:"; \
+		echo "  macOS:    brew install tesseract tesseract-lang"; \
+		echo "  Ubuntu:   sudo apt-get update && sudo apt-get install tesseract-ocr tesseract-ocr-jpn"; \
+		echo "  Debian:   sudo apt-get update && sudo apt-get install tesseract-ocr tesseract-ocr-jpn"; \
+	fi
+	@echo ""
+	@echo "【PaddleOCR / EasyOCR】"
+	@echo "  Pythonパッケージとしてインストール済み（requirements.txtに含まれています）"
+	@echo "  初回実行時にモデルを自動ダウンロードします"
+	@echo ""
+
+.PHONY: setup-check
+setup-check: ## インストール状況を確認（依存関係確認スクリプト実行）
+	@echo "=========================================="
+	@echo "インストール状況を確認中..."
+	@echo "=========================================="
+	@if [ -f scripts/check_dependencies.py ]; then \
+		$(PYTHON) scripts/check_dependencies.py; \
+	else \
+		echo "⚠ 依存関係確認スクリプトが見つかりません"; \
+		echo "手動で確認してください: python -c \"import torch; print('PyTorch:', torch.__version__)\""; \
+	fi
+
+.PHONY: install
+install: setup-deps ## 依存関係をインストール（setup-depsのエイリアス）
 	@echo "✓ 依存関係のインストールが完了しました"
 
 .PHONY: help
@@ -166,6 +239,12 @@ help: ## 利用可能なコマンド一覧を表示
 	}' $(MAKEFILE_LIST)
 	@echo ""
 	@echo "例:"
+	@echo "  make setup                  # 一括セットアップ（推奨）"
+	@echo "  make setup-venv             # 仮想環境作成"
+	@echo "  make setup-deps             # 依存関係インストール"
+	@echo "  make setup-system           # システム依存関係確認"
+	@echo "  make setup-check            # インストール確認"
+	@echo ""
 	@echo "  make run                    # 通常実行"
 	@echo "  make run-debug              # デバッグモード"
 	@echo "  make run-timestamps         # タイムスタンプOCRのみ実行"

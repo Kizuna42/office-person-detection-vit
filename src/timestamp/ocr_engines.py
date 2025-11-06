@@ -31,6 +31,7 @@ except ImportError:
 
 
 # グローバルインスタンス（遅延初期化）
+# None: 未初期化, False: 初期化失敗（再試行しない）, object: 初期化成功
 _paddleocr_instance: Optional[object] = None
 _easyocr_reader: Optional[object] = None
 
@@ -39,6 +40,9 @@ def _get_paddleocr_instance():
     """PaddleOCRインスタンスを取得（遅延初期化）"""
     global _paddleocr_instance
     if not PADDLEOCR_AVAILABLE:
+        return None
+    # 初期化失敗済みの場合は再試行しない
+    if _paddleocr_instance is False:
         return None
     if _paddleocr_instance is None:
         try:
@@ -51,11 +55,20 @@ def _get_paddleocr_instance():
                 try:
                     _paddleocr_instance = PaddleOCR(use_angle_cls=True, lang="en")
                 except (TypeError, ValueError) as e2:
-                    # それでも失敗した場合は警告を出してNoneを返す
-                    logger.warning(f"PaddleOCRの初期化に失敗（引数エラー）: {e2}")
+                    # それでも失敗した場合は警告を出してFalseに設定（再試行を防ぐ）
+                    logger.warning(
+                        f"PaddleOCRの初期化に失敗（引数エラー）: {e2}。"
+                        "以降のフレームではPaddleOCRをスキップします。"
+                    )
+                    _paddleocr_instance = False
                     return None
         except Exception as e:
-            logger.warning(f"PaddleOCRの初期化に失敗: {e}")
+            # 初期化失敗時はFalseに設定して再試行を防ぐ
+            logger.warning(
+                f"PaddleOCRの初期化に失敗: {e}。"
+                "以降のフレームではPaddleOCRをスキップします。"
+            )
+            _paddleocr_instance = False
             return None
     return _paddleocr_instance
 
@@ -65,11 +78,19 @@ def _get_easyocr_reader():
     global _easyocr_reader
     if not EASYOCR_AVAILABLE:
         return None
+    # 初期化失敗済みの場合は再試行しない
+    if _easyocr_reader is False:
+        return None
     if _easyocr_reader is None:
         try:
             _easyocr_reader = easyocr.Reader(["en"], gpu=False)
         except Exception as e:
-            logger.error(f"EasyOCRの初期化に失敗: {e}")
+            # 初期化失敗時はFalseに設定して再試行を防ぐ
+            logger.warning(
+                f"EasyOCRの初期化に失敗: {e}。"
+                "以降のフレームではEasyOCRをスキップします。"
+            )
+            _easyocr_reader = False
             return None
     return _easyocr_reader
 
