@@ -211,9 +211,7 @@ def calculate_wer(reference: str, hypothesis: str) -> Dict[str, float]:
     }
 
 
-def calculate_token_metrics(
-    reference: str, hypothesis: str
-) -> Dict[str, float]:
+def calculate_token_metrics(reference: str, hypothesis: str) -> Dict[str, float]:
     """トークン単位のPrecision/Recall/F1を計算
 
     Args:
@@ -262,4 +260,3 @@ def calculate_token_metrics(
         "total_ref_tokens": len(ref_tokens),
         "total_hyp_tokens": len(hyp_tokens),
     }
-

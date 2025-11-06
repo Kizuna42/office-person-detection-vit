@@ -321,7 +321,11 @@ class TimestampExtractor:
 
             # 時系列整合性チェック（施策4: 強化）
             # 暫定値または確定値を参照（計画書の提案に基づく）
-            reference_timestamp = self._tentative_timestamp or self._confirmed_timestamp or self._last_timestamp
+            reference_timestamp = (
+                self._tentative_timestamp
+                or self._confirmed_timestamp
+                or self._last_timestamp
+            )
             if reference_timestamp is not None:
                 try:
                     timestamp_dt = datetime.strptime(timestamp, self.TIMESTAMP_FORMAT)
@@ -460,23 +464,29 @@ class TimestampExtractor:
 
             for timestamp, weighted_conf, engine, original_conf in filtered:
                 # 時系列整合性チェック
-                if self._last_timestamp is not None:
+                # 暫定値または確定値を参照（計画書の提案に基づく）
+                reference_timestamp = (
+                    self._tentative_timestamp
+                    or self._confirmed_timestamp
+                    or self._last_timestamp
+                )
+                if reference_timestamp is not None:
                     try:
                         timestamp_dt = datetime.strptime(
                             timestamp, self.TIMESTAMP_FORMAT
                         )
                         time_diff = abs(
-                            (timestamp_dt - self._last_timestamp).total_seconds()
+                            (timestamp_dt - reference_timestamp).total_seconds()
                         )
                         days_diff = abs(
-                            (timestamp_dt.date() - self._last_timestamp.date()).days
+                            (timestamp_dt.date() - reference_timestamp.date()).days
                         )
 
                         # 日付レベルの外れ値検知（±0.5日以上は除外）
                         if days_diff >= 0.5:
                             logger.debug(
                                 f"フォールバック: 時系列外れ値検知: {timestamp} "
-                                f"(履歴: {self._last_timestamp.date()}, 差={days_diff}日)"
+                                f"(履歴: {reference_timestamp.date()}, 差={days_diff}日)"
                             )
                             continue
 
@@ -484,7 +494,7 @@ class TimestampExtractor:
                         if days_diff >= 7:
                             logger.debug(
                                 f"フォールバック: 時系列外れ値検知: {timestamp} "
-                                f"(履歴: {self._last_timestamp.date()}, 差={days_diff}日)"
+                                f"(履歴: {reference_timestamp.date()}, 差={days_diff}日)"
                             )
                             continue
 
@@ -492,15 +502,15 @@ class TimestampExtractor:
                         if time_diff > 3600:
                             logger.debug(
                                 f"フォールバック: 時系列外れ値検知: {timestamp} "
-                                f"(履歴: {self._last_timestamp}, 時間差={time_diff:.0f}秒)"
+                                f"(履歴: {reference_timestamp}, 時間差={time_diff:.0f}秒)"
                             )
                             continue
 
                         # 時系列が逆転している場合（12時間以上）は除外
-                        if timestamp_dt < self._last_timestamp - timedelta(hours=12):
+                        if timestamp_dt < reference_timestamp - timedelta(hours=12):
                             logger.debug(
                                 f"フォールバック: 時系列逆転検知: {timestamp} "
-                                f"(履歴: {self._last_timestamp})"
+                                f"(履歴: {reference_timestamp})"
                             )
                             continue
 

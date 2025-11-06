@@ -65,4 +65,3 @@ def get_device(device: Optional[str] = None) -> str:
     else:
         logger.info("No GPU acceleration available. Using CPU.")
         return "cpu"
-
