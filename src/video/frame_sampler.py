@@ -652,8 +652,32 @@ class FrameSampler:
         target_datetimes = self.find_target_timestamps(start_dt, end_dt)
 
         if not target_datetimes:
-            logger.error("目標タイムスタンプの生成に失敗しました")
-            return []
+            logger.warning("目標タイムスタンプの生成に失敗しました。取得したタイムスタンプから直接サンプルを抽出します。")
+            # 取得したタイムスタンプから直接サンプルを抽出（5分刻みに近いものを選択）
+            if frame_timestamps:
+                sorted_timestamps = sorted(frame_timestamps.items(), key=lambda x: x[1])
+                sample_frames = []
+                last_selected_time = None
+                for frame_num, timestamp_dt in sorted_timestamps:
+                    if last_selected_time is None:
+                        # 最初のタイムスタンプを選択
+                        frame = video_processor.get_frame(frame_num)
+                        if frame is not None:
+                            sample_frames.append((frame_num, timestamp_dt.strftime(self.TIMESTAMP_FORMAT), frame.copy()))
+                            last_selected_time = timestamp_dt
+                    else:
+                        # 5分（300秒）以上の差がある場合のみ選択
+                        time_diff = (timestamp_dt - last_selected_time).total_seconds()
+                        if time_diff >= 300:  # 5分以上
+                            frame = video_processor.get_frame(frame_num)
+                            if frame is not None:
+                                sample_frames.append((frame_num, timestamp_dt.strftime(self.TIMESTAMP_FORMAT), frame.copy()))
+                                last_selected_time = timestamp_dt
+                logger.info(f"取得したタイムスタンプから {len(sample_frames)}個のサンプルを抽出しました")
+                return sample_frames
+            else:
+                logger.error("タイムスタンプが1つも取得できませんでした")
+                return []
 
         # 各目標タイムスタンプに最も近いフレームを検索
         sample_frames = []
