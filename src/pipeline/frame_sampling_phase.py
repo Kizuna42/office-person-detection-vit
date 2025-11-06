@@ -46,11 +46,13 @@ class FrameSamplingPhase(BasePhase):
 
         # フレームサンプリング実行
         self.logger.info("フレームサンプリングを開始します...")
+        margin_minutes = self.config.get("video.scan_margin_minutes", 10)
         sample_frames = frame_sampler.extract_sample_frames(
             self.video_processor,
             timestamp_extractor,
             start_time=start_time,
             end_time=end_time,
+            margin_minutes=margin_minutes,
         )
 
         self.logger.info(f"サンプルフレーム数: {len(sample_frames)}個")

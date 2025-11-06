@@ -319,6 +319,156 @@ class FrameSampler:
 
         return normalized
 
+    def _estimate_frame_range(
+        self,
+        video_processor: VideoProcessor,
+        timestamp_extractor: TimestampExtractor,
+        start_dt: datetime,
+        end_dt: datetime,
+        margin_minutes: int = 10,
+    ) -> Optional[Tuple[int, int]]:
+        """指定時刻範囲に対応するフレーム番号範囲を推定する
+
+        動画の先頭・中間・末尾の3点をサンプリングして、線形補間で推定する。
+
+        Args:
+            video_processor: VideoProcessorインスタンス
+            timestamp_extractor: TimestampExtractorインスタンス
+            start_dt: 開始時刻（datetime）
+            end_dt: 終了時刻（datetime）
+            margin_minutes: マージン時間（分）、デフォルト10分
+
+        Returns:
+            (開始フレーム番号, 終了フレーム番号) のタプル、推定に失敗した場合None
+        """
+        if video_processor.total_frames is None or video_processor.total_frames == 0:
+            logger.warning("動画の総フレーム数が取得できません")
+            return None
+
+        total_frames = video_processor.total_frames
+        sample_points = [
+            (0, "先頭"),
+            (total_frames // 2, "中間"),
+            (total_frames - 1, "末尾"),
+        ]
+
+        frame_timestamp_pairs: List[Tuple[int, datetime]] = []
+
+        logger.info("フレーム位置推定のため、サンプルポイントをスキャン中...")
+
+        for frame_num, label in sample_points:
+            try:
+                frame = video_processor.get_frame(frame_num)
+                if frame is None:
+                    logger.warning(f"{label}フレーム（#{frame_num}）の取得に失敗しました")
+                    continue
+
+                timestamp, confidence = timestamp_extractor.extract_with_confidence(frame)
+                if timestamp:
+                    try:
+                        timestamp_dt = datetime.strptime(timestamp, self.TIMESTAMP_FORMAT)
+                        frame_timestamp_pairs.append((frame_num, timestamp_dt))
+                        logger.debug(
+                            f"{label}フレーム（#{frame_num}）: {timestamp_dt.strftime(self.TIMESTAMP_FORMAT)} "
+                            f"(信頼度: {confidence:.2f})"
+                        )
+                    except ValueError:
+                        logger.warning(f"{label}フレーム（#{frame_num}）のタイムスタンプ解析に失敗: {timestamp}")
+                else:
+                    logger.warning(f"{label}フレーム（#{frame_num}）のタイムスタンプ抽出に失敗しました")
+            except Exception as e:
+                logger.warning(f"{label}フレーム（#{frame_num}）の処理中にエラー: {e}")
+
+        if len(frame_timestamp_pairs) < 2:
+            logger.warning("サンプルポイントが2点未満のため、推定に失敗しました")
+            return None
+
+        # フレーム番号でソート
+        frame_timestamp_pairs.sort(key=lambda x: x[0])
+
+        # 線形補間でフレーム番号範囲を推定
+        frames = [pair[0] for pair in frame_timestamp_pairs]
+        timestamps = [pair[1] for pair in frame_timestamp_pairs]
+
+        # タイムスタンプを秒数に変換（基準点からの相対時間）
+        base_timestamp = timestamps[0]
+        timestamp_seconds = [
+            (ts - base_timestamp).total_seconds() for ts in timestamps
+        ]
+
+        # 線形補間の係数を計算
+        # frame = a * timestamp_seconds + b
+        if len(frame_timestamp_pairs) == 2:
+            # 2点の場合は線形補間
+            if timestamp_seconds[1] - timestamp_seconds[0] == 0:
+                logger.warning("タイムスタンプの差が0のため、推定に失敗しました")
+                return None
+            a = (frames[1] - frames[0]) / (timestamp_seconds[1] - timestamp_seconds[0])
+            b = frames[0] - a * timestamp_seconds[0]
+        else:
+            # 3点以上の場合は最小二乗法で線形近似
+            n = len(frame_timestamp_pairs)
+            sum_x = sum(timestamp_seconds)
+            sum_y = sum(frames)
+            sum_xy = sum(x * y for x, y in zip(timestamp_seconds, frames))
+            sum_x2 = sum(x * x for x in timestamp_seconds)
+
+            denominator = n * sum_x2 - sum_x * sum_x
+            if abs(denominator) < 1e-10:
+                logger.warning("線形近似の計算に失敗しました（分母が0）")
+                return None
+
+            a = (n * sum_xy - sum_x * sum_y) / denominator
+            b = (sum_y - a * sum_x) / n
+
+        # 指定時刻範囲を秒数に変換
+        start_seconds = (start_dt - base_timestamp).total_seconds()
+        end_seconds = (end_dt - base_timestamp).total_seconds()
+
+        # 指定時刻がサンプルポイントの範囲内にあるかチェック
+        min_timestamp = min(timestamps)
+        max_timestamp = max(timestamps)
+        
+        # マージンを考慮した範囲チェック
+        margin_timedelta = timedelta(minutes=margin_minutes)
+        if start_dt < min_timestamp - margin_timedelta or end_dt > max_timestamp + margin_timedelta:
+            logger.warning(
+                f"指定時刻範囲が動画のタイムスタンプ範囲外です。"
+                f"動画範囲: {min_timestamp.strftime(self.TIMESTAMP_FORMAT)} ～ "
+                f"{max_timestamp.strftime(self.TIMESTAMP_FORMAT)}, "
+                f"指定範囲: {start_dt.strftime(self.TIMESTAMP_FORMAT)} ～ "
+                f"{end_dt.strftime(self.TIMESTAMP_FORMAT)}"
+            )
+            return None
+
+        # マージンを追加
+        margin_seconds = margin_minutes * 60
+        start_seconds_with_margin = start_seconds - margin_seconds
+        end_seconds_with_margin = end_seconds + margin_seconds
+
+        # フレーム番号範囲を推定
+        estimated_start_frame = int(a * start_seconds_with_margin + b)
+        estimated_end_frame = int(a * end_seconds_with_margin + b)
+
+        # 範囲を動画の範囲内に制限
+        estimated_start_frame = max(0, min(estimated_start_frame, total_frames - 1))
+        estimated_end_frame = max(0, min(estimated_end_frame, total_frames - 1))
+
+        # 開始フレームが終了フレームより大きい場合は入れ替え
+        if estimated_start_frame > estimated_end_frame:
+            estimated_start_frame, estimated_end_frame = (
+                estimated_end_frame,
+                estimated_start_frame,
+            )
+
+        logger.info(
+            f"フレーム範囲推定: {estimated_start_frame} ～ {estimated_end_frame} "
+            f"(指定時刻: {start_dt.strftime(self.TIMESTAMP_FORMAT)} ～ "
+            f"{end_dt.strftime(self.TIMESTAMP_FORMAT)}, マージン: ±{margin_minutes}分)"
+        )
+
+        return (estimated_start_frame, estimated_end_frame)
+
     def extract_sample_frames(
         self,
         video_processor: VideoProcessor,
@@ -326,15 +476,17 @@ class FrameSampler:
         start_time: Optional[str] = None,
         end_time: Optional[str] = None,
         scan_interval: int = 30,
+        margin_minutes: int = 10,
     ) -> List[Tuple[int, str, np.ndarray]]:
         """動画全体をスキャンし、5分刻みのフレームを抽出する
 
         Args:
             video_processor: VideoProcessorインスタンス
             timestamp_extractor: TimestampExtractorインスタンス
-            start_time: 開始時刻 (HH:MM形式)、Noneの場合は自動検出
-            end_time: 終了時刻 (HH:MM形式)、Noneの場合は自動検出
+            start_time: 開始時刻 (YYYY/MM/DD HH:MM:SS形式またはHH:MM形式)、Noneの場合は自動検出
+            end_time: 終了時刻 (YYYY/MM/DD HH:MM:SS形式またはHH:MM形式)、Noneの場合は自動検出
             scan_interval: スキャン間隔（フレーム数）、デフォルトは30フレーム
+            margin_minutes: 範囲限定スキャン時のマージン時間（分）、デフォルト10分
 
         Returns:
             [(フレーム番号, タイムスタンプ, フレーム画像), ...] のリスト
@@ -344,10 +496,88 @@ class FrameSampler:
         # 動画を先頭に戻す
         video_processor.reset()
 
-        # 全フレームのタイムスタンプを抽出
-        frame_timestamps = self._scan_all_timestamps(
-            video_processor, timestamp_extractor, scan_interval
-        )
+        # start_timeとend_timeが両方指定されている場合、最適化パスを使用
+        if start_time is not None and end_time is not None:
+            try:
+                # まず、動画の先頭フレームでタイムスタンプを取得して基準点とする
+                sample_frame = video_processor.get_frame(0)
+                if sample_frame is not None:
+                    sample_timestamp, _ = timestamp_extractor.extract_with_confidence(sample_frame)
+                    if sample_timestamp:
+                        try:
+                            reference_dt = datetime.strptime(sample_timestamp, self.TIMESTAMP_FORMAT)
+                        except ValueError:
+                            reference_dt = None
+                    else:
+                        reference_dt = None
+                else:
+                    reference_dt = None
+
+                if reference_dt is None:
+                    logger.warning("基準タイムスタンプの取得に失敗したため、全スキャンにフォールバックします")
+                else:
+                    # 指定時刻をパース
+                    try:
+                        start_dt = self._parse_user_time(start_time, reference_dt)
+                        end_dt = self._parse_user_time(end_time, reference_dt)
+                    except ValueError as exc:
+                        logger.warning(f"時刻の解析に失敗したため、全スキャンにフォールバックします: {exc}")
+                        start_dt = None
+                        end_dt = None
+
+                    if start_dt is not None and end_dt is not None:
+                        # フレーム範囲を推定
+                        frame_range = self._estimate_frame_range(
+                            video_processor,
+                            timestamp_extractor,
+                            start_dt,
+                            end_dt,
+                            margin_minutes,
+                        )
+
+                        if frame_range is not None:
+                            estimated_start_frame, estimated_end_frame = frame_range
+                            logger.info(
+                                f"最適化モード: フレーム {estimated_start_frame} ～ {estimated_end_frame} のみをスキャンします"
+                            )
+
+                            # 範囲限定スキャン
+                            frame_timestamps = self._scan_timestamp_range(
+                                video_processor,
+                                timestamp_extractor,
+                                estimated_start_frame,
+                                estimated_end_frame,
+                                scan_interval,
+                            )
+
+                            if frame_timestamps:
+                                # 範囲限定スキャンが成功した場合、そのまま処理を続行
+                                logger.info("範囲限定スキャンが成功しました")
+                            else:
+                                logger.warning("範囲限定スキャンでタイムスタンプが取得できなかったため、全スキャンにフォールバックします")
+                                frame_timestamps = None
+                        else:
+                            logger.warning("フレーム範囲の推定に失敗したため、全スキャンにフォールバックします")
+                            frame_timestamps = None
+                    else:
+                        frame_timestamps = None
+
+                    # 範囲限定スキャンが失敗した場合は全スキャンにフォールバック
+                    if frame_timestamps is None or not frame_timestamps:
+                        logger.info("全フレームのタイムスタンプを抽出します（フォールバック）")
+                        frame_timestamps = self._scan_all_timestamps(
+                            video_processor, timestamp_extractor, scan_interval
+                        )
+            except Exception as e:
+                logger.warning(f"最適化パスの実行中にエラーが発生したため、全スキャンにフォールバックします: {e}")
+                frame_timestamps = self._scan_all_timestamps(
+                    video_processor, timestamp_extractor, scan_interval
+                )
+        else:
+            # start_timeまたはend_timeが未指定の場合は全スキャン
+            frame_timestamps = self._scan_all_timestamps(
+                video_processor, timestamp_extractor, scan_interval
+            )
 
         if not frame_timestamps:
             logger.error("タイムスタンプの抽出に失敗しました")
@@ -721,6 +951,181 @@ class FrameSampler:
         )
 
         # 診断情報をインスタンス変数に保存（後でサマリー生成に使用）
+        self._scan_diagnostics = frame_diagnostics
+
+        return frame_timestamps
+
+    def _scan_timestamp_range(
+        self,
+        video_processor: VideoProcessor,
+        timestamp_extractor: TimestampExtractor,
+        start_frame: int,
+        end_frame: int,
+        scan_interval: int = 30,
+    ) -> Dict[int, datetime]:
+        """指定フレーム番号範囲内のみをスキャンし、タイムスタンプを抽出する
+
+        Args:
+            video_processor: VideoProcessorインスタンス
+            timestamp_extractor: TimestampExtractorインスタンス
+            start_frame: 開始フレーム番号
+            end_frame: 終了フレーム番号
+            scan_interval: スキャン間隔（フレーム数）
+
+        Returns:
+            {フレーム番号: タイムスタンプ} の辞書
+        """
+        frame_timestamps: Dict[int, datetime] = {}
+        frame_diagnostics: Dict[int, Dict[str, any]] = {}
+        failed_count = 0
+        last_valid_timestamp: Optional[datetime] = None
+        last_valid_frame: Optional[int] = None
+
+        # フレームバッファ（近傍再OCR用）
+        frame_buffer: Dict[int, np.ndarray] = {}
+        max_buffer_size = 10
+
+        logger.info(
+            f"範囲限定タイムスタンプスキャン開始: フレーム {start_frame} ～ {end_frame} "
+            f"(間隔: {scan_interval}フレーム)"
+        )
+
+        try:
+            # 指定範囲内のフレームをスキャン
+            for frame_num in range(start_frame, end_frame + 1, scan_interval):
+                try:
+                    frame = video_processor.get_frame(frame_num)
+                    if frame is None:
+                        continue
+
+                    # フレームをバッファに保存（近傍再OCR用）
+                    if len(frame_buffer) >= max_buffer_size:
+                        oldest_frame = min(frame_buffer.keys())
+                        del frame_buffer[oldest_frame]
+                    frame_buffer[frame_num] = frame.copy()
+
+                    # 信頼度付きで抽出
+                    timestamp, confidence = timestamp_extractor.extract_with_confidence(frame)
+
+                    timestamp_dt = None
+                    needs_retry = False
+                    source = "direct"
+
+                    if timestamp:
+                        try:
+                            timestamp_dt = datetime.strptime(timestamp, self.TIMESTAMP_FORMAT)
+                        except ValueError:
+                            logger.warning(f"フレーム {frame_num}: タイムスタンプ文字列の解析に失敗: {timestamp}")
+                            timestamp_dt = None
+
+                    # 低信頼度または外れ値検知の場合、近傍再OCRを試行
+                    if timestamp_dt is not None:
+                        # 時系列の整合性チェック
+                        if last_valid_timestamp is not None:
+                            time_diff = abs((timestamp_dt - last_valid_timestamp).total_seconds())
+                            frame_diff = frame_num - last_valid_frame if last_valid_frame is not None else scan_interval
+                            expected_diff = frame_diff * (scan_interval / 30.0)  # 仮のFPS推定
+
+                            # 外れ値検知
+                            if time_diff < 0 or time_diff > 120:
+                                logger.debug(
+                                    f"フレーム {frame_num}: 時系列外れ値検知 "
+                                    f"(差={time_diff:.1f}秒, 期待={expected_diff:.1f}秒)"
+                                )
+                                needs_retry = True
+                    elif confidence < 0.5:  # 低信頼度
+                        needs_retry = True
+                        logger.debug(f"フレーム {frame_num}: 低信頼度 ({confidence:.2f})")
+
+                    success = False
+
+                    if timestamp_dt is not None and not needs_retry:
+                        # そのまま採用
+                        frame_timestamps[frame_num] = timestamp_dt
+                        last_valid_timestamp = timestamp_dt
+                        last_valid_frame = frame_num
+                        frame_diagnostics[frame_num] = {
+                            "timestamp": timestamp,
+                            "confidence": confidence,
+                            "source": source,
+                            "corrections": timestamp_extractor.get_last_corrections(),
+                        }
+                        success = True
+
+                    # 近傍再OCRを試行
+                    if not success and needs_retry and timestamp_dt is None:
+                        retry_success = False
+                        for offset in [-3, -2, -1, 1, 2, 3]:
+                            retry_frame_num = frame_num + offset
+                            if retry_frame_num in frame_buffer:
+                                retry_frame = frame_buffer[retry_frame_num]
+                                retry_ts, retry_conf = timestamp_extractor.extract_with_confidence(retry_frame)
+                                if retry_ts:
+                                    try:
+                                        retry_dt = datetime.strptime(retry_ts, self.TIMESTAMP_FORMAT)
+                                        if (
+                                            last_valid_timestamp is None
+                                            or abs((retry_dt - last_valid_timestamp).total_seconds()) < 120
+                                        ):
+                                            timestamp_dt = retry_dt
+                                            timestamp = retry_ts
+                                            confidence = retry_conf
+                                            source = f"retry_offset_{offset}"
+                                            retry_success = True
+                                            logger.debug(
+                                                f"フレーム {frame_num}: 近傍再OCR成功 "
+                                                f"(offset={offset}, conf={retry_conf:.2f})"
+                                            )
+                                            break
+                                    except ValueError:
+                                        continue
+
+                        if not retry_success:
+                            source = "failed"
+
+                        if timestamp_dt is not None:
+                            frame_timestamps[frame_num] = timestamp_dt
+                            last_valid_timestamp = timestamp_dt
+                            success = True
+                        last_valid_frame = frame_num
+
+                        frame_diagnostics[frame_num] = {
+                            "timestamp": timestamp,
+                            "confidence": confidence,
+                            "source": source,
+                            "corrections": timestamp_extractor.get_last_corrections(),
+                        }
+
+                    if not success:
+                        failed_count += 1
+                        frame_diagnostics[frame_num] = {
+                            "timestamp": None,
+                            "confidence": confidence if "confidence" in locals() else 0.0,
+                            "source": "failed",
+                            "corrections": [],
+                        }
+
+                except Exception as e:
+                    logger.warning(f"フレーム {frame_num} の処理中にエラー: {e}")
+                    failed_count += 1
+                    frame_diagnostics[frame_num] = {
+                        "timestamp": None,
+                        "confidence": 0.0,
+                        "source": "error",
+                        "corrections": [],
+                    }
+
+        except Exception as e:
+            logger.error(f"範囲限定タイムスタンプスキャン中にエラーが発生しました: {e}")
+
+        logger.info(
+            f"範囲限定タイムスタンプスキャン完了: "
+            f"スキャン範囲={end_frame - start_frame + 1}フレーム, "
+            f"抽出成功={len(frame_timestamps)}, "
+            f"抽出失敗={failed_count}"
+        )
+
+        # 診断情報をインスタンス変数に保存
         self._scan_diagnostics = frame_diagnostics
 
         return frame_timestamps

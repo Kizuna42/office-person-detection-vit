@@ -1,8 +1,20 @@
 # オフィス人物検出システム - Makefile
 # Office Person Detection System - Makefile
 
-# Python実行コマンド（venvが存在する場合は優先）
-PYTHON := $(shell if [ -f venv/bin/python ]; then echo "venv/bin/python"; else echo "python3"; fi)
+# Python実行コマンド（venvが存在する場合は優先、python3の存在確認を先に実行）
+PYTHON := $(shell if command -v python3 >/dev/null 2>&1; then \
+		if [ -f venv/bin/python ]; then \
+			echo "venv/bin/python"; \
+		else \
+			echo "python3"; \
+		fi; \
+	else \
+		if [ -f venv/bin/python ]; then \
+			echo "venv/bin/python"; \
+		else \
+			echo "python"; \
+		fi; \
+	fi)
 
 # 設定ファイル（デフォルト）
 CONFIG := config.yaml
@@ -36,10 +48,13 @@ run-eval: ## 評価モードで実行（Ground Truthとの比較）
 	$(PYTHON) main.py --config $(CONFIG) --evaluate
 
 .PHONY: run-time
-run-time: ## 時刻指定で実行（例: make run-time START_TIME=16:05:00 END_TIME=16:15:00）
+run-time: ## 時刻指定で実行（例: make run-time START_TIME="2025/08/26 16:05:00" END_TIME="2025/08/26 16:15:00"）
+	@# 注意: 日付/時刻のパースは main.py 側で堅牢に処理されることを想定
+	@# シェル依存の処理を避けるため、引数はそのまま main.py に渡す
 	@if [ -z "$(START_TIME)" ] || [ -z "$(END_TIME)" ]; then \
 		echo "エラー: START_TIMEとEND_TIMEを指定してください"; \
-		echo "例: make run-time START_TIME=16:05:00 END_TIME=16:15:00"; \
+		echo "例: make run-time START_TIME=\"2025/08/26 16:05:00\" END_TIME=\"2025/08/26 16:15:00\""; \
+		echo "または: make run-time START_TIME=\"16:05:00\" END_TIME=\"16:15:00\""; \
 		exit 1; \
 	fi
 	@echo "=========================================="
@@ -47,7 +62,7 @@ run-time: ## 時刻指定で実行（例: make run-time START_TIME=16:05:00 END_
 	@echo "開始時刻: $(START_TIME)"
 	@echo "終了時刻: $(END_TIME)"
 	@echo "=========================================="
-	$(PYTHON) main.py --config $(CONFIG) --start-time $(START_TIME) --end-time $(END_TIME)
+	$(PYTHON) main.py --config $(CONFIG) --start-time "$(START_TIME)" --end-time "$(END_TIME)"
 
 .PHONY: run-timestamps
 run-timestamps: ## タイムスタンプOCRのみ実行（5分刻みフレーム抽出+OCR、CSV+オーバーレイ画像出力）
@@ -66,10 +81,10 @@ clean: ## outputディレクトリ内の生成ファイルを削除（labels/res
 	@echo "outputディレクトリをクリーンアップ中..."
 	@echo "=========================================="
 	@if [ -d output ]; then \
-		find output -type f -name "*.jpg" -o -name "*.png" -o -name "*.csv" -o -name "*.json" -o -name "*.log" | \
-		grep -v "labels/result_fixed.json" | \
-		grep -v "calibration/" | \
-		xargs rm -f 2>/dev/null || true; \
+		find output -type f \( -name "*.jpg" -o -name "*.png" -o -name "*.csv" -o -name "*.json" -o -name "*.log" \) \
+			! -path "*/labels/result_fixed.json" \
+			! -path "*/calibration/*" \
+			-exec rm -f {} + 2>/dev/null || true; \
 		find output -type d -empty -delete 2>/dev/null || true; \
 		echo "✓ outputディレクトリをクリーンアップしました"; \
 	else \
@@ -80,9 +95,10 @@ clean: ## outputディレクトリ内の生成ファイルを削除（labels/res
 clean-all: clean clean-cache ## output + Pythonキャッシュを削除
 
 .PHONY: clean-cache
-clean-cache: ## Pythonキャッシュ（__pycache__、*.pyc）を削除
+clean-cache: ## Pythonキャッシュ（__pycache__、*.pyc）を削除（注意: CIや他ツールのキャッシュも削除対象）
 	@echo "=========================================="
 	@echo "Pythonキャッシュをクリーンアップ中..."
+	@echo "注意: CIや他ツールのキャッシュも削除対象です"
 	@echo "=========================================="
 	@find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 	@find . -type f -name "*.pyc" -delete 2>/dev/null || true
@@ -141,14 +157,20 @@ help: ## 利用可能なコマンド一覧を表示
 	@echo ""
 	@echo "利用可能なコマンド:"
 	@echo ""
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
-		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	@awk 'BEGIN {FS = ":.*?## "}; /^[a-zA-Z_-]+:.*?## / { \
+		command = $$1; \
+		description = $$2; \
+		gsub(/^[ \t]+|[ \t]+$$/, "", command); \
+		gsub(/^[ \t]+|[ \t]+$$/, "", description); \
+		printf "  \033[36m%-20s\033[0m %s\n", command, description \
+	}' $(MAKEFILE_LIST)
 	@echo ""
 	@echo "例:"
 	@echo "  make run                    # 通常実行"
 	@echo "  make run-debug              # デバッグモード"
 	@echo "  make run-timestamps         # タイムスタンプOCRのみ実行"
-	@echo "  make run-time START_TIME=10:00 END_TIME=14:00  # 時刻指定"
+	@echo "  make run-time START_TIME=\"2025/08/26 16:05:00\" END_TIME=\"2025/08/26 16:15:00\"  # 時刻指定（日時形式）"
+	@echo "  make run-time START_TIME=\"16:05:00\" END_TIME=\"16:15:00\"  # 時刻指定（時刻のみ）"
 	@echo "  make clean                  # outputクリーンアップ"
 	@echo "  make test                   # テスト実行"
 	@echo ""
@@ -199,4 +221,35 @@ format: ## コードフォーマット（black、isort）
 		echo "⚠ isortがインストールされていません（スキップ）"; \
 	fi
 	@echo "✓ フォーマットが完了しました"
+
+.PHONY: pre-commit
+pre-commit: format lint  ## commit前に実行するチェック（format + lint）
+	@echo "✓ pre-commit checks passed"
+
+.PHONY: pre-push
+pre-push: format lint test  ## push前に実行する総合チェック（format + lint + test）
+	@echo "✓ pre-push checks passed"
+
+.PHONY: precommit-install
+precommit-install: ## Gitフックをインストール（pre-commitとpre-push）
+	@echo "=========================================="
+	@echo "Gitフックをインストール中..."
+	@echo "=========================================="
+	@if [ ! -d .git/hooks ]; then \
+		echo "エラー: .git/hooks ディレクトリが見つかりません。Gitリポジトリで実行してください。"; \
+		exit 1; \
+	fi
+	@echo '#!/bin/bash' > .git/hooks/pre-commit
+	@echo 'set -e' >> .git/hooks/pre-commit
+	@echo 'echo "Running pre-commit checks..."' >> .git/hooks/pre-commit
+	@echo 'make pre-commit' >> .git/hooks/pre-commit
+	@chmod +x .git/hooks/pre-commit
+	@echo '#!/bin/bash' > .git/hooks/pre-push
+	@echo 'set -e' >> .git/hooks/pre-push
+	@echo 'echo "Running pre-push checks..."' >> .git/hooks/pre-push
+	@echo 'make pre-push' >> .git/hooks/pre-push
+	@chmod +x .git/hooks/pre-push
+	@echo "✓ Gitフックをインストールしました"
+	@echo "  - commit前に自動的に make pre-commit が実行されます（format + lint）"
+	@echo "  - push前に自動的に make pre-push が実行されます（format + lint + test）"
 

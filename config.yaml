@@ -17,6 +17,11 @@ video:
   # 目標タイムスタンプから±この秒数以内のフレームを選択
   tolerance_seconds: 60
 
+  # 範囲限定スキャン時のマージン時間（分）
+  # start_timeとend_timeが指定されている場合、指定時刻範囲の前後±この分数だけスキャンする
+  # デフォルト: 10分
+  scan_margin_minutes: 5
+
 # 人物検出設定
 detection:
   # 使用するViTモデル名
