@@ -12,7 +12,8 @@ import numpy as np
 import pytesseract
 
 from src.detection.preprocessing import apply_pipeline
-from src.timestamp.ocr_engines import run_ocr, run_tesseract
+from src.timestamp.ocr_engines import (EASYOCR_AVAILABLE, PADDLEOCR_AVAILABLE,
+                                       run_ocr, run_tesseract)
 from src.timestamp.timestamp_postprocess import parse_flexible_timestamp
 
 logger = logging.getLogger(__name__)
@@ -68,6 +69,18 @@ class TimestampExtractor:
         self.preproc_params = preproc_params or self._get_default_preproc_params()
         self.ocr_params = ocr_params or self._get_default_ocr_params()
         self.use_flexible_postprocess = use_flexible_postprocess
+
+        # 最初のフレーム検証用のフラグ
+        self._is_initial_extraction = True
+        self._initial_frame_count = 10  # 最初のNフレームで多数決
+
+        # ROI動的調整用のフラグ（施策5）
+        self._enable_dynamic_roi = True
+        self._roi_candidates = [
+            (900, 30, 360, 45),  # デフォルト（右上）
+            (900, 10, 360, 60),  # 少し上に
+            (850, 30, 410, 45),  # 少し左に
+        ]
 
     def _get_default_preproc_params(self) -> Dict:
         """デフォルト前処理パラメータを取得"""
@@ -138,7 +151,7 @@ class TimestampExtractor:
         return ocr_text, confidence
 
     def _multi_ocr_vote(self, preprocessed: np.ndarray) -> Tuple[Optional[str], float]:
-        """複数OCR設定で実行し、多数決でタイムスタンプを決定
+        """複数OCR設定で実行し、重み付き投票でタイムスタンプを決定（施策6: アンサンブル強化）
 
         Args:
             preprocessed: 前処理済み画像
@@ -146,16 +159,19 @@ class TimestampExtractor:
         Returns:
             (タイムスタンプ, 平均信頼度) のタプル
         """
-        # 複数のPSM設定を試す
-        ocr_configs = [
-            {"psm": 7, "whitelist": "0123456789/:", "lang": "eng"},
-            {"psm": 6, "whitelist": "0123456789/:", "lang": "eng"},
-            {"psm": 8, "whitelist": "0123456789/:", "lang": "eng"},
-            {"psm": 13, "whitelist": "0123456789/:", "lang": "eng"},
-            {"psm": 11, "whitelist": "0123456789/:", "lang": "eng"},
-        ]
+        # 複数のOCRエンジンとPSM設定を試す
+        all_results: List[
+            Tuple[str, float, str, float]
+        ] = []  # (timestamp, weighted_confidence, engine, original_confidence)
 
-        candidates: List[Tuple[str, float]] = []
+        # Tesseract（複数PSM設定）
+        ocr_configs = [
+            {"psm": 7, "whitelist": "0123456789/:", "lang": "eng", "weight": 1.0},
+            {"psm": 6, "whitelist": "0123456789/:", "lang": "eng", "weight": 0.9},
+            {"psm": 8, "whitelist": "0123456789/:", "lang": "eng", "weight": 0.8},
+            {"psm": 13, "whitelist": "0123456789/:", "lang": "eng", "weight": 0.7},
+            {"psm": 11, "whitelist": "0123456789/:", "lang": "eng", "weight": 0.6},
+        ]
 
         for ocr_config in ocr_configs:
             try:
@@ -177,63 +193,135 @@ class TimestampExtractor:
                         reference_timestamp=self._last_timestamp,
                     )
                     if timestamp:
-                        candidates.append((timestamp, confidence))
+                        all_results.append(
+                            (
+                                timestamp,
+                                confidence * ocr_config["weight"],
+                                "tesseract",
+                                confidence,
+                            )
+                        )
                         continue
 
                 # 従来の方法も試す
                 timestamp = self._parse_strict_regex(ocr_text)
                 if timestamp:
-                    candidates.append((timestamp, confidence))
+                    all_results.append(
+                        (
+                            timestamp,
+                            confidence * ocr_config["weight"],
+                            "tesseract",
+                            confidence,
+                        )
+                    )
                     continue
 
                 # フォールバック: parse_timestamp
                 timestamp = self.parse_timestamp(ocr_text)
                 if timestamp:
-                    candidates.append((timestamp, confidence))
+                    all_results.append(
+                        (
+                            timestamp,
+                            confidence * ocr_config["weight"],
+                            "tesseract",
+                            confidence,
+                        )
+                    )
             except Exception as e:
                 logger.debug(f"OCR設定 {ocr_config} でエラー: {e}")
                 continue
 
-        if not candidates:
+        # PaddleOCRとEasyOCRも試行（施策6）
+        if PADDLEOCR_AVAILABLE:
+            try:
+                ocr_text, confidence = run_ocr(preprocessed, engine="paddleocr")
+                if ocr_text:
+                    timestamp = parse_flexible_timestamp(
+                        ocr_text,
+                        confidence=confidence,
+                        reference_timestamp=self._last_timestamp,
+                    )
+                    if timestamp:
+                        # PaddleOCRは重み1.2（高精度のため）
+                        all_results.append(
+                            (timestamp, confidence * 1.2, "paddleocr", confidence)
+                        )
+            except Exception as e:
+                logger.debug(f"PaddleOCRでエラー: {e}")
+
+        if EASYOCR_AVAILABLE:
+            try:
+                ocr_text, confidence = run_ocr(preprocessed, engine="easyocr")
+                if ocr_text:
+                    timestamp = parse_flexible_timestamp(
+                        ocr_text,
+                        confidence=confidence,
+                        reference_timestamp=self._last_timestamp,
+                    )
+                    if timestamp:
+                        # EasyOCRは重み1.0
+                        all_results.append(
+                            (timestamp, confidence * 1.0, "easyocr", confidence)
+                        )
+            except Exception as e:
+                logger.debug(f"EasyOCRでエラー: {e}")
+
+        if not all_results:
             return None, 0.0
 
-        # 多数決: 同じタイムスタンプの出現回数をカウント
-        timestamp_counts = Counter(ts for ts, _ in candidates)
-        max_count = max(timestamp_counts.values())
+        # 重み付き投票: 同じタイムスタンプの重み付きスコアを計算
+        # 時系列整合性チェックも同時に実施（施策2）
+        timestamp_scores: Dict[str, float] = {}
+        timestamp_counts: Dict[str, int] = {}
+        timestamp_confidences: Dict[str, List[float]] = {}  # 元の信頼度を保持
 
-        # 最も多く出現したタイムスタンプを候補に
-        top_timestamps = [
-            ts for ts, count in timestamp_counts.items() if count == max_count
-        ]
+        for timestamp, weighted_conf, engine, original_conf in all_results:
+            # 時系列整合性チェック（施策2: 厳格化）
+            if self._last_timestamp is not None:
+                try:
+                    timestamp_dt = datetime.strptime(timestamp, self.TIMESTAMP_FORMAT)
+                    days_diff = abs(
+                        (timestamp_dt.date() - self._last_timestamp.date()).days
+                    )
+                    # ±7日以上の差は除外（誤認識の可能性が高い）
+                    if days_diff >= 7:
+                        logger.debug(
+                            f"時系列外れ値検知（アンサンブル）: {timestamp} "
+                            f"(履歴: {self._last_timestamp.date()}, 差={days_diff}日)"
+                        )
+                        continue
+                except ValueError:
+                    # タイムスタンプの解析に失敗した場合はスキップ
+                    continue
 
-        if len(top_timestamps) == 1:
-            # 唯一の候補
-            selected = top_timestamps[0]
-            # そのタイムスタンプの平均信頼度を計算
-            confs_for_selected = [conf for ts, conf in candidates if ts == selected]
-            avg_conf = (
-                sum(confs_for_selected) / len(confs_for_selected)
-                if confs_for_selected
-                else 0.0
-            )
-            return selected, avg_conf
+            if timestamp not in timestamp_scores:
+                timestamp_scores[timestamp] = 0.0
+                timestamp_counts[timestamp] = 0
+                timestamp_confidences[timestamp] = []
+
+            # 重み付きスコアを累積
+            timestamp_scores[timestamp] += weighted_conf
+            timestamp_counts[timestamp] += 1
+            # 元の信頼度を保持
+            timestamp_confidences[timestamp].append(original_conf)
+
+        if not timestamp_scores:
+            return None, 0.0
+
+        # 最高スコアのタイムスタンプを選択
+        best_timestamp = max(timestamp_scores.items(), key=lambda x: x[1])[0]
+
+        # 平均信頼度を計算（元の信頼度の平均）
+        if best_timestamp in timestamp_confidences:
+            confidences = timestamp_confidences[best_timestamp]
+            avg_confidence = sum(confidences) / len(confidences) if confidences else 0.0
         else:
-            # タイの場合、平均信頼度が高いものを選択
-            best_ts = None
-            best_conf = -1.0
-            for ts in top_timestamps:
-                confs_for_ts = [
-                    conf for candidate_ts, conf in candidates if candidate_ts == ts
-                ]
-                avg_conf = (
-                    sum(confs_for_ts) / len(confs_for_ts) if confs_for_ts else 0.0
-                )
-                if avg_conf > best_conf:
-                    best_conf = avg_conf
-                    best_ts = ts
-            if best_ts is None:
-                return None, 0.0
-            return best_ts, best_conf
+            avg_confidence = 0.0
+
+        # 信頼度が負の値にならないように保証
+        avg_confidence = max(0.0, min(1.0, avg_confidence))
+
+        return best_timestamp, avg_confidence
 
     def _parse_strict_regex(self, text: str) -> Optional[str]:
         """厳密な正規表現でタイムスタンプを抽出
@@ -368,12 +456,68 @@ class TimestampExtractor:
 
         return None
 
+    def _try_multiple_roi_candidates(
+        self, frame: np.ndarray
+    ) -> List[Tuple[np.ndarray, Tuple[int, int, int, int], float]]:
+        """複数のROI候補領域を試行（施策5）
+
+        Args:
+            frame: 入力フレーム画像
+
+        Returns:
+            [(ROI画像, ROI座標, 品質スコア), ...] のリスト
+        """
+        frame_height, frame_width = frame.shape[:2]
+        candidates: List[Tuple[np.ndarray, Tuple[int, int, int, int], float]] = []
+
+        for roi_candidate in self._roi_candidates:
+            x, y, w, h = roi_candidate
+
+            # フレームサイズチェック
+            if x + w > frame_width or y + h > frame_height:
+                w = min(w, frame_width - x)
+                h = min(h, frame_height - y)
+
+            if w <= 0 or h <= 0:
+                continue
+
+            roi_image = frame[y : y + h, x : x + w]
+
+            if roi_image.size == 0:
+                continue
+
+            # ROI領域の品質評価
+            quality = self._evaluate_roi_quality(roi_image)
+            quality_score = (
+                quality["contrast"] * 0.4
+                + quality["sharpness"] * 0.4
+                + (100 - quality["noise_level"]) * 0.2
+            )
+
+            candidates.append((roi_image, (x, y, w, h), quality_score))
+
+        # 品質スコアでソート（高い順）
+        candidates.sort(key=lambda x: x[2], reverse=True)
+        return candidates
+
+    def _evaluate_roi_quality(self, roi_image: np.ndarray) -> Dict[str, float]:
+        """ROI領域の品質を評価（施策5）
+
+        Args:
+            roi_image: ROI領域の画像
+
+        Returns:
+            品質指標の辞書
+        """
+        return self._evaluate_frame_quality(roi_image)
+
     def extract(
         self, frame: np.ndarray, frame_index: Optional[int] = None
     ) -> Optional[str]:
         """フレームからタイムスタンプを抽出する
 
         複数OCR設定で多数決を行い、厳密な正規表現で抽出を試みる。
+        ROI動的調整（施策5）と日付部分の独立検証（施策3）を実装。
 
         Args:
             frame: 入力フレーム画像
@@ -387,7 +531,124 @@ class TimestampExtractor:
             return None
 
         try:
-            # ROI領域を抽出
+            # ROI動的調整（施策5）
+            if self._enable_dynamic_roi:
+                roi_candidates = self._try_multiple_roi_candidates(frame)
+                if not roi_candidates:
+                    logger.warning("ROI候補領域が見つかりませんでした")
+                    return None
+
+                # 各候補領域でOCRを試行
+                best_timestamp = None
+                best_confidence = -1.0
+                best_roi_bounds = None
+                best_preprocessed = None
+
+                for roi_image, roi_bounds, quality_score in roi_candidates:
+                    # 施策3: 日付と時刻を独立して抽出（優先的に試行）
+                    date_str, date_conf = self._extract_date_independently(roi_image)
+                    time_str, time_conf = self._extract_time_independently(roi_image)
+
+                    # 日付と時刻の両方が取得できた場合
+                    if date_str and time_str:
+                        # 日付の妥当性チェック
+                        year, month, day = date_str.split("/")
+                        if self._validate_date_format(year, month, day):
+                            # 結合してタイムスタンプを作成
+                            combined_timestamp = f"{date_str} {time_str}"
+                            combined_confidence = (date_conf + time_conf) / 2.0
+
+                            # 時系列整合性チェック（履歴がある場合）
+                            if self._last_timestamp is not None:
+                                try:
+                                    combined_dt = datetime.strptime(
+                                        combined_timestamp, self.TIMESTAMP_FORMAT
+                                    )
+                                    days_diff = abs(
+                                        (
+                                            combined_dt.date()
+                                            - self._last_timestamp.date()
+                                        ).days
+                                    )
+                                    # ±7日以上の差は除外（誤認識の可能性が高い）
+                                    if days_diff >= 7:
+                                        logger.debug(
+                                            f"日付独立検証: 時系列外れ値検知 "
+                                            f"(差={days_diff}日、履歴={self._last_timestamp.date()})"
+                                        )
+                                        # フォールバック処理に進む
+                                    else:
+                                        # 妥当なタイムスタンプとして採用
+                                        if combined_confidence > best_confidence:
+                                            best_timestamp = combined_timestamp
+                                            best_confidence = combined_confidence
+                                            best_roi_bounds = roi_bounds
+                                            best_preprocessed = roi_image
+                                            # 履歴を更新
+                                            self._last_timestamp = combined_dt
+                                            logger.debug(
+                                                f"日付独立検証成功: {combined_timestamp} "
+                                                f"(信頼度={combined_confidence:.2f})"
+                                            )
+                                        continue
+                                except ValueError:
+                                    # タイムスタンプの解析に失敗した場合はフォールバック
+                                    pass
+                            else:
+                                # 履歴がない場合はそのまま採用
+                                if combined_confidence > best_confidence:
+                                    best_timestamp = combined_timestamp
+                                    best_confidence = combined_confidence
+                                    best_roi_bounds = roi_bounds
+                                    best_preprocessed = roi_image
+                                    # 履歴を更新
+                                    try:
+                                        combined_dt = datetime.strptime(
+                                            combined_timestamp, self.TIMESTAMP_FORMAT
+                                        )
+                                        self._last_timestamp = combined_dt
+                                    except ValueError:
+                                        pass
+                                    logger.debug(
+                                        f"日付独立検証成功（初期）: {combined_timestamp} "
+                                        f"(信頼度={combined_confidence:.2f})"
+                                    )
+                                continue
+
+                    # 日付・時刻の独立抽出が失敗した場合、従来の方法を試行
+                    preprocessed = self._preprocess_roi(roi_image)
+
+                    # 複数OCR設定で多数決
+                    timestamp, confidence = self._multi_ocr_vote(preprocessed)
+
+                    # 信頼度が高い結果を選択
+                    if timestamp and confidence > best_confidence:
+                        best_timestamp = timestamp
+                        best_confidence = confidence
+                        best_roi_bounds = roi_bounds
+                        best_preprocessed = preprocessed
+
+                    # 信頼度が十分高い場合は早期終了
+                    if confidence > 0.8:
+                        break
+
+                if best_timestamp:
+                    if self._debug_enabled:
+                        self._save_debug_outputs(
+                            frame,
+                            roi_candidates[0][0],  # 最初の候補のROI画像
+                            best_preprocessed or roi_candidates[0][0],
+                            best_timestamp or "",
+                            best_timestamp,
+                            frame_index,
+                            best_roi_bounds or self.roi,
+                        )
+                    logger.debug(
+                        f"抽出されたタイムスタンプ: {best_timestamp} (信頼度={best_confidence:.2f})"
+                    )
+                    return best_timestamp
+
+            # フォールバック: デフォルトROIを使用
             x, y, w, h = self.roi
 
             # フレームサイズチェック
@@ -400,13 +661,90 @@ class TimestampExtractor:
                 w = min(w, frame_width - x)
                 h = min(h, frame_height - y)
 
-            roi_image = frame[y:y + h, x:x + w]
+            roi_image = frame[y : y + h, x : x + w]
             roi_bounds = (x, y, w, h)
 
             if roi_image.size == 0:
                 logger.warning("ROI領域が空です")
                 return None
 
+            # 施策3: 日付と時刻を独立して抽出（優先的に試行）
+            date_str, date_conf = self._extract_date_independently(roi_image)
+            time_str, time_conf = self._extract_time_independently(roi_image)
+
+            # 日付と時刻の両方が取得できた場合
+            if date_str and time_str:
+                # 日付の妥当性チェック
+                year, month, day = date_str.split("/")
+                if self._validate_date_format(year, month, day):
+                    # 結合してタイムスタンプを作成
+                    combined_timestamp = f"{date_str} {time_str}"
+                    combined_confidence = (date_conf + time_conf) / 2.0
+
+                    # 時系列整合性チェック（履歴がある場合）
+                    if self._last_timestamp is not None:
+                        try:
+                            combined_dt = datetime.strptime(
+                                combined_timestamp, self.TIMESTAMP_FORMAT
+                            )
+                            days_diff = abs(
+                                (combined_dt.date() - self._last_timestamp.date()).days
+                            )
+                            # ±7日以上の差は除外（誤認識の可能性が高い）
+                            if days_diff < 7:
+                                # 妥当なタイムスタンプとして採用
+                                # 履歴を更新
+                                self._last_timestamp = combined_dt
+                                logger.debug(
+                                    f"日付独立検証成功: {combined_timestamp} "
+                                    f"(信頼度={combined_confidence:.2f})"
+                                )
+                                if self._debug_enabled:
+                                    self._save_debug_outputs(
+                                        frame,
+                                        roi_image,
+                                        roi_image,
+                                        combined_timestamp or "",
+                                        combined_timestamp,
+                                        frame_index,
+                                        roi_bounds,
+                                    )
+                                return combined_timestamp
+                            else:
+                                logger.debug(
+                                    f"日付独立検証: 時系列外れ値検知 "
+                                    f"(差={days_diff}日、履歴={self._last_timestamp.date()})"
+                                )
+                        except ValueError:
+                            # タイムスタンプの解析に失敗した場合はフォールバック
+                            pass
+                    else:
+                        # 履歴がない場合はそのまま採用
+                        # 履歴を更新
+                        try:
+                            combined_dt = datetime.strptime(
+                                combined_timestamp, self.TIMESTAMP_FORMAT
+                            )
+                            self._last_timestamp = combined_dt
+                        except ValueError:
+                            pass
+                        logger.debug(
+                            f"日付独立検証成功（初期）: {combined_timestamp} "
+                            f"(信頼度={combined_confidence:.2f})"
+                        )
+                        if self._debug_enabled:
+                            self._save_debug_outputs(
+                                frame,
+                                roi_image,
+                                roi_image,
+                                combined_timestamp or "",
+                                combined_timestamp,
+                                frame_index,
+                                roi_bounds,
+                            )
+                        return combined_timestamp
+
+            # 日付・時刻の独立抽出が失敗した場合、従来の方法を試行
             # 前処理
             preprocessed = self._preprocess_roi(roi_image)
 
@@ -459,10 +797,86 @@ class TimestampExtractor:
         band = gray_roi[:band_height, :]
         return band if band.size > 0 else gray_roi
 
+    def _evaluate_frame_quality(self, roi_image: np.ndarray) -> Dict[str, float]:
+        """フレーム品質を評価（施策4）
+
+        Args:
+            roi_image: ROI領域の画像
+
+        Returns:
+            品質指標の辞書（contrast, sharpness, noise_level）
+        """
+        if len(roi_image.shape) == 3:
+            gray = cv2.cvtColor(roi_image, cv2.COLOR_BGR2GRAY)
+        else:
+            gray = roi_image
+
+        # コントラスト（標準偏差）
+        contrast = float(np.std(gray))
+
+        # シャープネス（Laplacian分散）
+        laplacian = cv2.Laplacian(gray, cv2.CV_64F)
+        sharpness = float(laplacian.var())
+
+        # ノイズレベル（高周波成分の推定）
+        # ガウシアンブラー後の差分から推定
+        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+        diff = cv2.absdiff(gray, blurred)
+        noise_level = float(np.mean(diff))
+
+        return {
+            "contrast": contrast,
+            "sharpness": sharpness,
+            "noise_level": noise_level,
+        }
+
+    def _select_optimal_pipeline(
+        self, roi_image: np.ndarray, quality: Dict[str, float]
+    ) -> Dict:
+        """フレーム品質に応じた最適な前処理パイプラインを選択（施策4）
+
+        Args:
+            roi_image: ROI領域の画像
+            quality: 品質指標
+
+        Returns:
+            最適な前処理パラメータ
+        """
+        # デフォルトパラメータをコピー
+        params = self.preproc_params.copy()
+
+        # コントラストが低い場合（< 30）
+        if quality["contrast"] < 30:
+            # CLAHEのclip_limitを上げる
+            if "clahe" in params:
+                params["clahe"]["clip_limit"] = 3.0
+            logger.debug(f"低コントラスト検出 ({quality['contrast']:.1f})。CLAHE強化")
+
+        # シャープネスが低い場合（< 100）
+        if quality["sharpness"] < 100:
+            # シャープ化を有効化
+            if "unsharp" not in params:
+                params["unsharp"] = {"enabled": True, "amount": 1.5, "radius": 1.0}
+            else:
+                params["unsharp"]["enabled"] = True
+            logger.debug(f"低シャープネス検出 ({quality['sharpness']:.1f})。シャープ化有効化")
+
+        # ノイズレベルが高い場合（> 20）
+        if quality["noise_level"] > 20:
+            # ブラーを有効化
+            if "blur" not in params:
+                params["blur"] = {"enabled": True, "kernel_size": 3, "sigma": 0.0}
+            else:
+                params["blur"]["enabled"] = True
+            logger.debug(f"高ノイズ検出 ({quality['noise_level']:.1f})。ブラー有効化")
+
+        return params
+
     def _preprocess_roi(self, roi_image: np.ndarray) -> np.ndarray:
         """OCR用の前処理を実行する
 
         パラメタ化された前処理パイプラインを使用。
+        フレーム品質に応じた適応的前処理を実装（施策4）。
 
         Args:
             roi_image: ROI領域の画像
@@ -473,11 +887,18 @@ class TimestampExtractor:
         try:
             self._last_preprocess_debug = {}
 
+            # フレーム品質を評価（施策4）
+            quality = self._evaluate_frame_quality(roi_image)
+
+            # 品質に応じた最適なパイプラインを選択
+            optimal_params = self._select_optimal_pipeline(roi_image, quality)
+
             # パラメタ化された前処理を適用
-            preprocessed = apply_pipeline(roi_image, self.preproc_params)
+            preprocessed = apply_pipeline(roi_image, optimal_params)
 
             self._last_preprocess_debug = {
                 "preprocessed": preprocessed,
+                "quality": quality,
             }
 
             return preprocessed
@@ -760,15 +1181,31 @@ class TimestampExtractor:
                     }
                 )
 
-            # 時系列の整合性チェック（±12時間以内の日付跨ぎは許容、±3年超は破棄）
+            # 時系列の整合性チェック（施策2: 厳格化）
             if fallback_dt is not None:
                 time_diff = abs((candidate - fallback_dt).total_seconds())
-                if time_diff > 3 * 365 * 24 * 3600:  # 3年以上の差
+
+                # 日付レベルの外れ値検知（±1日以上の場合、警告・再検証）
+                days_diff = abs((candidate.date() - fallback_dt.date()).days)
+                if days_diff >= 1:
+                    logger.warning(
+                        f"日付レベルの外れ値検知: {candidate.date()} (履歴: {fallback_dt.date()}, 差={days_diff}日)"
+                    )
+                    # ±7日以上の差は破棄（誤認識の可能性が高い）
+                    if days_diff >= 7:
+                        logger.error(
+                            f"日付の外れ値が大きすぎます: {candidate.date()} (履歴: {fallback_dt.date()}, 差={days_diff}日)"
+                        )
+                        return None
+
+                # 3年以上の差は破棄
+                if time_diff > 3 * 365 * 24 * 3600:
                     logger.warning(
                         f"時系列の外れ値が大きすぎます: {candidate} (履歴: {fallback_dt}, 差={time_diff:.0f}秒)"
                     )
                     return None
 
+                # 日付跨ぎの補正（±12時間以内の日付跨ぎは許容）
                 if candidate < fallback_dt - timedelta(hours=12):
                     candidate += timedelta(days=1)
                     corrections.append(
@@ -848,7 +1285,7 @@ class TimestampExtractor:
                 w = min(w, frame_width - x)
                 h = min(h, frame_height - y)
 
-            roi_image = frame[y:y + h, x:x + w]
+            roi_image = frame[y : y + h, x : x + w]
 
             if roi_image.size == 0:
                 return None, 0.0
@@ -876,6 +1313,477 @@ class TimestampExtractor:
             補正ログのリスト
         """
         return self._last_corrections.copy()
+
+    def _validate_initial_timestamp(
+        self, timestamp: str, reference_date: Optional[datetime] = None
+    ) -> Tuple[bool, Optional[str]]:
+        """初期タイムスタンプの妥当性をチェック
+
+        Args:
+            timestamp: タイムスタンプ文字列 (YYYY/MM/DD HH:MM:SS形式)
+            reference_date: 参照日付（現在時刻または期待される日付）
+
+        Returns:
+            (妥当性, エラーメッセージ) のタプル
+        """
+        try:
+            dt = datetime.strptime(timestamp, self.TIMESTAMP_FORMAT)
+        except ValueError:
+            return False, "タイムスタンプ形式が不正です"
+
+        # 参照日付が指定されていない場合は現在時刻を使用
+        if reference_date is None:
+            reference_date = datetime.now()
+
+        # 現在時刻±30日以内のチェック
+        days_diff = abs((dt - reference_date).days)
+        if days_diff > 30:
+            return False, f"参照日付から{days_diff}日離れています（許容範囲: ±30日）"
+
+        # 年の妥当性チェック（2000-2100）
+        if not (2000 <= dt.year <= 2100):
+            return False, f"年が範囲外です: {dt.year} (許容範囲: 2000-2100)"
+
+        # 月の妥当性チェック（1-12）
+        if not (1 <= dt.month <= 12):
+            return False, f"月が範囲外です: {dt.month} (許容範囲: 1-12)"
+
+        # 日の妥当性チェック（1-31、月に応じた日数のチェックも実装）
+        if not (1 <= dt.day <= 31):
+            return False, f"日が範囲外です: {dt.day} (許容範囲: 1-31)"
+
+        # 月に応じた日数のチェック
+        try:
+            # 無効な日付（例: 2月30日）をチェック
+            datetime(dt.year, dt.month, dt.day)
+        except ValueError:
+            return False, f"無効な日付です: {dt.year}/{dt.month}/{dt.day}"
+
+        return True, None
+
+    def _extract_initial_timestamp_with_consensus(
+        self, frames: List[np.ndarray]
+    ) -> Tuple[Optional[str], float]:
+        """最初のNフレームでOCRを実行し、多数決で初期タイムスタンプを決定
+
+        Args:
+            frames: 最初のNフレームのリスト
+
+        Returns:
+            (タイムスタンプ, 平均信頼度) のタプル
+        """
+        all_engines_results: List[
+            Tuple[str, float, str]
+        ] = []  # (timestamp, confidence, engine)
+
+        for frame_idx, frame in enumerate(frames):
+            if frame is None or frame.size == 0:
+                continue
+
+            try:
+                # ROI領域を抽出
+                x, y, w, h = self.roi
+                frame_height, frame_width = frame.shape[:2]
+
+                if x + w > frame_width or y + h > frame_height:
+                    w = min(w, frame_width - x)
+                    h = min(h, frame_height - y)
+
+                roi_image = frame[y : y + h, x : x + w]
+
+                if roi_image.size == 0:
+                    continue
+
+                # 前処理
+                preprocessed = self._preprocess_roi(roi_image)
+
+                # 複数のOCRエンジンで実行
+                engines = ["tesseract"]
+                if PADDLEOCR_AVAILABLE:
+                    engines.append("paddleocr")
+                if EASYOCR_AVAILABLE:
+                    engines.append("easyocr")
+
+                for engine in engines:
+                    try:
+                        if engine == "tesseract":
+                            # Tesseractは複数PSM設定で試行
+                            ocr_configs = [
+                                {"psm": 7, "whitelist": "0123456789/:", "lang": "eng"},
+                                {"psm": 6, "whitelist": "0123456789/:", "lang": "eng"},
+                                {"psm": 8, "whitelist": "0123456789/:", "lang": "eng"},
+                            ]
+                            for ocr_config in ocr_configs:
+                                ocr_text, confidence = run_tesseract(
+                                    preprocessed,
+                                    psm=ocr_config["psm"],
+                                    whitelist=ocr_config["whitelist"],
+                                    lang=ocr_config["lang"],
+                                )
+                                if ocr_text:
+                                    # 柔軟な後処理を使用
+                                    timestamp = parse_flexible_timestamp(
+                                        ocr_text,
+                                        confidence=confidence,
+                                        reference_timestamp=None,  # 初期抽出なので参照なし
+                                    )
+                                    if timestamp:
+                                        all_engines_results.append(
+                                            (
+                                                timestamp,
+                                                confidence,
+                                                f"{engine}_psm{ocr_config['psm']}",
+                                            )
+                                        )
+                        else:
+                            # PaddleOCRまたはEasyOCR
+                            ocr_text, confidence = run_ocr(preprocessed, engine=engine)
+                            if ocr_text:
+                                timestamp = parse_flexible_timestamp(
+                                    ocr_text,
+                                    confidence=confidence,
+                                    reference_timestamp=None,
+                                )
+                                if timestamp:
+                                    all_engines_results.append(
+                                        (timestamp, confidence, engine)
+                                    )
+                    except Exception as e:
+                        logger.debug(f"フレーム{frame_idx}、エンジン{engine}でエラー: {e}")
+                        continue
+
+            except Exception as e:
+                logger.debug(f"フレーム{frame_idx}の処理中にエラー: {e}")
+                continue
+
+        if not all_engines_results:
+            return None, 0.0
+
+        # 信頼度が低い結果を除外（閾値: 0.3）
+        filtered_results = [
+            (ts, conf, eng) for ts, conf, eng in all_engines_results if conf >= 0.3
+        ]
+
+        if not filtered_results:
+            # 信頼度が低い結果も含める
+            filtered_results = all_engines_results
+
+        # 多数決: 同じタイムスタンプの出現回数をカウント
+        timestamp_counts = Counter(ts for ts, _, _ in filtered_results)
+
+        if not timestamp_counts:
+            return None, 0.0
+
+        max_count = max(timestamp_counts.values())
+
+        # 最も多く出現したタイムスタンプを候補に
+        top_timestamps = [
+            ts for ts, count in timestamp_counts.items() if count == max_count
+        ]
+
+        if len(top_timestamps) == 1:
+            # 唯一の候補
+            selected = top_timestamps[0]
+            # そのタイムスタンプの平均信頼度を計算
+            confs_for_selected = [
+                conf for ts, conf, _ in filtered_results if ts == selected
+            ]
+            avg_conf = (
+                sum(confs_for_selected) / len(confs_for_selected)
+                if confs_for_selected
+                else 0.0
+            )
+            return selected, avg_conf
+        else:
+            # タイの場合、平均信頼度が高いものを選択
+            best_ts = None
+            best_conf = -1.0
+            for ts in top_timestamps:
+                confs_for_ts = [
+                    conf
+                    for candidate_ts, conf, _ in filtered_results
+                    if candidate_ts == ts
+                ]
+                avg_conf = (
+                    sum(confs_for_ts) / len(confs_for_ts) if confs_for_ts else 0.0
+                )
+                if avg_conf > best_conf:
+                    best_conf = avg_conf
+                    best_ts = ts
+            if best_ts is None:
+                return None, 0.0
+            return best_ts, best_conf
+
+    def _extract_date_independently(
+        self, roi_image: np.ndarray
+    ) -> Tuple[Optional[str], float]:
+        """日付部分（YYYY/MM/DD）を独立してOCR実行
+
+        Args:
+            roi_image: ROI領域の画像
+
+        Returns:
+            (日付文字列, 信頼度) のタプル
+        """
+        # ROI領域を日付部分と時刻部分に分割（仮定: 日付は左側、時刻は右側）
+        height, width = roi_image.shape[:2]
+        date_roi = roi_image[:, : width // 2]  # 左半分を日付領域とする
+
+        # 前処理
+        preprocessed = self._preprocess_roi(date_roi)
+
+        # 複数のOCRエンジンで実行
+        engines = ["tesseract"]
+        if PADDLEOCR_AVAILABLE:
+            engines.append("paddleocr")
+        if EASYOCR_AVAILABLE:
+            engines.append("easyocr")
+
+        all_results: List[Tuple[str, float]] = []
+
+        for engine in engines:
+            try:
+                if engine == "tesseract":
+                    # Tesseractは複数PSM設定で試行
+                    ocr_configs = [
+                        {"psm": 7, "whitelist": "0123456789/", "lang": "eng"},
+                        {"psm": 6, "whitelist": "0123456789/", "lang": "eng"},
+                        {"psm": 8, "whitelist": "0123456789/", "lang": "eng"},
+                    ]
+                    for ocr_config in ocr_configs:
+                        ocr_text, confidence = run_tesseract(
+                            preprocessed,
+                            psm=ocr_config["psm"],
+                            whitelist=ocr_config["whitelist"],
+                            lang=ocr_config["lang"],
+                        )
+                        if ocr_text:
+                            # 日付形式を正規化
+                            normalized = self._normalize_date_text(ocr_text)
+                            if normalized:
+                                all_results.append((normalized, confidence))
+                else:
+                    # PaddleOCRまたはEasyOCR
+                    ocr_text, confidence = run_ocr(preprocessed, engine=engine)
+                    if ocr_text:
+                        normalized = self._normalize_date_text(ocr_text)
+                        if normalized:
+                            all_results.append((normalized, confidence))
+            except Exception as e:
+                logger.debug(f"日付抽出、エンジン{engine}でエラー: {e}")
+                continue
+
+        if not all_results:
+            return None, 0.0
+
+        # 多数決
+        date_counts = Counter(date for date, _ in all_results)
+        max_count = max(date_counts.values())
+        top_dates = [date for date, count in date_counts.items() if count == max_count]
+
+        if len(top_dates) == 1:
+            selected = top_dates[0]
+            confs = [conf for date, conf in all_results if date == selected]
+            avg_conf = sum(confs) / len(confs) if confs else 0.0
+            return selected, avg_conf
+        else:
+            # タイの場合、平均信頼度が高いものを選択
+            best_date = None
+            best_conf = -1.0
+            for date in top_dates:
+                confs = [conf for d, conf in all_results if d == date]
+                avg_conf = sum(confs) / len(confs) if confs else 0.0
+                if avg_conf > best_conf:
+                    best_conf = avg_conf
+                    best_date = date
+            return best_date, best_conf if best_date else (None, 0.0)
+
+    def _extract_time_independently(
+        self, roi_image: np.ndarray
+    ) -> Tuple[Optional[str], float]:
+        """時刻部分（HH:MM:SS）を独立してOCR実行
+
+        Args:
+            roi_image: ROI領域の画像
+
+        Returns:
+            (時刻文字列, 信頼度) のタプル
+        """
+        # ROI領域を日付部分と時刻部分に分割
+        height, width = roi_image.shape[:2]
+        time_roi = roi_image[:, width // 2 :]  # 右半分を時刻領域とする
+
+        # 前処理
+        preprocessed = self._preprocess_roi(time_roi)
+
+        # Tesseractで実行（時刻部分は単純なのでTesseractのみ）
+        ocr_configs = [
+            {"psm": 7, "whitelist": "0123456789:", "lang": "eng"},
+            {"psm": 6, "whitelist": "0123456789:", "lang": "eng"},
+        ]
+
+        all_results: List[Tuple[str, float]] = []
+
+        for ocr_config in ocr_configs:
+            try:
+                ocr_text, confidence = run_tesseract(
+                    preprocessed,
+                    psm=ocr_config["psm"],
+                    whitelist=ocr_config["whitelist"],
+                    lang=ocr_config["lang"],
+                )
+                if ocr_text:
+                    # 時刻形式を正規化
+                    normalized = self._normalize_time_text(ocr_text)
+                    if normalized:
+                        all_results.append((normalized, confidence))
+            except Exception as e:
+                logger.debug(f"時刻抽出、設定{ocr_config}でエラー: {e}")
+                continue
+
+        if not all_results:
+            return None, 0.0
+
+        # 多数決
+        time_counts = Counter(time for time, _ in all_results)
+        max_count = max(time_counts.values())
+        top_times = [time for time, count in time_counts.items() if count == max_count]
+
+        if len(top_times) == 1:
+            selected = top_times[0]
+            confs = [conf for time, conf in all_results if time == selected]
+            avg_conf = sum(confs) / len(confs) if confs else 0.0
+            return selected, avg_conf
+        else:
+            # タイの場合、平均信頼度が高いものを選択
+            best_time = None
+            best_conf = -1.0
+            for time in top_times:
+                confs = [conf for t, conf in all_results if t == time]
+                avg_conf = sum(confs) / len(confs) if confs else 0.0
+                if avg_conf > best_conf:
+                    best_conf = avg_conf
+                    best_time = time
+            return best_time, best_conf if best_time else (None, 0.0)
+
+    def _normalize_date_text(self, text: str) -> Optional[str]:
+        """日付テキストを正規化（YYYY/MM/DD形式）
+
+        Args:
+            text: OCR出力テキスト
+
+        Returns:
+            正規化された日付文字列、失敗時None
+        """
+        if not text:
+            return None
+
+        # 文字変換
+        normalized = text.translate(
+            str.maketrans(
+                {
+                    "O": "0",
+                    "o": "0",
+                    "D": "0",
+                    "I": "1",
+                    "l": "1",
+                    "|": "1",
+                    "／": "/",
+                }
+            )
+        )
+
+        # 数字とスラッシュのみを抽出
+        normalized = re.sub(r"[^0-9/]", "", normalized)
+
+        # パターンマッチ: YYYY/MM/DD または YYYYMMDD
+        match = re.search(r"(\d{4})[/\-]?(\d{2})[/\-]?(\d{2})", normalized)
+        if match:
+            year, month, day = match.groups()
+            # 妥当性チェック
+            if self._validate_date_format(year, month, day):
+                return f"{year}/{month}/{day}"
+
+        return None
+
+    def _normalize_time_text(self, text: str) -> Optional[str]:
+        """時刻テキストを正規化（HH:MM:SS形式）
+
+        Args:
+            text: OCR出力テキスト
+
+        Returns:
+            正規化された時刻文字列、失敗時None
+        """
+        if not text:
+            return None
+
+        # 文字変換
+        normalized = text.translate(
+            str.maketrans(
+                {
+                    "O": "0",
+                    "o": "0",
+                    "I": "1",
+                    "l": "1",
+                    "|": "1",
+                    "：": ":",
+                }
+            )
+        )
+
+        # 数字とコロンのみを抽出
+        normalized = re.sub(r"[^0-9:]", "", normalized)
+
+        # パターンマッチ: HH:MM:SS または HHMMSS
+        match = re.search(r"(\d{1,2})[:]?(\d{2})[:]?(\d{2})", normalized)
+        if match:
+            hour, minute, second = match.groups()
+            # ゼロ埋め
+            hour = hour.zfill(2)
+            # 妥当性チェック
+            if (
+                0 <= int(hour) <= 23
+                and 0 <= int(minute) <= 59
+                and 0 <= int(second) <= 59
+            ):
+                return f"{hour}:{minute}:{second}"
+
+        return None
+
+    def _validate_date_format(self, year: str, month: str, day: str) -> bool:
+        """日付形式の妥当性をチェック
+
+        Args:
+            year: 年（文字列）
+            month: 月（文字列）
+            day: 日（文字列）
+
+        Returns:
+            妥当性
+        """
+        try:
+            year_i = int(year)
+            month_i = int(month)
+            day_i = int(day)
+
+            # 年の範囲チェック（2000-2100）
+            if not (2000 <= year_i <= 2100):
+                return False
+
+            # 月の範囲チェック（1-12）
+            if not (1 <= month_i <= 12):
+                return False
+
+            # 日の範囲チェック（1-31）
+            if not (1 <= day_i <= 31):
+                return False
+
+            # 無効な日付（例: 2月30日）をチェック
+            datetime(year_i, month_i, day_i)
+            return True
+        except (ValueError, TypeError):
+            return False
 
     def _save_debug_outputs(
         self,

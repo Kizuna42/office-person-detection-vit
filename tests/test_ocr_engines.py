@@ -7,14 +7,9 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from src.timestamp.ocr_engines import (
-    EASYOCR_AVAILABLE,
-    PADDLEOCR_AVAILABLE,
-    run_easyocr,
-    run_ocr,
-    run_paddleocr,
-    run_tesseract,
-)
+from src.timestamp.ocr_engines import (EASYOCR_AVAILABLE, PADDLEOCR_AVAILABLE,
+                                       run_easyocr, run_ocr, run_paddleocr,
+                                       run_tesseract)
 
 
 @pytest.fixture

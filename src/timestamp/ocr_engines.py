@@ -42,11 +42,20 @@ def _get_paddleocr_instance():
         return None
     if _paddleocr_instance is None:
         try:
-            _paddleocr_instance = PaddleOCR(
-                use_angle_cls=True, lang="en", show_log=False
-            )
+            # PaddleOCRのバージョンによって引数が異なる可能性があるため、
+            # まず最小限の引数で試行
+            try:
+                _paddleocr_instance = PaddleOCR(lang="en")
+            except (TypeError, ValueError):
+                # 引数エラーの場合、use_angle_clsを追加して再試行
+                try:
+                    _paddleocr_instance = PaddleOCR(use_angle_cls=True, lang="en")
+                except (TypeError, ValueError) as e2:
+                    # それでも失敗した場合は警告を出してNoneを返す
+                    logger.warning(f"PaddleOCRの初期化に失敗（引数エラー）: {e2}")
+                    return None
         except Exception as e:
-            logger.error(f"PaddleOCRの初期化に失敗: {e}")
+            logger.warning(f"PaddleOCRの初期化に失敗: {e}")
             return None
     return _paddleocr_instance
 

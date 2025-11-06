@@ -61,7 +61,12 @@ class BasePhase(ABC):
             video_processor.open()
 
         # タイムスタンプ抽出器の初期化
-        timestamp_extractor = TimestampExtractor()
+        confidence_threshold = self.config.get(
+            "timestamp.extraction.confidence_threshold", 0.3
+        )
+        timestamp_extractor = TimestampExtractor(
+            confidence_threshold=confidence_threshold
+        )
         output_dir = Path(self.config.get("output.directory", "output"))
 
         if self.config.get("output.debug_mode", False):

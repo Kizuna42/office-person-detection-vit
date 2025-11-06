@@ -252,7 +252,7 @@ class Visualizer:
 
         # カラーバーを配置
         image[
-            y_pos:y_pos + colorbar_height, x_pos:x_pos + colorbar_width
+            y_pos : y_pos + colorbar_height, x_pos : x_pos + colorbar_width
         ] = colorbar_colored
 
         # ラベルを追加

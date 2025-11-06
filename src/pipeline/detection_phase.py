@@ -67,7 +67,7 @@ class DetectionPhase(BasePhase):
 
         # バッチ処理
         for i in tqdm(range(0, len(sample_frames), batch_size), desc="人物検出中"):
-            batch = sample_frames[i:i + batch_size]
+            batch = sample_frames[i : i + batch_size]
             batch_frames = [frame for _, _, frame in batch]
 
             try:

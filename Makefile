@@ -186,7 +186,7 @@ lint: ## Lintチェック（flake8、black、mypy）
 	@echo "=========================================="
 	@if command -v flake8 >/dev/null 2>&1; then \
 		echo "✓ flake8チェック中..."; \
-		flake8 src/ tests/ --max-line-length=120 --exclude=venv,__pycache__ || true; \
+		flake8 src/ tests/ --max-line-length=120 --ignore=E203 --exclude=venv,__pycache__ || true; \
 	else \
 		echo "⚠ flake8がインストールされていません（スキップ）"; \
 	fi

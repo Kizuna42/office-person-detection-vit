@@ -4,13 +4,11 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from src.timestamp.timestamp_postprocess import (
-    extract_digits,
-    generate_timestamp_candidates,
-    normalize_text,
-    parse_flexible_timestamp,
-    score_candidate,
-)
+from src.timestamp.timestamp_postprocess import (extract_digits,
+                                                 generate_timestamp_candidates,
+                                                 normalize_text,
+                                                 parse_flexible_timestamp,
+                                                 score_candidate)
 
 
 def test_normalize_text_basic():

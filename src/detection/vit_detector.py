@@ -386,7 +386,7 @@ class ViTDetector:
 
         # バッチごとに処理
         for i in range(0, len(frames), batch_size):
-            batch_frames = frames[i:i + batch_size]
+            batch_frames = frames[i : i + batch_size]
 
             try:
                 # バッチ前処理
