@@ -17,8 +17,7 @@ from src.evaluation import run_evaluation
 from src.pipeline import (
     AggregationPhase,
     DetectionPhase,
-    FrameSamplingPhase,
-    TimestampOCRMode,
+    FrameExtractionPipeline,
     TransformPhase,
     VisualizationPhase,
 )
@@ -79,25 +78,91 @@ def main():
             logger.warning("ファインチューニングモードは未実装です")
             return 1
         
-        # タイムスタンプOCRのみモード
-        if args.timestamps_only:
-            timestamp_mode = TimestampOCRMode(config, logger)
-            return timestamp_mode.execute(
-                start_time=args.start_time,
-                end_time=args.end_time
-            )
+        # ========================================
+        # フェーズ1: フレーム抽出（5分刻みタイムスタンプベース）
+        # ========================================
+        from datetime import datetime
         
-        # ========================================
-        # フェーズ1: フレームサンプリング
-        # ========================================
-        frame_sampling_phase = FrameSamplingPhase(config, logger)
-        try:
-            sample_frames = frame_sampling_phase.execute(
-                start_time=args.start_time,
-                end_time=args.end_time
-            )
-        finally:
-            frame_sampling_phase.cleanup()
+        video_path = config.get('video.input_path')
+        frame_extraction_output_dir = output_path / 'extracted_frames'
+        
+        # 設定からパラメータを取得
+        timestamp_config = config.get('timestamp', {})
+        extraction_config = timestamp_config.get('extraction', {})
+        sampling_config = timestamp_config.get('sampling', {})
+        target_config = timestamp_config.get('target', {})
+        ocr_config = config.get('ocr', {})
+        
+        # 開始・終了日時の取得
+        start_datetime = None
+        end_datetime = None
+        if target_config:
+            start_str = target_config.get('start_datetime')
+            end_str = target_config.get('end_datetime')
+            if start_str:
+                start_datetime = datetime.strptime(start_str, '%Y-%m-%d %H:%M:%S')
+            if end_str:
+                end_datetime = datetime.strptime(end_str, '%Y-%m-%d %H:%M:%S')
+        
+        # コマンドライン引数で上書き
+        if args.start_time:
+            # HH:MM形式をdatetimeに変換（開始日時が設定されていればその日付を使用）
+            if start_datetime:
+                hour, minute = map(int, args.start_time.split(':'))
+                start_datetime = start_datetime.replace(hour=hour, minute=minute, second=0)
+        
+        if args.end_time:
+            if end_datetime:
+                hour, minute = map(int, args.end_time.split(':'))
+                end_datetime = end_datetime.replace(hour=hour, minute=minute, second=0)
+        
+        # パイプライン初期化
+        pipeline = FrameExtractionPipeline(
+            video_path=video_path,
+            output_dir=str(frame_extraction_output_dir),
+            start_datetime=start_datetime,
+            end_datetime=end_datetime,
+            interval_minutes=config.get('video.frame_interval_minutes', 5),
+            tolerance_seconds=config.get('video.tolerance_seconds', 10.0),
+            confidence_threshold=extraction_config.get('confidence_threshold', 0.7),
+            coarse_interval_seconds=sampling_config.get('coarse_interval_seconds', 10.0),
+            fine_search_window_seconds=sampling_config.get('search_window_seconds', 30.0),
+            fps=config.get('video.fps', 30.0),
+            roi_config=extraction_config.get('roi'),
+            enabled_ocr_engines=ocr_config.get('engines')
+        )
+        
+        # フレーム抽出実行
+        extraction_results = pipeline.run()
+        
+        if not extraction_results:
+            logger.error("フレーム抽出に失敗しました")
+            return 1
+        
+        # 抽出結果を後続処理用の形式に変換
+        # DetectionPhaseは (frame_num, timestamp_str, frame) のタプルリストを期待
+        sample_frames = []
+        for result in extraction_results:
+            frame = result.get('frame')
+            if frame is None:
+                # フレームが保存されていない場合は動画から再取得
+                from src.video import VideoProcessor
+                video_processor = VideoProcessor(video_path)
+                video_processor.open()
+                frame = video_processor.get_frame(result['frame_idx'])
+                video_processor.release()
+                if frame is None:
+                    logger.warning(f"フレーム {result['frame_idx']} を取得できませんでした")
+                    continue
+            
+            timestamp_str = result['timestamp'].strftime('%Y/%m/%d %H:%M:%S')
+            sample_frames.append((
+                result['frame_idx'],
+                timestamp_str,
+                frame
+            ))
+        
+        logger.info(f"フレーム抽出完了: {len(sample_frames)}フレーム")
         
         # ========================================
         # フェーズ2: ViT人物検出
@@ -156,7 +221,7 @@ def main():
         return 1
     finally:
         cleanup_resources(
-            video_processor=None,  # FrameSamplingPhaseで管理されているため
+            video_processor=None,
             detector=detector,
             logger=logger
         )

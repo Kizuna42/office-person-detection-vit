@@ -2,12 +2,10 @@
 
 import logging
 from abc import ABC, abstractmethod
-from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional
 
 from src.config import ConfigManager
-from src.timestamp import TimestampExtractor
-from src.video import FrameSampler, VideoProcessor
+from src.video import VideoProcessor
 
 
 class BasePhase(ABC):
@@ -41,48 +39,3 @@ class BasePhase(ABC):
         サブクラスで必要に応じてオーバーライドします。
         """
         pass
-
-    def _setup_frame_sampling_components(
-        self, video_processor: Optional[VideoProcessor] = None
-    ) -> Tuple[VideoProcessor, TimestampExtractor, FrameSampler]:
-        """フレームサンプリングに必要なコンポーネントを初期化
-
-        Args:
-            video_processor: 既存のVideoProcessorインスタンス（オプション）
-
-        Returns:
-            (VideoProcessor, TimestampExtractor, FrameSampler)のタプル
-        """
-        # 動画処理の初期化
-        if video_processor is None:
-            video_path = self.config.get("video.input_path")
-            self.logger.info(f"動画ファイル: {video_path}")
-            video_processor = VideoProcessor(video_path)
-            video_processor.open()
-
-        # タイムスタンプ抽出器の初期化
-        confidence_threshold = self.config.get(
-            "timestamp.extraction.confidence_threshold", 0.2
-        )
-        # 最後のフレーム検証設定（施策7: 設定ファイル追加）
-        final_frame_validation = self.config.get(
-            "timestamp.extraction.final_frame_validation", {}
-        )
-        final_frame_count = final_frame_validation.get("frame_count", 10)
-        timestamp_extractor = TimestampExtractor(
-            confidence_threshold=confidence_threshold
-        )
-        # 最後のフレーム検証用のフレーム数を設定
-        timestamp_extractor._final_frame_count = final_frame_count
-        output_dir = Path(self.config.get("output.directory", "output"))
-
-        if self.config.get("output.debug_mode", False):
-            debug_dir = output_dir / "debug" / "timestamps"
-            timestamp_extractor.enable_debug(debug_dir)
-
-        # フレームサンプラーの初期化
-        interval_minutes = self.config.get("video.frame_interval_minutes", 5)
-        tolerance_seconds = self.config.get("video.tolerance_seconds", 10)
-        frame_sampler = FrameSampler(interval_minutes, tolerance_seconds)
-
-        return video_processor, timestamp_extractor, frame_sampler
