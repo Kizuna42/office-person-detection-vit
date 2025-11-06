@@ -65,6 +65,7 @@ output/floormaps/*.png
 output/graphs/*.png
 output/*.csv
 output/*.json
+output/*.md
 output/system.log
 
 # Diagnostics and experiment outputs
