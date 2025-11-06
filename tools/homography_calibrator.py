@@ -26,6 +26,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from src.config import ConfigManager
+from src.utils import setup_logging
 
 
 LOGGER = logging.getLogger(__name__)
@@ -75,14 +76,6 @@ class PointCollector:
         cv2.rectangle(canvas, (0, 0), (canvas.shape[1], 30), (0, 0, 0), -1)
         cv2.putText(canvas, status_text, (10, 20), font, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
         return canvas
-
-
-def setup_logging(verbose: bool) -> None:
-    level = logging.DEBUG if verbose else logging.INFO
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s - %(levelname)s - %(message)s",
-    )
 
 
 def parse_args() -> argparse.Namespace:
@@ -403,7 +396,7 @@ def load_points_from_json(path: Path) -> Tuple[List[Tuple[int, int]], List[Tuple
 
 def main() -> None:
     args = parse_args()
-    setup_logging(args.verbose)
+    setup_logging(debug_mode=args.verbose)
 
     config = ConfigManager(args.config)
     output_dir = Path(args.output_dir)

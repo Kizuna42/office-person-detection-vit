@@ -30,21 +30,12 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from src.config import ConfigManager
+from src.utils import setup_logging
 from src.video import FrameSampler, VideoProcessor
 from src.timestamp import TimestampExtractor
 
 
 logger = logging.getLogger(__name__)
-
-
-def setup_logging(verbose: bool) -> None:
-    """Configure console logging."""
-
-    level = logging.DEBUG if verbose else logging.INFO
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s - %(levelname)s - %(message)s",
-    )
 
 
 def parse_args() -> argparse.Namespace:
@@ -285,7 +276,7 @@ def extract_reference_frame(
 
 def main() -> None:
     args = parse_args()
-    setup_logging(args.verbose)
+    setup_logging(debug_mode=args.verbose)
 
     config = ConfigManager(args.config)
     output_dir = Path(args.output_dir)

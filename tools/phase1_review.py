@@ -26,7 +26,6 @@ import argparse
 import copy
 import csv
 import json
-import math
 import random
 import sys
 import time
@@ -34,7 +33,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import cv2
 import numpy as np
