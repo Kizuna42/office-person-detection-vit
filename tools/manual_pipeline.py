@@ -19,13 +19,13 @@ from tqdm import tqdm
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+    sys.path.insert(0, str(PROJECT_ROOT))  # noqa: E402
 
-from src.config import ConfigManager
-from src.pipeline import (AggregationPhase, DetectionPhase, TransformPhase,
-                          VisualizationPhase)
-from src.utils import setup_logging, setup_output_directories
-from src.video import VideoProcessor
+from src.config import ConfigManager  # noqa: E402
+from src.pipeline import (AggregationPhase, DetectionPhase,  # noqa: E402
+                          TransformPhase, VisualizationPhase)
+from src.utils import setup_logging, setup_output_directories  # noqa: E402
+from src.video import VideoProcessor  # noqa: E402
 
 logger = logging.getLogger(__name__)
 

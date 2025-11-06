@@ -155,15 +155,21 @@ def test_preprocessing_empty_roi():
     roi, coords = extractor.extract_roi(tiny_frame)
 
     # 境界チェックにより、空のROIが返される可能性がある
-    # この場合は前処理でエラーが発生する可能性があるが、
-    # 実装では空のROIを許容しているため、このテストは調整
-    # 実際の動作に応じて、空のROIの場合は前処理をスキップするか、
-    # エラーを発生させるかの実装に依存
+    # この場合、extract_roiは空の配列を返す
     if roi.size == 0:
-        # 空のROIの場合、前処理はスキップされるかエラーになる
-        pytest.skip("Empty ROI handling depends on implementation")
+        # 空のROIが返されることを確認
+        assert roi.size == 0
+        assert coords[2] == 0 or coords[3] == 0  # widthまたはheightが0
+
+        # 空のROIに対してpreprocess_roiを呼ぶとエラーが発生する
+        # （実装では空のROIのチェックがないため、ZeroDivisionErrorが発生）
+        with pytest.raises((ZeroDivisionError, ValueError)):
+            extractor.preprocess_roi(roi)
     else:
+        # 空でないROIの場合、正常に処理できることを確認
         assert roi.size > 0
+        preprocessed = extractor.preprocess_roi(roi)
+        assert preprocessed.size > 0
 
 
 def test_custom_roi_config(sample_frame: np.ndarray):

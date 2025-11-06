@@ -15,7 +15,7 @@ import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 import cv2
 import numpy as np
@@ -23,10 +23,10 @@ import yaml
 
 # Add project root to Python path
 project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(project_root))  # noqa: E402
 
-from src.config import ConfigManager
-from src.utils import setup_logging
+from src.config import ConfigManager  # noqa: E402
+from src.utils import setup_logging  # noqa: E402
 
 LOGGER = logging.getLogger(__name__)
 

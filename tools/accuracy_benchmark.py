@@ -8,19 +8,18 @@ import argparse
 import json
 import logging
 import sys
-from datetime import datetime
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict
 
 # プロジェクトルートをパスに追加（直接実行可能にする）
 project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(project_root))  # noqa: E402
 
-from tqdm import tqdm
+from tqdm import tqdm  # noqa: E402
 
-from src.config import ConfigManager
-from src.pipeline import FrameExtractionPipeline
-from src.utils import setup_logging
+from src.config import ConfigManager  # noqa: E402
+from src.pipeline import FrameExtractionPipeline  # noqa: E402
+from src.utils import setup_logging  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +120,7 @@ def run_benchmark(
                     valid_count += 1
                 else:
                     invalid_count += 1
-            except:
+            except Exception:
                 invalid_count += 1
         else:
             invalid_count += 1
@@ -160,7 +159,7 @@ def compare_results(baseline: Dict, improved: Dict) -> Dict:
             "improved": improved.get("success_rate", 0.0),
             "delta": improved.get("success_rate", 0.0)
             - baseline.get("success_rate", 0.0),
-            "improved": improved.get("success_rate", 0.0)
+            "is_improved": improved.get("success_rate", 0.0)
             > baseline.get("success_rate", 0.0),
         },
         "avg_confidence": {
@@ -168,7 +167,7 @@ def compare_results(baseline: Dict, improved: Dict) -> Dict:
             "improved": improved.get("avg_confidence", 0.0),
             "delta": improved.get("avg_confidence", 0.0)
             - baseline.get("avg_confidence", 0.0),
-            "improved": improved.get("avg_confidence", 0.0)
+            "is_improved": improved.get("avg_confidence", 0.0)
             > baseline.get("avg_confidence", 0.0),
         },
         "valid_timestamps": {
@@ -176,7 +175,7 @@ def compare_results(baseline: Dict, improved: Dict) -> Dict:
             "improved": improved.get("valid_timestamps", 0),
             "delta": improved.get("valid_timestamps", 0)
             - baseline.get("valid_timestamps", 0),
-            "improved": improved.get("valid_timestamps", 0)
+            "is_improved": improved.get("valid_timestamps", 0)
             > baseline.get("valid_timestamps", 0),
         },
     }
@@ -184,15 +183,15 @@ def compare_results(baseline: Dict, improved: Dict) -> Dict:
     # 総合評価（すべての指標が改善または維持）
     overall_improved = (
         (
-            comparison["success_rate"]["improved"]
+            comparison["success_rate"]["is_improved"]
             or comparison["success_rate"]["delta"] >= -1.0  # 1%以内の低下は許容
         )
         and (
-            comparison["avg_confidence"]["improved"]
+            comparison["avg_confidence"]["is_improved"]
             or comparison["avg_confidence"]["delta"] >= -0.01  # 0.01以内の低下は許容
         )
         and (
-            comparison["valid_timestamps"]["improved"]
+            comparison["valid_timestamps"]["is_improved"]
             or comparison["valid_timestamps"]["delta"] >= -1  # 1件以内の低下は許容
         )
     )
@@ -234,14 +233,26 @@ def main():
 
         comparison = compare_results(baseline, improved)
 
+        success_rate_baseline = baseline.get("success_rate", 0.0)
+        success_rate_improved = improved.get("success_rate", 0.0)
+        success_rate_delta = comparison["success_rate"]["delta"]
         logger.info(
-            f"抽出成功率: {baseline.get('success_rate', 0.0):.2f}% → {improved.get('success_rate', 0.0):.2f}% (Δ{comparison['success_rate']['delta']:+.2f}%)"
+            f"抽出成功率: {success_rate_baseline:.2f}% → "
+            f"{success_rate_improved:.2f}% (Δ{success_rate_delta:+.2f}%)"
         )
+        avg_conf_baseline = baseline.get("avg_confidence", 0.0)
+        avg_conf_improved = improved.get("avg_confidence", 0.0)
+        avg_conf_delta = comparison["avg_confidence"]["delta"]
         logger.info(
-            f"平均信頼度: {baseline.get('avg_confidence', 0.0):.4f} → {improved.get('avg_confidence', 0.0):.4f} (Δ{comparison['avg_confidence']['delta']:+.4f})"
+            f"平均信頼度: {avg_conf_baseline:.4f} → "
+            f"{avg_conf_improved:.4f} (Δ{avg_conf_delta:+.4f})"
         )
+        valid_ts_baseline = baseline.get("valid_timestamps", 0)
+        valid_ts_improved = improved.get("valid_timestamps", 0)
+        valid_ts_delta = comparison["valid_timestamps"]["delta"]
         logger.info(
-            f"有効タイムスタンプ: {baseline.get('valid_timestamps', 0)} → {improved.get('valid_timestamps', 0)} (Δ{comparison['valid_timestamps']['delta']:+d})"
+            f"有効タイムスタンプ: {valid_ts_baseline} → "
+            f"{valid_ts_improved} (Δ{valid_ts_delta:+d})"
         )
         logger.info("")
 

@@ -5,13 +5,13 @@ from src.timestamp.ocr_engine import (EASYOCR_AVAILABLE, PADDLEOCR_AVAILABLE,
 from src.timestamp.roi_extractor import TimestampROIExtractor
 from src.timestamp.timestamp_extractor_v2 import TimestampExtractorV2
 from src.timestamp.timestamp_parser import TimestampParser
-from src.timestamp.timestamp_validator import TemporalValidator
+from src.timestamp.timestamp_validator_v2 import TemporalValidatorV2
 
 __all__ = [
     "TimestampExtractorV2",
     "TimestampROIExtractor",
     "TimestampParser",
-    "TemporalValidator",
+    "TemporalValidatorV2",
     "MultiEngineOCR",
     "TESSERACT_AVAILABLE",
     "EASYOCR_AVAILABLE",

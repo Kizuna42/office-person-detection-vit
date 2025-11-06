@@ -13,14 +13,13 @@ from pathlib import Path
 
 # プロジェクトルートをパスに追加（直接実行可能にする）
 project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(project_root))  # noqa: E402
 
-import numpy as np
-import psutil
+import psutil  # noqa: E402
 
-from src.config import ConfigManager
-from src.pipeline import FrameExtractionPipeline
-from src.utils import setup_logging, setup_output_directories
+from src.config import ConfigManager  # noqa: E402
+from src.pipeline import FrameExtractionPipeline  # noqa: E402
+from src.utils import setup_logging, setup_output_directories  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -96,13 +95,12 @@ def verify_sample_video(video_path: str, config_path: str = "config.yaml"):
         # 処理時間とメモリ使用量
         elapsed_time = time.time() - start_time
         memory_after = measure_memory_usage()
-        memory_peak = measure_memory_usage()  # 簡易的なピーク測定
 
         # 結果の検証
         logger.info("=" * 80)
         logger.info("動作確認結果")
         logger.info("=" * 80)
-        logger.info(f"✓ エラーなく完了: 成功")
+        logger.info("✓ エラーなく完了: 成功")
         logger.info(f"✓ 抽出フレーム数: {len(results)}")
         logger.info(f"✓ 処理時間: {elapsed_time:.2f}秒")
         logger.info(

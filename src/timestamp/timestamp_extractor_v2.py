@@ -8,7 +8,6 @@ import numpy as np
 from src.timestamp.ocr_engine import MultiEngineOCR
 from src.timestamp.roi_extractor import TimestampROIExtractor
 from src.timestamp.timestamp_parser import TimestampParser
-from src.timestamp.timestamp_validator import TemporalValidator
 from src.timestamp.timestamp_validator_v2 import TemporalValidatorV2
 
 logger = logging.getLogger(__name__)
@@ -68,8 +67,14 @@ class TimestampExtractorV2:
                 "Using TemporalValidatorV2 (adaptive tolerance and outlier recovery)"
             )
         else:
-            self.validator = TemporalValidator(fps=fps)
-            logger.info("Using TemporalValidator (baseline)")
+            # デフォルトはV2を使用（旧版は削除）
+            self.validator = TemporalValidatorV2(
+                fps=fps,
+                base_tolerance_seconds=base_tolerance_seconds,
+                history_size=history_size,
+                z_score_threshold=z_score_threshold,
+            )
+            logger.info("Using TemporalValidatorV2 (default)")
 
         self.confidence_threshold = confidence_threshold
 

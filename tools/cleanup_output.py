@@ -6,9 +6,13 @@ import logging
 import sys
 from pathlib import Path
 
-from src.config import ConfigManager
-from src.utils import OutputManager, format_file_size
-from src.utils.logging_utils import setup_logging
+# プロジェクトルートをパスに追加
+sys.path.insert(0, str(Path(__file__).parent.parent))  # noqa: E402
+
+from src.config import ConfigManager  # noqa: E402
+from src.utils import OutputManager  # noqa: E402
+from src.utils.logging_utils import setup_logging  # noqa: E402
+from src.utils.output_manager import format_file_size  # noqa: E402
 
 logger = logging.getLogger(__name__)
 

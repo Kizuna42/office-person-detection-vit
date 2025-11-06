@@ -8,18 +8,18 @@ import argparse
 import logging
 import re
 import sys
-from collections import Counter, defaultdict
+from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict
 
 # プロジェクトルートをパスに追加（直接実行可能にする）
 project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(project_root))  # noqa: E402
 
-from tqdm import tqdm
+from tqdm import tqdm  # noqa: E402
 
-from src.config import ConfigManager
-from src.utils import setup_logging
+from src.config import ConfigManager  # noqa: E402
+from src.utils import setup_logging  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -158,38 +158,38 @@ def print_log_analysis_report(analysis: Dict, bottlenecks: Dict):
     logger.info("ログファイル分析レポート")
     logger.info("=" * 80)
 
-    logger.info(f"\nエラーログ:")
+    logger.info("\nエラーログ:")
     logger.info(f"  総数: {analysis.get('total_errors', 0)}")
 
     if analysis.get("error_patterns"):
-        logger.info(f"\n  頻出エラーパターン（上位10件）:")
+        logger.info("\n  頻出エラーパターン（上位10件）:")
         for i, (pattern, count) in enumerate(
             list(analysis.get("error_patterns", {}).items())[:10], 1
         ):
             logger.info(f"    {i}. [{count}回] {pattern}")
 
     if analysis.get("errors"):
-        logger.info(f"\n  エラーログ例（最初の5件）:")
+        logger.info("\n  エラーログ例（最初の5件）:")
         for line_num, message in analysis.get("errors", [])[:5]:
             logger.info(f"    行{line_num}: {message[:100]}")
 
-    logger.info(f"\n警告ログ:")
+    logger.info("\n警告ログ:")
     logger.info(f"  総数: {analysis.get('total_warnings', 0)}")
 
     if analysis.get("warning_patterns"):
-        logger.info(f"\n  頻出警告パターン（上位10件）:")
+        logger.info("\n  頻出警告パターン（上位10件）:")
         for i, (pattern, count) in enumerate(
             list(analysis.get("warning_patterns", {}).items())[:10], 1
         ):
             logger.info(f"    {i}. [{count}回] {pattern}")
 
     if analysis.get("warnings"):
-        logger.info(f"\n  警告ログ例（最初の5件）:")
+        logger.info("\n  警告ログ例（最初の5件）:")
         for line_num, message in analysis.get("warnings", [])[:5]:
             logger.info(f"    行{line_num}: {message[:100]}")
 
     if bottlenecks:
-        logger.info(f"\n処理時間のボトルネック分析:")
+        logger.info("\n処理時間のボトルネック分析:")
         logger.info(f"  測定回数: {bottlenecks.get('count', 0)}")
         logger.info(f"  平均: {bottlenecks.get('mean', 0):.2f}秒")
         logger.info(f"  中央値: {bottlenecks.get('median', 0):.2f}秒")

@@ -14,21 +14,21 @@ EASYOCR_AVAILABLE = False
 PADDLEOCR_AVAILABLE = False
 
 try:
-    import pytesseract
+    import pytesseract  # noqa: F401
 
     TESSERACT_AVAILABLE = True
 except ImportError:
     logger.warning("pytesseract is not available")
 
 try:
-    import easyocr
+    import easyocr  # noqa: F401
 
     EASYOCR_AVAILABLE = True
 except ImportError:
     logger.debug("easyocr is not available")
 
 try:
-    from paddleocr import PaddleOCR
+    from paddleocr import PaddleOCR  # noqa: F401
 
     PADDLEOCR_AVAILABLE = True
 except ImportError:
