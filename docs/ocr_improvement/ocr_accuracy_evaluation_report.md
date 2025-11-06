@@ -1,7 +1,7 @@
 # OCR 精度評価レポート
 
 **評価日**: 2025-11-06
-**評価ツール**: `tools/video_timestamp_analyzer.py`, `tools/timestamp_score_evaluator.py`  
+**評価ツール**: `tools/video_timestamp_analyzer.py`, `tools/timestamp_score_evaluator.py`
 **評価対象**: `input/merged_moviefiles.mov`
 
 ## 入力データ仕様
