@@ -1,0 +1,16 @@
+{
+  "unit_test": {
+    "total_frames": 20,
+    "date_extraction_success": 0,
+    "time_extraction_success": 20,
+    "combined_extraction_success": 20,
+    "date_validation_success": 0,
+    "date_errors": [],
+    "statistics": {
+      "date_extraction_rate": 0.0,
+      "time_extraction_rate": 100.0,
+      "combined_extraction_rate": 100.0,
+      "date_validation_rate": 0.0
+    }
+  }
+}
