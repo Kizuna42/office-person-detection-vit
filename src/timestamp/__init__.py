@@ -21,4 +21,3 @@ __all__ = [
     "PADDLEOCR_AVAILABLE",
     "EASYOCR_AVAILABLE",
 ]
-

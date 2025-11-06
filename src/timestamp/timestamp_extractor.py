@@ -2,6 +2,7 @@
 
 import logging
 import re
+from collections import Counter
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
@@ -10,10 +11,9 @@ import cv2
 import numpy as np
 import pytesseract
 
-from src.timestamp.ocr_engines import run_ocr, run_tesseract
 from src.detection.preprocessing import apply_pipeline
+from src.timestamp.ocr_engines import run_ocr, run_tesseract
 from src.timestamp.timestamp_postprocess import parse_flexible_timestamp
-from collections import Counter
 
 logger = logging.getLogger(__name__)
 
@@ -148,27 +148,27 @@ class TimestampExtractor:
         """
         # 複数のPSM設定を試す
         ocr_configs = [
-            {'psm': 7, 'whitelist': '0123456789/:', 'lang': 'eng'},
-            {'psm': 6, 'whitelist': '0123456789/:', 'lang': 'eng'},
-            {'psm': 8, 'whitelist': '0123456789/:', 'lang': 'eng'},
-            {'psm': 13, 'whitelist': '0123456789/:', 'lang': 'eng'},
-            {'psm': 11, 'whitelist': '0123456789/:', 'lang': 'eng'},
+            {"psm": 7, "whitelist": "0123456789/:", "lang": "eng"},
+            {"psm": 6, "whitelist": "0123456789/:", "lang": "eng"},
+            {"psm": 8, "whitelist": "0123456789/:", "lang": "eng"},
+            {"psm": 13, "whitelist": "0123456789/:", "lang": "eng"},
+            {"psm": 11, "whitelist": "0123456789/:", "lang": "eng"},
         ]
-        
+
         candidates: List[Tuple[str, float]] = []
-        
+
         for ocr_config in ocr_configs:
             try:
                 ocr_text, confidence = run_tesseract(
                     preprocessed,
-                    psm=ocr_config['psm'],
-                    whitelist=ocr_config['whitelist'],
-                    lang=ocr_config['lang']
+                    psm=ocr_config["psm"],
+                    whitelist=ocr_config["whitelist"],
+                    lang=ocr_config["lang"],
                 )
-                
+
                 if not ocr_text:
                     continue
-                
+
                 # 柔軟な後処理を使用する場合
                 if self.use_flexible_postprocess:
                     timestamp = parse_flexible_timestamp(
@@ -179,13 +179,13 @@ class TimestampExtractor:
                     if timestamp:
                         candidates.append((timestamp, confidence))
                         continue
-                
+
                 # 従来の方法も試す
                 timestamp = self._parse_strict_regex(ocr_text)
                 if timestamp:
                     candidates.append((timestamp, confidence))
                     continue
-                
+
                 # フォールバック: parse_timestamp
                 timestamp = self.parse_timestamp(ocr_text)
                 if timestamp:
@@ -193,31 +193,41 @@ class TimestampExtractor:
             except Exception as e:
                 logger.debug(f"OCR設定 {ocr_config} でエラー: {e}")
                 continue
-        
+
         if not candidates:
             return None, 0.0
-        
+
         # 多数決: 同じタイムスタンプの出現回数をカウント
         timestamp_counts = Counter(ts for ts, _ in candidates)
         max_count = max(timestamp_counts.values())
-        
+
         # 最も多く出現したタイムスタンプを候補に
-        top_timestamps = [ts for ts, count in timestamp_counts.items() if count == max_count]
-        
+        top_timestamps = [
+            ts for ts, count in timestamp_counts.items() if count == max_count
+        ]
+
         if len(top_timestamps) == 1:
             # 唯一の候補
             selected = top_timestamps[0]
             # そのタイムスタンプの平均信頼度を計算
             confs_for_selected = [conf for ts, conf in candidates if ts == selected]
-            avg_conf = sum(confs_for_selected) / len(confs_for_selected) if confs_for_selected else 0.0
+            avg_conf = (
+                sum(confs_for_selected) / len(confs_for_selected)
+                if confs_for_selected
+                else 0.0
+            )
             return selected, avg_conf
         else:
             # タイの場合、平均信頼度が高いものを選択
             best_ts = None
             best_conf = -1.0
             for ts in top_timestamps:
-                confs_for_ts = [conf for candidate_ts, conf in candidates if candidate_ts == ts]
-                avg_conf = sum(confs_for_ts) / len(confs_for_ts) if confs_for_ts else 0.0
+                confs_for_ts = [
+                    conf for candidate_ts, conf in candidates if candidate_ts == ts
+                ]
+                avg_conf = (
+                    sum(confs_for_ts) / len(confs_for_ts) if confs_for_ts else 0.0
+                )
                 if avg_conf > best_conf:
                     best_conf = avg_conf
                     best_ts = ts
@@ -280,7 +290,7 @@ class TimestampExtractor:
                 return dt.strftime(self.TIMESTAMP_FORMAT)
             except ValueError:
                 pass
-        
+
         # 数字列として解析してから補正（厳密なパターンがマッチしない場合のみ）
         digits_only = re.sub(r"[^0-9]", "", normalized)
         if len(digits_only) >= 14:
@@ -320,9 +330,11 @@ class TimestampExtractor:
         normalized = re.sub(
             r"(\d{4}/\d{2}/\d{2})(\d{2}):(\d{2}):(\d{2})", r"\1 \2:\3:\4", normalized
         )
-        
+
         # スペース欠落補正: 2025/08/270:13:31 -> 2025/08/27 0:13:31
-        normalized = re.sub(r"(\d{4}/\d{2}/\d{2})(\d{1,2}:\d{2}:\d{2})", r"\1 \2", normalized)
+        normalized = re.sub(
+            r"(\d{4}/\d{2}/\d{2})(\d{1,2}:\d{2}:\d{2})", r"\1 \2", normalized
+        )
 
         # 最優先: 厳密なパターン（前後の文字列を無視）
         match = self.STRICT_PATTERN.search(normalized)
@@ -540,9 +552,11 @@ class TimestampExtractor:
                 r"\1 \2:\3:\4",
                 normalized,
             )
-            
+
             # パターン5: スペース欠落補正: 2025/08/270:13:31 -> 2025/08/27 0:13:31
-            normalized = re.sub(r"(\d{4}/\d{2}/\d{2})(\d{1,2}:\d{2}:\d{2})", r"\1 \2", normalized)
+            normalized = re.sub(
+                r"(\d{4}/\d{2}/\d{2})(\d{1,2}:\d{2}:\d{2})", r"\1 \2", normalized
+            )
 
             # 数字列から直接抽出を優先（スラッシュ欠落などの複雑なパターンに対応）
             digits_only = re.sub(r"[^0-9]", "", normalized)
@@ -595,7 +609,9 @@ class TimestampExtractor:
                     year, month, day, hour, minute, second = match.groups()
                 else:
                     # パターン2: スペース欠落や1桁時を許容（2025/08/270:13:31形式、2025/08/27 5:13:31形式）
-                    pattern = r"(\d{4})\D*(\d{2})\D*(\d{2})\D*(\d{1,2})\D*(\d{2})\D*(\d{2})"
+                    pattern = (
+                        r"(\d{4})\D*(\d{2})\D*(\d{2})\D*(\d{1,2})\D*(\d{2})\D*(\d{2})"
+                    )
                     match = re.search(pattern, normalized)
                     if match:
                         year, month, day, hour, minute, second = match.groups()

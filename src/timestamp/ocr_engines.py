@@ -71,6 +71,7 @@ def run_tesseract(
     whitelist: str = "0123456789/:",
     lang: str = "eng",
     oem: int = 3,
+    dpi: int = 300,
 ) -> Tuple[Optional[str], float]:
     """Tesseract OCRを実行
 
@@ -80,12 +81,13 @@ def run_tesseract(
         whitelist: 認識する文字のホワイトリスト
         lang: 言語コード（例: "eng", "jpn+eng"）
         oem: OCR Engine Mode
+        dpi: DPI設定（解像度の指定）
 
     Returns:
         (認識テキスト, 平均信頼度) のタプル。失敗時は (None, 0.0)
     """
     try:
-        config_str = f"--psm {psm} --oem {oem}"
+        config_str = f"--psm {psm} --oem {oem} --dpi {dpi}"
         if whitelist:
             config_str += f" -c tessedit_char_whitelist={whitelist}"
         if lang:

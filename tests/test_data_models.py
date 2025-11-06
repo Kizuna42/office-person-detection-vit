@@ -2,14 +2,7 @@
 
 from __future__ import annotations
 
-import pytest
-
-from src.models import (
-    AggregationResult,
-    Detection,
-    EvaluationMetrics,
-    FrameResult,
-)
+from src.models import AggregationResult, Detection, EvaluationMetrics, FrameResult
 
 
 def test_detection_creation():

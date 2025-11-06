@@ -24,6 +24,12 @@ class VideoProcessor:
         height: 動画の高さ
     """
 
+    # 要件定義に基づく動画仕様（要件1: 1280×720, 30fps）
+    REQUIRED_WIDTH = 1280
+    REQUIRED_HEIGHT = 720
+    REQUIRED_FPS = 30.0
+    FPS_TOLERANCE = 0.1  # FPSの許容誤差
+
     def __init__(self, video_path: str):
         """VideoProcessorを初期化する
 
@@ -73,12 +79,50 @@ class VideoProcessor:
             logger.info(f"  FPS: {self.fps}")
             logger.info(f"  総フレーム数: {self.total_frames}")
 
+            # 要件定義に基づく検証（要件1: 1280×720, 30fps）
+            self._validate_video_specs()
+
             return True
 
         except Exception as e:
             error_msg = f"動画ファイルの読み込み中にエラーが発生しました: {e}"
             logger.error(error_msg)
             raise RuntimeError(error_msg) from e
+
+    def _validate_video_specs(self) -> None:
+        """動画仕様を要件定義に基づいて検証する
+
+        要件1: H.264形式のタイムラプス動画ファイル（1280×720, 30fps）を読み込む
+
+        Raises:
+            ValueError: 動画仕様が要件と異なる場合（警告のみで処理は継続）
+        """
+        issues = []
+
+        # 解像度の検証
+        if self.width != self.REQUIRED_WIDTH or self.height != self.REQUIRED_HEIGHT:
+            issues.append(
+                f"解像度が要件と異なります: {self.width}×{self.height} "
+                f"(期待: {self.REQUIRED_WIDTH}×{self.REQUIRED_HEIGHT})"
+            )
+
+        # FPSの検証
+        if abs(self.fps - self.REQUIRED_FPS) > self.FPS_TOLERANCE:
+            issues.append(
+                f"FPSが要件と異なります: {self.fps:.2f} "
+                f"(期待: {self.REQUIRED_FPS:.2f}±{self.FPS_TOLERANCE})"
+            )
+
+        # 警告を出力（処理は継続）
+        if issues:
+            for issue in issues:
+                logger.warning(f"動画仕様検証: {issue}")
+            logger.warning("動画仕様が要件と異なりますが、処理を継続します。" "予期しない動作が発生する可能性があります。")
+        else:
+            logger.debug(
+                f"動画仕様検証: 解像度({self.width}×{self.height})、"
+                f"FPS({self.fps:.2f})が要件を満たしています"
+            )
 
     def get_frame(self, frame_number: int) -> Optional[np.ndarray]:
         """指定フレームを取得する

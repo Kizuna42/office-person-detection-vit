@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import mock_open, patch
 
 import pytest
-import yaml
 
 from src.config import ConfigManager
 
@@ -60,7 +58,11 @@ def test_load_json_config(tmp_path: Path):
 
     json_content = {
         "video": {"input_path": "test_video.mov"},
-        "detection": {"model_name": "test_model", "confidence_threshold": 0.7, "device": "cpu"},
+        "detection": {
+            "model_name": "test_model",
+            "confidence_threshold": 0.7,
+            "device": "cpu",
+        },
         "floormap": {
             "image_path": "test_floormap.png",
             "image_width": 100,

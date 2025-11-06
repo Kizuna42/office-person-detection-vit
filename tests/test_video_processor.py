@@ -234,6 +234,12 @@ def test_read_next_frame(mock_video_capture, sample_video_path: Path):
 
     mock_cap = MagicMock()
     mock_cap.isOpened.return_value = True
+    mock_cap.get.side_effect = lambda prop: {
+        cv2.CAP_PROP_FPS: 30.0,
+        cv2.CAP_PROP_FRAME_COUNT: 100,
+        cv2.CAP_PROP_FRAME_WIDTH: 1280,
+        cv2.CAP_PROP_FRAME_HEIGHT: 720,
+    }.get(prop, 0)
     test_frame = np.zeros((720, 1280, 3), dtype=np.uint8)
     mock_cap.read.return_value = (True, test_frame)
 
@@ -256,6 +262,12 @@ def test_read_next_frame_eof(mock_video_capture, sample_video_path: Path):
 
     mock_cap = MagicMock()
     mock_cap.isOpened.return_value = True
+    mock_cap.get.side_effect = lambda prop: {
+        cv2.CAP_PROP_FPS: 30.0,
+        cv2.CAP_PROP_FRAME_COUNT: 100,
+        cv2.CAP_PROP_FRAME_WIDTH: 1280,
+        cv2.CAP_PROP_FRAME_HEIGHT: 720,
+    }.get(prop, 0)
     mock_cap.read.return_value = (False, None)
 
     mock_video_capture.return_value = mock_cap
@@ -277,6 +289,12 @@ def test_reset(mock_video_capture, sample_video_path: Path):
 
     mock_cap = MagicMock()
     mock_cap.isOpened.return_value = True
+    mock_cap.get.side_effect = lambda prop: {
+        cv2.CAP_PROP_FPS: 30.0,
+        cv2.CAP_PROP_FRAME_COUNT: 100,
+        cv2.CAP_PROP_FRAME_WIDTH: 1280,
+        cv2.CAP_PROP_FRAME_HEIGHT: 720,
+    }.get(prop, 0)
 
     mock_video_capture.return_value = mock_cap
 
@@ -305,6 +323,12 @@ def test_release(mock_video_capture, sample_video_path: Path):
 
     mock_cap = MagicMock()
     mock_cap.isOpened.return_value = True
+    mock_cap.get.side_effect = lambda prop: {
+        cv2.CAP_PROP_FPS: 30.0,
+        cv2.CAP_PROP_FRAME_COUNT: 100,
+        cv2.CAP_PROP_FRAME_WIDTH: 1280,
+        cv2.CAP_PROP_FRAME_HEIGHT: 720,
+    }.get(prop, 0)
 
     mock_video_capture.return_value = mock_cap
 
@@ -326,6 +350,12 @@ def test_context_manager(mock_video_capture, sample_video_path: Path):
 
     mock_cap = MagicMock()
     mock_cap.isOpened.return_value = True
+    mock_cap.get.side_effect = lambda prop: {
+        cv2.CAP_PROP_FPS: 30.0,
+        cv2.CAP_PROP_FRAME_COUNT: 100,
+        cv2.CAP_PROP_FRAME_WIDTH: 1280,
+        cv2.CAP_PROP_FRAME_HEIGHT: 720,
+    }.get(prop, 0)
 
     mock_video_capture.return_value = mock_cap
 

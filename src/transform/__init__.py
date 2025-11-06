@@ -5,4 +5,3 @@ from src.transform.coordinate_transformer import CoordinateTransformer
 __all__ = [
     "CoordinateTransformer",
 ]
-

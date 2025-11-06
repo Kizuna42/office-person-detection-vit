@@ -64,7 +64,9 @@ def test_run_tesseract_empty_text(mock_pytesseract, sample_grayscale_image: np.n
 
 
 @patch("src.timestamp.ocr_engines.pytesseract")
-def test_run_tesseract_with_params(mock_pytesseract, sample_grayscale_image: np.ndarray):
+def test_run_tesseract_with_params(
+    mock_pytesseract, sample_grayscale_image: np.ndarray
+):
     """パラメータを指定してTesseract OCRを実行できる。"""
 
     mock_pytesseract.image_to_string.return_value = "12:34"

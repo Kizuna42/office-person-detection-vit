@@ -88,6 +88,7 @@ def apply_threshold(
     block_size: int = 11,
     C: int = 2,
     enabled: bool = True,
+    auto_switch: bool = False,
 ) -> np.ndarray:
     """二値化を適用
 
@@ -97,12 +98,20 @@ def apply_threshold(
         block_size: adaptive threshold用のブロックサイズ（奇数）
         C: adaptive threshold用の定数
         enabled: 二値化を有効化するか
+        auto_switch: 低コントラスト時に自動的にadaptive thresholdに切替
 
     Returns:
         二値化後の画像
     """
     if not enabled:
         return image
+
+    # 自動切替: コントラストが低い場合はadaptive threshold
+    if auto_switch and method == "otsu":
+        std_dev = np.std(image)
+        if std_dev < 30.0:  # 低コントラスト判定
+            method = "adaptive"
+            logger.debug(f"低コントラスト検出 (std={std_dev:.1f})。Adaptive thresholdに切替")
 
     if method == "otsu":
         _, binary = cv2.threshold(image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
@@ -242,7 +251,15 @@ def apply_deskew(
 
     # 角度を計算
     angles = []
-    for rho, theta in lines[:20]:  # 最初の20本のみ使用
+    for line in lines[:20]:  # 最初の20本のみ使用
+        if (
+            isinstance(line, (list, tuple))
+            and len(line) >= 2
+            and not isinstance(line[0], (list, np.ndarray))
+        ):
+            rho, theta = line[0], line[1]
+        else:
+            rho, theta = line[0]
         angle = np.degrees(theta) - 90
         if -max_angle <= angle <= max_angle:
             angles.append(angle)

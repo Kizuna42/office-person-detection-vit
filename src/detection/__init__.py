@@ -1,6 +1,5 @@
 """Detection module for person detection using Vision Transformer."""
 
-from src.detection.vit_detector import ViTDetector
 from src.detection.preprocessing import (
     apply_blur,
     apply_clahe,
@@ -12,6 +11,7 @@ from src.detection.preprocessing import (
     apply_threshold,
     apply_unsharp_mask,
 )
+from src.detection.vit_detector import ViTDetector
 
 __all__ = [
     "ViTDetector",
@@ -25,4 +25,3 @@ __all__ = [
     "apply_threshold",
     "apply_pipeline",
 ]
-

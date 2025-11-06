@@ -36,10 +36,10 @@ run-eval: ## 評価モードで実行（Ground Truthとの比較）
 	$(PYTHON) main.py --config $(CONFIG) --evaluate
 
 .PHONY: run-time
-run-time: ## 時刻指定で実行（例: make run-time START_TIME=10:00 END_TIME=14:00）
+run-time: ## 時刻指定で実行（例: make run-time START_TIME=16:05:00 END_TIME=16:15:00）
 	@if [ -z "$(START_TIME)" ] || [ -z "$(END_TIME)" ]; then \
 		echo "エラー: START_TIMEとEND_TIMEを指定してください"; \
-		echo "例: make run-time START_TIME=10:00 END_TIME=14:00"; \
+		echo "例: make run-time START_TIME=16:05:00 END_TIME=16:15:00"; \
 		exit 1; \
 	fi
 	@echo "=========================================="

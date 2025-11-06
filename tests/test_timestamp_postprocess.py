@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from datetime import datetime
 
-import pytest
-
 from src.timestamp.timestamp_postprocess import (
     extract_digits,
     generate_timestamp_candidates,
@@ -285,7 +283,9 @@ def test_parse_flexible_timestamp_with_reference():
     text = "2025/10/26 16:05:26"
     reference = datetime(2025, 10, 26, 16, 5, 25)
 
-    result = parse_flexible_timestamp(text, confidence=0.9, reference_timestamp=reference)
+    result = parse_flexible_timestamp(
+        text, confidence=0.9, reference_timestamp=reference
+    )
 
     assert result is not None
 
@@ -296,7 +296,9 @@ def test_parse_flexible_timestamp_far_from_reference():
     text = "2020/10/26 16:05:26"  # 5年前
     reference = datetime(2025, 10, 26, 16, 5, 25)
 
-    result = parse_flexible_timestamp(text, confidence=0.9, reference_timestamp=reference)
+    result = parse_flexible_timestamp(
+        text, confidence=0.9, reference_timestamp=reference
+    )
 
     assert result is None
 

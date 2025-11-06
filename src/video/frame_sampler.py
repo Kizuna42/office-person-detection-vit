@@ -20,6 +20,9 @@ class FrameSampler:
 
     動画全体をスキャンし、5分刻みの目標タイムスタンプに最も近いフレームを抽出する。
 
+    要件3に準拠: タイムスタンプは「HH:MM:SS」形式で秒を00に固定
+    （例: 12:10:00, 12:15:00, 12:20:00）
+
     Attributes:
         interval_minutes: サンプリング間隔（分）
         tolerance_seconds: 許容誤差（秒）
@@ -46,12 +49,15 @@ class FrameSampler:
     ) -> List[Union[datetime, str]]:
         """開始・終了時刻から目標タイムスタンプリストを生成する
 
+        要件3に準拠: 生成されるタイムスタンプは「HH:MM:SS」形式で秒を00に固定
+        （例: 12:10:00, 12:15:00, 12:20:00）
+
         Args:
             start_dt: 目標タイムスタンプ生成開始の日時
             end_dt: 目標タイムスタンプ生成終了の日時
 
         Returns:
-            目標タイムスタンプのリスト (datetime)
+            目標タイムスタンプのリスト (datetime、秒は00に固定)
         """
         try:
             start_dt_dt, start_fmt = self._coerce_to_datetime(start_dt, reference=None)
@@ -71,15 +77,20 @@ class FrameSampler:
             remainder = start_seconds % interval_seconds
             if remainder != 0:
                 start_dt_dt += timedelta(seconds=interval_seconds - remainder)
-                start_dt_dt = start_dt_dt.replace(second=0)
             else:
                 start_dt_dt += timedelta(minutes=self.interval_minutes)
+
+            # 要件3に準拠: 秒を00に設定（HH:MM:SS形式）
+            start_dt_dt = start_dt_dt.replace(second=0, microsecond=0)
 
             target_datetimes: List[datetime] = []
             current_dt = start_dt_dt
             while current_dt <= end_dt_dt:
                 target_datetimes.append(current_dt)
-                current_dt += timedelta(minutes=self.interval_minutes)
+                # 要件3に準拠: 5分刻みで秒を00に保証（HH:MM:SS形式）
+                current_dt = (
+                    current_dt + timedelta(minutes=self.interval_minutes)
+                ).replace(second=0, microsecond=0)
 
             logger.info(
                 "目標タイムスタンプ生成: %d個 (%s -> %s)",
@@ -533,8 +544,23 @@ class FrameSampler:
                             needs_retry = True
                             logger.debug(f"フレーム {frame_count}: 低信頼度 ({confidence:.2f})")
 
+                        success = False
+
+                        if timestamp_dt is not None and not needs_retry:
+                            # そのまま採用
+                            frame_timestamps[frame_count] = timestamp_dt
+                            last_valid_timestamp = timestamp_dt
+                            last_valid_frame = frame_count
+                            frame_diagnostics[frame_count] = {
+                                "timestamp": timestamp,
+                                "confidence": confidence,
+                                "source": source,
+                                "corrections": timestamp_extractor.get_last_corrections(),
+                            }
+                            success = True
+
                         # 近傍再OCRを試行
-                        if needs_retry and timestamp_dt is None:
+                        if not success and needs_retry and timestamp_dt is None:
                             retry_success = False
                             for offset in [-3, -2, -1, 1, 2, 3]:
                                 retry_frame_num = frame_count + offset
@@ -581,6 +607,7 @@ class FrameSampler:
                             if timestamp_dt is not None:
                                 frame_timestamps[frame_count] = timestamp_dt
                                 last_valid_timestamp = timestamp_dt
+                                success = True
                             last_valid_frame = frame_count
 
                             # 診断情報を記録
@@ -590,6 +617,9 @@ class FrameSampler:
                                 "source": source,
                                 "corrections": timestamp_extractor.get_last_corrections(),
                             }
+
+                        if success:
+                            last_valid_frame = frame_count
                         else:
                             failed_count += 1
 

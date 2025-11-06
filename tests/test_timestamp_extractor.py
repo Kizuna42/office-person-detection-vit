@@ -70,10 +70,12 @@ def test_parse_timestamp_year_corruption():
     result = extractor.parse_timestamp("0257/08/26 16:04:16")
     # 年が大きく外れている（257 vs 2025 = 768年差）ため、Noneが返される
     assert result is None
-    
+
     # ±3年以内の年の桁化けは補正される（ただし、時系列の外れ値チェックも通過する必要がある）
     extractor._last_timestamp = datetime(2025, 8, 26, 16, 4, 16)
-    result = extractor.parse_timestamp("2026/08/26 16:04:16")  # 2026は2025から1年差（時系列チェックも通過）
+    result = extractor.parse_timestamp(
+        "2026/08/26 16:04:16"
+    )  # 2026は2025から1年差（時系列チェックも通過）
     # これは正常な年のため、そのまま返される可能性がある
     assert result is not None
 

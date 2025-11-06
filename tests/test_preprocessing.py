@@ -292,7 +292,12 @@ def test_apply_pipeline_full(sample_bgr_image: np.ndarray):
         "resize": {"enabled": True, "fx": 2.0},
         "threshold": {"enabled": True, "method": "otsu"},
         "invert_after_threshold": {"enabled": True},
-        "morphology": {"enabled": True, "operation": "close", "kernel_size": 2, "iterations": 1},
+        "morphology": {
+            "enabled": True,
+            "operation": "close",
+            "kernel_size": 2,
+            "iterations": 1,
+        },
     }
 
     result = apply_pipeline(sample_bgr_image, params)
@@ -310,7 +315,10 @@ def test_apply_pipeline_partial(sample_bgr_image: np.ndarray):
 
     result = apply_pipeline(sample_bgr_image, params)
 
-    assert result.shape[:2] == (int(sample_bgr_image.shape[0] * 1.5), int(sample_bgr_image.shape[1] * 1.5))
+    assert result.shape[:2] == (
+        int(sample_bgr_image.shape[0] * 1.5),
+        int(sample_bgr_image.shape[1] * 1.5),
+    )
 
 
 def test_apply_pipeline_deskew(sample_bgr_image: np.ndarray):
