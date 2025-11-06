@@ -62,11 +62,18 @@ class BasePhase(ABC):
 
         # タイムスタンプ抽出器の初期化
         confidence_threshold = self.config.get(
-            "timestamp.extraction.confidence_threshold", 0.3
+            "timestamp.extraction.confidence_threshold", 0.2
         )
+        # 最後のフレーム検証設定（施策7: 設定ファイル追加）
+        final_frame_validation = self.config.get(
+            "timestamp.extraction.final_frame_validation", {}
+        )
+        final_frame_count = final_frame_validation.get("frame_count", 10)
         timestamp_extractor = TimestampExtractor(
             confidence_threshold=confidence_threshold
         )
+        # 最後のフレーム検証用のフレーム数を設定
+        timestamp_extractor._final_frame_count = final_frame_count
         output_dir = Path(self.config.get("output.directory", "output"))
 
         if self.config.get("output.debug_mode", False):

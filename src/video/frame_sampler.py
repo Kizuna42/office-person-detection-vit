@@ -728,14 +728,14 @@ class FrameSampler:
         initial_frame_max = timestamp_extractor._initial_frame_count
 
         try:
-            # 最初のNフレームを収集
+            # 最初のNフレームを収集（スキャン間隔に関係なく必ず収集）
             video_processor.reset()
             while initial_frame_count < initial_frame_max:
                 ret, frame = video_processor.read_next_frame()
                 if not ret or frame is None:
                     break
-                if initial_frame_count % scan_interval == 0:
-                    initial_frames.append(frame.copy())
+                # スキャン間隔に関係なく、最初のNフレームは必ず収集
+                initial_frames.append(frame.copy())
                 initial_frame_count += 1
 
             # 最初のNフレームで多数決
