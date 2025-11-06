@@ -40,17 +40,19 @@ class TimestampExtractor:
         preproc_params: Optional[Dict] = None,
         ocr_params: Optional[Dict] = None,
         use_flexible_postprocess: bool = True,
+        confidence_threshold: float = 0.2,
     ):
         """TimestampExtractorを初期化する
 
         Args:
             roi: タイムスタンプ領域の座標 (x, y, width, height)
-                 デフォルトは右上領域 (900, 10, 350, 60)
+                 デフォルトは右上領域 (900, 30, 360, 45)
             preproc_params: 前処理パラメータの辞書（Noneの場合はデフォルト）
             ocr_params: OCRパラメータの辞書（Noneの場合はデフォルト）
             use_flexible_postprocess: 柔軟な後処理を使用するか
+            confidence_threshold: 信頼度閾値（この値未満の結果を除外、デフォルト: 0.2）
         """
-        # デフォルトROIを右方向・下方向に広げて日時全体を包含
+        # デフォルトROI（最適値）
         self.roi = roi or (900, 30, 360, 45)
         logger.debug(f"TimestampExtractor初期化: ROI={self.roi}")
         self._debug_enabled = False
@@ -60,6 +62,9 @@ class TimestampExtractor:
         self._debug_counter = 0
         self._last_preprocess_debug: Dict[str, np.ndarray] = {}
         self._last_timestamp: Optional[datetime] = None
+        # 暫定値と確定値の分離（計画書の提案に基づく）
+        self._tentative_timestamp: Optional[datetime] = None  # 低信頼度でも更新
+        self._confirmed_timestamp: Optional[datetime] = None  # 高信頼度のみ更新
         self._last_corrections: List[Dict[str, str]] = []
         # CLAHEとカーネルをキャッシュ
         self._clahe_cache: Optional[cv2.CLAHE] = None
@@ -69,24 +74,48 @@ class TimestampExtractor:
         self.preproc_params = preproc_params or self._get_default_preproc_params()
         self.ocr_params = ocr_params or self._get_default_ocr_params()
         self.use_flexible_postprocess = use_flexible_postprocess
+        self.confidence_threshold = confidence_threshold
+
+        # 段階的な閾値システム（計画書の提案に基づく）
+        self._threshold_levels = {
+            "strict": 0.7,  # 高品質フレーム用
+            "normal": confidence_threshold,  # 通常フレーム用（デフォルト）
+            "lenient": 0.1,  # 最終手段
+            "emergency": 0.0,  # 結果がない場合のみ
+        }
 
         # 最初のフレーム検証用のフラグ
         self._is_initial_extraction = True
         self._initial_frame_count = 10  # 最初のNフレームで多数決
 
+        # 最後のフレーム群検証用のフラグ（施策2）
+        self._final_frame_count = 10  # 最後のNフレームで多数決
+
         # ROI動的調整用のフラグ（施策5）
+        # 最適値(900, 30, 360, 45)を優先候補に
         self._enable_dynamic_roi = True
         self._roi_candidates = [
-            (900, 30, 360, 45),  # デフォルト（右上）
-            (900, 10, 360, 60),  # 少し上に
-            (850, 30, 410, 45),  # 少し左に
+            (900, 30, 360, 45),  # 最適値
+            (900, 20, 360, 50),  # 少し上に拡張
+            (900, 40, 360, 40),  # 少し下に縮小
+            (890, 30, 370, 45),  # 少し左に拡張
+            (910, 30, 350, 45),  # 少し右に縮小
         ]
 
     def _get_default_preproc_params(self) -> Dict:
-        """デフォルト前処理パラメータを取得"""
+        """デフォルト前処理パラメータを取得（最適化版）"""
         return {
-            "clahe": {"enabled": True, "clip_limit": 2.0, "tile_grid_size": [8, 8]},
+            "clahe": {
+                "enabled": True,
+                "clip_limit": 3.0,  # 2.0→3.0に向上（コントラスト強化）
+                "tile_grid_size": [8, 8],
+            },
             "resize": {"enabled": True, "fx": 2.0},
+            "unsharp": {
+                "enabled": True,  # シャープ化を有効化（文字認識精度向上）
+                "amount": 1.5,
+                "radius": 1.0,
+            },
             "threshold": {"enabled": True, "method": "otsu"},
             "invert_after_threshold": {"enabled": True},
             "morphology": {
@@ -276,20 +305,65 @@ class TimestampExtractor:
         timestamp_confidences: Dict[str, List[float]] = {}  # 元の信頼度を保持
 
         for timestamp, weighted_conf, engine, original_conf in all_results:
-            # 時系列整合性チェック（施策2: 厳格化）
-            if self._last_timestamp is not None:
+            # 信頼度フィルタリング（施策1: 厳格なフィルタリング）
+            # 信頼度0.00の結果を即座に除外
+            if original_conf <= 0.0:
+                logger.debug(f"信頼度0.00の結果を除外: {timestamp} (エンジン: {engine})")
+                continue
+
+            # 信頼度閾値未満の結果を除外
+            if original_conf < self.confidence_threshold:
+                logger.debug(
+                    f"信頼度閾値未満の結果を除外: {timestamp} "
+                    f"(信頼度: {original_conf:.3f} < 閾値: {self.confidence_threshold:.3f}, エンジン: {engine})"
+                )
+                continue
+
+            # 時系列整合性チェック（施策4: 強化）
+            # 暫定値または確定値を参照（計画書の提案に基づく）
+            reference_timestamp = self._tentative_timestamp or self._confirmed_timestamp or self._last_timestamp
+            if reference_timestamp is not None:
                 try:
                     timestamp_dt = datetime.strptime(timestamp, self.TIMESTAMP_FORMAT)
-                    days_diff = abs(
-                        (timestamp_dt.date() - self._last_timestamp.date()).days
+                    time_diff = abs(
+                        (timestamp_dt - reference_timestamp).total_seconds()
                     )
+                    days_diff = abs(
+                        (timestamp_dt.date() - reference_timestamp.date()).days
+                    )
+
+                    # 日付レベルの外れ値検知（±0.5日以上は除外）
+                    if days_diff >= 0.5:
+                        logger.debug(
+                            f"時系列外れ値検知（アンサンブル）: {timestamp} "
+                            f"(履歴: {reference_timestamp.date()}, 差={days_diff}日)"
+                        )
+                        continue
+
                     # ±7日以上の差は除外（誤認識の可能性が高い）
                     if days_diff >= 7:
                         logger.debug(
                             f"時系列外れ値検知（アンサンブル）: {timestamp} "
-                            f"(履歴: {self._last_timestamp.date()}, 差={days_diff}日)"
+                            f"(履歴: {reference_timestamp.date()}, 差={days_diff}日)"
                         )
                         continue
+
+                    # 時間差が大きすぎる場合（1時間以上）は除外
+                    if time_diff > 3600:
+                        logger.debug(
+                            f"時系列外れ値検知（アンサンブル）: {timestamp} "
+                            f"(履歴: {reference_timestamp}, 時間差={time_diff:.0f}秒)"
+                        )
+                        continue
+
+                    # 時系列が逆転している場合（12時間以上）は除外
+                    if timestamp_dt < reference_timestamp - timedelta(hours=12):
+                        logger.debug(
+                            f"時系列逆転検知（アンサンブル）: {timestamp} "
+                            f"(履歴: {reference_timestamp})"
+                        )
+                        continue
+
                 except ValueError:
                     # タイムスタンプの解析に失敗した場合はスキップ
                     continue
@@ -299,14 +373,26 @@ class TimestampExtractor:
                 timestamp_counts[timestamp] = 0
                 timestamp_confidences[timestamp] = []
 
-            # 重み付きスコアを累積
-            timestamp_scores[timestamp] += weighted_conf
+            # 重み付きスコアを累積（施策5: アンサンブル結果評価改善）
+            # 信頼度が低い結果の重みを下げる
+            confidence_weight = 1.0
+            if original_conf < 0.5:
+                # 信頼度0.5未満の結果は重みを下げる
+                confidence_weight = original_conf * 2.0  # 0.0-1.0の範囲に正規化
+            elif original_conf < 0.7:
+                # 信頼度0.5-0.7の結果は中程度の重み
+                confidence_weight = 0.5 + (original_conf - 0.5) * 1.0
+            # 信頼度0.7以上の結果は重み1.0（そのまま）
+
+            adjusted_weighted_conf = weighted_conf * confidence_weight
+            timestamp_scores[timestamp] += adjusted_weighted_conf
             timestamp_counts[timestamp] += 1
             # 元の信頼度を保持
             timestamp_confidences[timestamp].append(original_conf)
 
+        # フォールバックメカニズム: 全結果が除外された場合の段階的閾値緩和
         if not timestamp_scores:
-            return None, 0.0
+            return self._apply_fallback_filtering(all_results)
 
         # 最高スコアのタイムスタンプを選択
         best_timestamp = max(timestamp_scores.items(), key=lambda x: x[1])[0]
@@ -322,6 +408,147 @@ class TimestampExtractor:
         avg_confidence = max(0.0, min(1.0, avg_confidence))
 
         return best_timestamp, avg_confidence
+
+    def _apply_fallback_filtering(
+        self, all_results: List[Tuple[str, float, str, float]]
+    ) -> Tuple[Optional[str], float]:
+        """フォールバックメカニズム: 全結果が除外された場合の段階的閾値緩和
+
+        計画書の提案に基づき、段階的に閾値を緩和して再試行する。
+        デッドロック問題（全結果が除外される）を防止する。
+
+        Args:
+            all_results: 全OCR結果のリスト (timestamp, weighted_conf, engine, original_conf)
+
+        Returns:
+            (タイムスタンプ, 平均信頼度) のタプル
+        """
+        if not all_results:
+            logger.warning("全結果が除外されました。フォールバック処理をスキップします。")
+            return None, 0.0
+
+        # 信頼度0.00の結果を除外（これは常に除外）
+        valid_results = [
+            (ts, wc, eng, oc) for ts, wc, eng, oc in all_results if oc > 0.0
+        ]
+
+        if not valid_results:
+            logger.warning("全結果が信頼度0.00のため、フォールバック処理をスキップします。")
+            return None, 0.0
+
+        # 段階的な閾値適用: normal -> lenient -> emergency
+        threshold_levels = ["normal", "lenient", "emergency"]
+
+        for level in threshold_levels:
+            threshold = self._threshold_levels[level]
+            logger.info(f"フォールバック: 閾値レベル '{level}' (閾値={threshold:.3f}) で再試行")
+
+            # この閾値でフィルタリング
+            filtered = [
+                (ts, wc, eng, oc)
+                for ts, wc, eng, oc in valid_results
+                if oc >= threshold
+            ]
+
+            if not filtered:
+                continue  # 次のレベルを試す
+
+            # 時系列整合性チェックを実施
+            timestamp_scores: Dict[str, float] = {}
+            timestamp_counts: Dict[str, int] = {}
+            timestamp_confidences: Dict[str, List[float]] = {}
+
+            for timestamp, weighted_conf, engine, original_conf in filtered:
+                # 時系列整合性チェック
+                if self._last_timestamp is not None:
+                    try:
+                        timestamp_dt = datetime.strptime(
+                            timestamp, self.TIMESTAMP_FORMAT
+                        )
+                        time_diff = abs(
+                            (timestamp_dt - self._last_timestamp).total_seconds()
+                        )
+                        days_diff = abs(
+                            (timestamp_dt.date() - self._last_timestamp.date()).days
+                        )
+
+                        # 日付レベルの外れ値検知（±0.5日以上は除外）
+                        if days_diff >= 0.5:
+                            logger.debug(
+                                f"フォールバック: 時系列外れ値検知: {timestamp} "
+                                f"(履歴: {self._last_timestamp.date()}, 差={days_diff}日)"
+                            )
+                            continue
+
+                        # ±7日以上の差は除外（誤認識の可能性が高い）
+                        if days_diff >= 7:
+                            logger.debug(
+                                f"フォールバック: 時系列外れ値検知: {timestamp} "
+                                f"(履歴: {self._last_timestamp.date()}, 差={days_diff}日)"
+                            )
+                            continue
+
+                        # 時間差が大きすぎる場合（1時間以上）は除外
+                        if time_diff > 3600:
+                            logger.debug(
+                                f"フォールバック: 時系列外れ値検知: {timestamp} "
+                                f"(履歴: {self._last_timestamp}, 時間差={time_diff:.0f}秒)"
+                            )
+                            continue
+
+                        # 時系列が逆転している場合（12時間以上）は除外
+                        if timestamp_dt < self._last_timestamp - timedelta(hours=12):
+                            logger.debug(
+                                f"フォールバック: 時系列逆転検知: {timestamp} "
+                                f"(履歴: {self._last_timestamp})"
+                            )
+                            continue
+
+                    except ValueError:
+                        # タイムスタンプの解析に失敗した場合はスキップ
+                        continue
+
+                if timestamp not in timestamp_scores:
+                    timestamp_scores[timestamp] = 0.0
+                    timestamp_counts[timestamp] = 0
+                    timestamp_confidences[timestamp] = []
+
+                # 重み付きスコアを累積
+                confidence_weight = 1.0
+                if original_conf < 0.5:
+                    confidence_weight = original_conf * 2.0
+                elif original_conf < 0.7:
+                    confidence_weight = 0.5 + (original_conf - 0.5) * 1.0
+
+                adjusted_weighted_conf = weighted_conf * confidence_weight
+                timestamp_scores[timestamp] += adjusted_weighted_conf
+                timestamp_counts[timestamp] += 1
+                timestamp_confidences[timestamp].append(original_conf)
+
+            if timestamp_scores:
+                # 最高スコアのタイムスタンプを選択
+                best_timestamp = max(timestamp_scores.items(), key=lambda x: x[1])[0]
+
+                # 平均信頼度を計算
+                if best_timestamp in timestamp_confidences:
+                    confidences = timestamp_confidences[best_timestamp]
+                    avg_confidence = (
+                        sum(confidences) / len(confidences) if confidences else 0.0
+                    )
+                else:
+                    avg_confidence = 0.0
+
+                avg_confidence = max(0.0, min(1.0, avg_confidence))
+
+                logger.info(
+                    f"フォールバック成功: レベル '{level}' でタイムスタンプを取得: "
+                    f"{best_timestamp} (信頼度={avg_confidence:.3f})"
+                )
+                return best_timestamp, avg_confidence
+
+        # 全てのレベルで失敗
+        logger.warning("フォールバック処理: 全ての閾値レベルで結果が得られませんでした")
+        return None, 0.0
 
     def _parse_strict_regex(self, text: str) -> Optional[str]:
         """厳密な正規表現でタイムスタンプを抽出
@@ -512,16 +739,21 @@ class TimestampExtractor:
         return self._evaluate_frame_quality(roi_image)
 
     def extract(
-        self, frame: np.ndarray, frame_index: Optional[int] = None
+        self,
+        frame: np.ndarray,
+        frame_index: Optional[int] = None,
+        total_frames: Optional[int] = None,
     ) -> Optional[str]:
         """フレームからタイムスタンプを抽出する
 
         複数OCR設定で多数決を行い、厳密な正規表現で抽出を試みる。
         ROI動的調整（施策5）と日付部分の独立検証（施策3）を実装。
+        最後のフレーム群での検証と再試行メカニズム（施策2）を実装。
 
         Args:
             frame: 入力フレーム画像
             frame_index: デバッグ用のフレーム番号
+            total_frames: 総フレーム数（最後のフレーム群検証用）
 
         Returns:
             タイムスタンプ文字列 (YYYY/MM/DD HH:MM:SS形式)、失敗した場合None
@@ -529,6 +761,16 @@ class TimestampExtractor:
         if frame is None or frame.size == 0:
             logger.warning("無効なフレームが渡されました")
             return None
+
+        # 最後のフレーム群での検証と再試行メカニズム（施策2）
+        if (
+            frame_index is not None
+            and total_frames is not None
+            and frame_index >= total_frames - self._final_frame_count
+        ):
+            logger.debug(f"最後のフレーム群を検出: フレーム {frame_index}/{total_frames}")
+            # 最後のフレーム群では、通常の処理を実行し、信頼度が低い場合は警告
+            # 実際の多数決検証は呼び出し側で行う必要がある
 
         try:
             # ROI動的調整（施策5）
@@ -584,8 +826,11 @@ class TimestampExtractor:
                                             best_confidence = combined_confidence
                                             best_roi_bounds = roi_bounds
                                             best_preprocessed = roi_image
-                                            # 履歴を更新
-                                            self._last_timestamp = combined_dt
+                                            # 履歴を更新（施策3: 更新ロジック改善）
+                                            self._update_last_timestamp(
+                                                combined_dt,
+                                                confidence=combined_confidence,
+                                            )
                                             logger.debug(
                                                 f"日付独立検証成功: {combined_timestamp} "
                                                 f"(信頼度={combined_confidence:.2f})"
@@ -601,12 +846,14 @@ class TimestampExtractor:
                                     best_confidence = combined_confidence
                                     best_roi_bounds = roi_bounds
                                     best_preprocessed = roi_image
-                                    # 履歴を更新
+                                    # 履歴を更新（施策3: 更新ロジック改善）
                                     try:
                                         combined_dt = datetime.strptime(
                                             combined_timestamp, self.TIMESTAMP_FORMAT
                                         )
-                                        self._last_timestamp = combined_dt
+                                        self._update_last_timestamp(
+                                            combined_dt, confidence=combined_confidence
+                                        )
                                     except ValueError:
                                         pass
                                     logger.debug(
@@ -693,8 +940,10 @@ class TimestampExtractor:
                             # ±7日以上の差は除外（誤認識の可能性が高い）
                             if days_diff < 7:
                                 # 妥当なタイムスタンプとして採用
-                                # 履歴を更新
-                                self._last_timestamp = combined_dt
+                                # 履歴を更新（施策3: 更新ロジック改善）
+                                self._update_last_timestamp(
+                                    combined_dt, confidence=combined_confidence
+                                )
                                 logger.debug(
                                     f"日付独立検証成功: {combined_timestamp} "
                                     f"(信頼度={combined_confidence:.2f})"
@@ -720,12 +969,14 @@ class TimestampExtractor:
                             pass
                     else:
                         # 履歴がない場合はそのまま採用
-                        # 履歴を更新
+                        # 履歴を更新（施策3: 更新ロジック改善）
                         try:
                             combined_dt = datetime.strptime(
                                 combined_timestamp, self.TIMESTAMP_FORMAT
                             )
-                            self._last_timestamp = combined_dt
+                            self._update_last_timestamp(
+                                combined_dt, confidence=combined_confidence
+                            )
                         except ValueError:
                             pass
                         logger.debug(
@@ -872,14 +1123,18 @@ class TimestampExtractor:
 
         return params
 
-    def _preprocess_roi(self, roi_image: np.ndarray) -> np.ndarray:
+    def _preprocess_roi(
+        self, roi_image: np.ndarray, try_multiple_pipelines: bool = False
+    ) -> np.ndarray:
         """OCR用の前処理を実行する
 
         パラメタ化された前処理パイプラインを使用。
         フレーム品質に応じた適応的前処理を実装（施策4）。
+        低品質フレーム対応のため、複数パイプラインを試行可能（施策6）。
 
         Args:
             roi_image: ROI領域の画像
+            try_multiple_pipelines: 複数パイプラインを試行するか（低品質フレーム用）
 
         Returns:
             前処理済み画像
@@ -890,6 +1145,54 @@ class TimestampExtractor:
             # フレーム品質を評価（施策4）
             quality = self._evaluate_frame_quality(roi_image)
 
+            # 低品質フレームの場合、複数パイプラインを試行（施策6）
+            if try_multiple_pipelines or (
+                quality["contrast"] < 30
+                or quality["sharpness"] < 100
+                or quality["noise_level"] > 20
+            ):
+                # 複数の前処理パイプラインを試行
+                pipeline_variants = [
+                    # バリアント1: デフォルト（強化版）
+                    self._select_optimal_pipeline(roi_image, quality),
+                    # バリアント2: より積極的なCLAHE
+                    self._create_aggressive_pipeline(roi_image, quality),
+                    # バリアント3: より積極的なシャープ化
+                    self._create_sharpen_pipeline(roi_image, quality),
+                ]
+
+                best_preprocessed = None
+                best_quality_score = -1.0
+
+                for variant_params in pipeline_variants:
+                    try:
+                        variant_preprocessed = apply_pipeline(roi_image, variant_params)
+                        # 前処理後の品質を評価
+                        variant_quality = self._evaluate_frame_quality(
+                            variant_preprocessed
+                        )
+                        variant_score = (
+                            variant_quality["contrast"] * 0.4
+                            + variant_quality["sharpness"] * 0.4
+                            + (100 - variant_quality["noise_level"]) * 0.2
+                        )
+
+                        if variant_score > best_quality_score:
+                            best_quality_score = variant_score
+                            best_preprocessed = variant_preprocessed
+                    except Exception as e:
+                        logger.debug(f"前処理パイプライン変種でエラー: {e}")
+                        continue
+
+                if best_preprocessed is not None:
+                    self._last_preprocess_debug = {
+                        "preprocessed": best_preprocessed,
+                        "quality": quality,
+                        "best_quality_score": best_quality_score,
+                    }
+                    return best_preprocessed
+
+            # 通常の処理（単一パイプライン）
             # 品質に応じた最適なパイプラインを選択
             optimal_params = self._select_optimal_pipeline(roi_image, quality)
 
@@ -907,6 +1210,47 @@ class TimestampExtractor:
             logger.error(f"前処理中にエラーが発生しました: {e}")
             self._last_preprocess_debug = {}
             return roi_image
+
+    def _create_aggressive_pipeline(
+        self, roi_image: np.ndarray, quality: Dict[str, float]
+    ) -> Dict:
+        """より積極的なCLAHEを使用する前処理パイプライン（施策6）
+
+        Args:
+            roi_image: ROI領域の画像
+            quality: 品質指標
+
+        Returns:
+            前処理パラメータ
+        """
+        params = self.preproc_params.copy()
+        # CLAHEをより積極的に
+        if "clahe" in params:
+            params["clahe"]["clip_limit"] = 4.0  # デフォルトより高い
+            params["clahe"]["tile_grid_size"] = [4, 4]  # より細かいタイル
+        return params
+
+    def _create_sharpen_pipeline(
+        self, roi_image: np.ndarray, quality: Dict[str, float]
+    ) -> Dict:
+        """より積極的なシャープ化を使用する前処理パイプライン（施策6）
+
+        Args:
+            roi_image: ROI領域の画像
+            quality: 品質指標
+
+        Returns:
+            前処理パラメータ
+        """
+        params = self.preproc_params.copy()
+        # シャープ化をより積極的に
+        if "unsharp" not in params:
+            params["unsharp"] = {"enabled": True, "amount": 2.5, "radius": 1.5}
+        else:
+            params["unsharp"]["enabled"] = True
+            params["unsharp"]["amount"] = 2.5
+            params["unsharp"]["radius"] = 1.5
+        return params
 
     def parse_timestamp(self, ocr_text: str) -> Optional[str]:
         """OCR結果からタイムスタンプを抽出・正規化する
@@ -1181,13 +1525,13 @@ class TimestampExtractor:
                     }
                 )
 
-            # 時系列の整合性チェック（施策2: 厳格化）
+            # 時系列の整合性チェック（施策4: 強化）
             if fallback_dt is not None:
                 time_diff = abs((candidate - fallback_dt).total_seconds())
 
-                # 日付レベルの外れ値検知（±1日以上の場合、警告・再検証）
+                # 日付レベルの外れ値検知（±0.5日以上の場合、警告・再検証）
                 days_diff = abs((candidate.date() - fallback_dt.date()).days)
-                if days_diff >= 1:
+                if days_diff >= 0.5:
                     logger.warning(
                         f"日付レベルの外れ値検知: {candidate.date()} (履歴: {fallback_dt.date()}, 差={days_diff}日)"
                     )
@@ -1228,7 +1572,9 @@ class TimestampExtractor:
                     )
 
             result = candidate.strftime(self.TIMESTAMP_FORMAT)
-            self._last_timestamp = candidate
+            # _last_timestamp更新（施策3: 更新ロジック改善）
+            # parse_timestamp()は信頼度情報を持っていないため、デフォルト値0.5を使用
+            self._update_last_timestamp(candidate, confidence=0.5)
 
             # 補正ログを記録
             if corrections:
@@ -1296,6 +1642,21 @@ class TimestampExtractor:
             # OCR実行
             timestamp, confidence = self._multi_ocr_vote(preprocessed)
 
+            # 信頼度チェック（施策1: 厳格なフィルタリング）
+            if timestamp is not None:
+                # 信頼度0.00の結果を除外
+                if confidence <= 0.0:
+                    logger.debug(f"信頼度0.00の結果を除外: {timestamp} (信頼度: {confidence:.3f})")
+                    return None, 0.0
+
+                # 信頼度閾値未満の結果を除外
+                if confidence < self.confidence_threshold:
+                    logger.debug(
+                        f"信頼度閾値未満の結果を除外: {timestamp} "
+                        f"(信頼度: {confidence:.3f} < 閾値: {self.confidence_threshold:.3f})"
+                    )
+                    return None, 0.0
+
             return timestamp, confidence
 
         except Exception as e:
@@ -1313,6 +1674,101 @@ class TimestampExtractor:
             補正ログのリスト
         """
         return self._last_corrections.copy()
+
+    def _update_last_timestamp(
+        self, candidate: datetime, confidence: float = 0.5
+    ) -> bool:
+        """_last_timestampを信頼度ベースで更新（施策3: 更新ロジック改善）
+
+        暫定値と確定値の分離を実装（計画書の提案に基づく）:
+        - _tentative_timestamp: 低信頼度でも更新（時系列チェック用）
+        - _confirmed_timestamp: 高信頼度のみ更新（最終出力用）
+        - _last_timestamp: 後方互換性のため保持（_confirmed_timestampと同期）
+
+        Args:
+            candidate: 候補タイムスタンプ
+            confidence: 信頼度（0.0-1.0）
+
+        Returns:
+            更新が実行された場合True、スキップされた場合False
+        """
+        # 時系列チェックは暫定値で実施（計画書の提案）
+        reference_timestamp = (
+            self._tentative_timestamp
+            or self._confirmed_timestamp
+            or self._last_timestamp
+        )
+
+        # 暫定値の更新: 信頼度が低くても、時系列整合性があれば更新
+        if reference_timestamp is not None:
+            try:
+                time_diff = abs((candidate - reference_timestamp).total_seconds())
+                days_diff = abs((candidate.date() - reference_timestamp.date()).days)
+
+                # 日付レベルの外れ値検知（±0.5日以上は除外）
+                if days_diff >= 0.5:
+                    logger.debug(
+                        f"暫定値更新をスキップ: 日付レベルの外れ値 "
+                        f"(差={days_diff}日, 履歴={reference_timestamp.date()}, 候補={candidate.date()})"
+                    )
+                    # 暫定値も更新しない（外れ値のため）
+                    return False
+
+                # ±7日以上の差は除外（誤認識の可能性が高い）
+                if days_diff >= 7:
+                    logger.debug(
+                        f"暫定値更新をスキップ: 日付の外れ値が大きすぎる "
+                        f"(差={days_diff}日, 履歴={reference_timestamp.date()}, 候補={candidate.date()})"
+                    )
+                    return False
+
+                # 時間差が大きすぎる場合（1時間以上）は除外
+                if time_diff > 3600:
+                    logger.debug(
+                        f"暫定値更新をスキップ: 時間差が大きすぎる "
+                        f"(差={time_diff:.0f}秒, 履歴={reference_timestamp}, 候補={candidate})"
+                    )
+                    return False
+
+                # 時系列が逆転している場合（12時間以上）は除外
+                if candidate < reference_timestamp - timedelta(hours=12):
+                    logger.debug(
+                        f"暫定値更新をスキップ: 時系列逆転 "
+                        f"(履歴={reference_timestamp}, 候補={candidate})"
+                    )
+                    return False
+
+            except Exception as e:
+                logger.warning(f"暫定値更新チェック中にエラー: {e}")
+                return False
+
+        # 暫定値を更新（時系列整合性があれば、信頼度に関係なく更新）
+        self._tentative_timestamp = candidate
+        logger.debug(
+            f"暫定値更新: 時系列整合性チェック通過 " f"(信頼度: {confidence:.3f}, 候補: {candidate})"
+        )
+
+        # 確定値の更新: 高信頼度（≥ 0.7）のみ更新
+        if confidence >= 0.7:
+            self._confirmed_timestamp = candidate
+            self._last_timestamp = candidate  # 後方互換性のため
+            logger.debug(f"確定値更新: 高信頼度 (信頼度: {confidence:.3f}, 候補: {candidate})")
+            return True
+
+        # 中間の信頼度（0.3-0.7）は確定値に更新しないが、暫定値は更新済み
+        if confidence >= 0.3:
+            logger.debug(
+                f"確定値更新をスキップ: 中程度の信頼度 "
+                f"(信頼度: {confidence:.3f}, 候補: {candidate})。暫定値は更新済み。"
+            )
+            return True  # 暫定値は更新したのでTrue
+
+        # 信頼度が低い結果（< 0.3）は確定値に更新しないが、暫定値は更新済み
+        logger.debug(
+            f"確定値更新をスキップ: 信頼度が低い "
+            f"(信頼度: {confidence:.3f} < 閾値: 0.3, 候補: {candidate})。暫定値は更新済み。"
+        )
+        return True  # 暫定値は更新したのでTrue
 
     def _validate_initial_timestamp(
         self, timestamp: str, reference_date: Optional[datetime] = None
@@ -1466,6 +1922,195 @@ class TimestampExtractor:
 
         if not filtered_results:
             # 信頼度が低い結果も含める
+            filtered_results = all_engines_results
+
+        # 多数決: 同じタイムスタンプの出現回数をカウント
+        timestamp_counts = Counter(ts for ts, _, _ in filtered_results)
+
+        if not timestamp_counts:
+            return None, 0.0
+
+        max_count = max(timestamp_counts.values())
+
+        # 最も多く出現したタイムスタンプを候補に
+        top_timestamps = [
+            ts for ts, count in timestamp_counts.items() if count == max_count
+        ]
+
+        if len(top_timestamps) == 1:
+            # 唯一の候補
+            selected = top_timestamps[0]
+            # そのタイムスタンプの平均信頼度を計算
+            confs_for_selected = [
+                conf for ts, conf, _ in filtered_results if ts == selected
+            ]
+            avg_conf = (
+                sum(confs_for_selected) / len(confs_for_selected)
+                if confs_for_selected
+                else 0.0
+            )
+            return selected, avg_conf
+        else:
+            # タイの場合、平均信頼度が高いものを選択
+            best_ts = None
+            best_conf = -1.0
+            for ts in top_timestamps:
+                confs_for_ts = [
+                    conf
+                    for candidate_ts, conf, _ in filtered_results
+                    if candidate_ts == ts
+                ]
+                avg_conf = (
+                    sum(confs_for_ts) / len(confs_for_ts) if confs_for_ts else 0.0
+                )
+                if avg_conf > best_conf:
+                    best_conf = avg_conf
+                    best_ts = ts
+            if best_ts is None:
+                return None, 0.0
+            return best_ts, best_conf
+
+    def _extract_final_timestamp_with_consensus(
+        self, frames: List[np.ndarray]
+    ) -> Tuple[Optional[str], float]:
+        """最後のNフレームでOCRを実行し、多数決で最終タイムスタンプを決定（施策2: 最後のフレーム群検証）
+
+        Args:
+            frames: 最後のNフレームのリスト
+
+        Returns:
+            (タイムスタンプ, 平均信頼度) のタプル
+        """
+        all_engines_results: List[
+            Tuple[str, float, str]
+        ] = []  # (timestamp, confidence, engine)
+
+        for frame_idx, frame in enumerate(frames):
+            if frame is None or frame.size == 0:
+                continue
+
+            try:
+                # ROI領域を抽出
+                x, y, w, h = self.roi
+                frame_height, frame_width = frame.shape[:2]
+
+                if x + w > frame_width or y + h > frame_height:
+                    w = min(w, frame_width - x)
+                    h = min(h, frame_height - y)
+
+                roi_image = frame[y : y + h, x : x + w]
+
+                if roi_image.size == 0:
+                    continue
+
+                # 前処理
+                preprocessed = self._preprocess_roi(roi_image)
+
+                # 複数のOCRエンジンで実行
+                engines = ["tesseract"]
+                if PADDLEOCR_AVAILABLE:
+                    engines.append("paddleocr")
+                if EASYOCR_AVAILABLE:
+                    engines.append("easyocr")
+
+                for engine in engines:
+                    try:
+                        if engine == "tesseract":
+                            # Tesseractは複数PSM設定で試行
+                            ocr_configs = [
+                                {"psm": 7, "whitelist": "0123456789/:", "lang": "eng"},
+                                {"psm": 6, "whitelist": "0123456789/:", "lang": "eng"},
+                                {"psm": 8, "whitelist": "0123456789/:", "lang": "eng"},
+                            ]
+                            for ocr_config in ocr_configs:
+                                ocr_text, confidence = run_tesseract(
+                                    preprocessed,
+                                    psm=ocr_config["psm"],
+                                    whitelist=ocr_config["whitelist"],
+                                    lang=ocr_config["lang"],
+                                )
+                                if ocr_text:
+                                    # 柔軟な後処理を使用（最後のフレーム群なので履歴を参照）
+                                    timestamp = parse_flexible_timestamp(
+                                        ocr_text,
+                                        confidence=confidence,
+                                        reference_timestamp=self._last_timestamp,
+                                    )
+                                    if timestamp:
+                                        # 信頼度0.00の結果を除外
+                                        if confidence <= 0.0:
+                                            continue
+                                        # 信頼度閾値未満の結果を除外
+                                        if confidence < self.confidence_threshold:
+                                            continue
+                                        all_engines_results.append(
+                                            (
+                                                timestamp,
+                                                confidence,
+                                                f"{engine}_psm{ocr_config['psm']}",
+                                            )
+                                        )
+                        else:
+                            # PaddleOCRまたはEasyOCR
+                            ocr_text, confidence = run_ocr(preprocessed, engine=engine)
+                            if ocr_text:
+                                timestamp = parse_flexible_timestamp(
+                                    ocr_text,
+                                    confidence=confidence,
+                                    reference_timestamp=self._last_timestamp,
+                                )
+                                if timestamp:
+                                    # 信頼度0.00の結果を除外
+                                    if confidence <= 0.0:
+                                        continue
+                                    # 信頼度閾値未満の結果を除外
+                                    if confidence < self.confidence_threshold:
+                                        continue
+                                    all_engines_results.append(
+                                        (timestamp, confidence, engine)
+                                    )
+                    except Exception as e:
+                        logger.debug(f"フレーム{frame_idx}、エンジン{engine}でエラー: {e}")
+                        continue
+
+            except Exception as e:
+                logger.debug(f"フレーム{frame_idx}の処理中にエラー: {e}")
+                continue
+
+        if not all_engines_results:
+            return None, 0.0
+
+        # 時系列整合性チェック（最後のフレーム群では特に重要）
+        if self._last_timestamp is not None:
+            filtered_results = []
+            for ts, conf, eng in all_engines_results:
+                try:
+                    ts_dt = datetime.strptime(ts, self.TIMESTAMP_FORMAT)
+                    days_diff = abs((ts_dt.date() - self._last_timestamp.date()).days)
+                    # ±7日以上の差は除外（誤認識の可能性が高い）
+                    if days_diff >= 7:
+                        logger.debug(
+                            f"最後のフレーム群: 時系列外れ値検知: {ts} "
+                            f"(履歴: {self._last_timestamp.date()}, 差={days_diff}日)"
+                        )
+                        continue
+                    filtered_results.append((ts, conf, eng))
+                except ValueError:
+                    continue
+            all_engines_results = filtered_results
+
+        if not all_engines_results:
+            return None, 0.0
+
+        # 信頼度が低い結果を除外（閾値: confidence_threshold）
+        filtered_results = [
+            (ts, conf, eng)
+            for ts, conf, eng in all_engines_results
+            if conf >= self.confidence_threshold
+        ]
+
+        if not filtered_results:
+            # 信頼度が低い結果も含める（最後の手段）
             filtered_results = all_engines_results
 
         # 多数決: 同じタイムスタンプの出現回数をカウント

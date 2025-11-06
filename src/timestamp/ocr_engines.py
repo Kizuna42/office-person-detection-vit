@@ -10,6 +10,15 @@ import cv2
 import numpy as np
 import pytesseract
 
+# MPS互換性設定を適用（警告抑制）
+try:
+    from src.utils.torch_utils import setup_mps_compatibility
+
+    setup_mps_compatibility()
+except ImportError:
+    # インポートに失敗した場合はスキップ（循環インポートを避ける）
+    pass
+
 logger = logging.getLogger(__name__)
 
 # PaddleOCRとEasyOCRはオプショナル
@@ -57,17 +66,13 @@ def _get_paddleocr_instance():
                 except (TypeError, ValueError) as e2:
                     # それでも失敗した場合は警告を出してFalseに設定（再試行を防ぐ）
                     logger.warning(
-                        f"PaddleOCRの初期化に失敗（引数エラー）: {e2}。"
-                        "以降のフレームではPaddleOCRをスキップします。"
+                        f"PaddleOCRの初期化に失敗（引数エラー）: {e2}。" "以降のフレームではPaddleOCRをスキップします。"
                     )
                     _paddleocr_instance = False
                     return None
         except Exception as e:
             # 初期化失敗時はFalseに設定して再試行を防ぐ
-            logger.warning(
-                f"PaddleOCRの初期化に失敗: {e}。"
-                "以降のフレームではPaddleOCRをスキップします。"
-            )
+            logger.warning(f"PaddleOCRの初期化に失敗: {e}。" "以降のフレームではPaddleOCRをスキップします。")
             _paddleocr_instance = False
             return None
     return _paddleocr_instance
@@ -86,10 +91,7 @@ def _get_easyocr_reader():
             _easyocr_reader = easyocr.Reader(["en"], gpu=False)
         except Exception as e:
             # 初期化失敗時はFalseに設定して再試行を防ぐ
-            logger.warning(
-                f"EasyOCRの初期化に失敗: {e}。"
-                "以降のフレームではEasyOCRをスキップします。"
-            )
+            logger.warning(f"EasyOCRの初期化に失敗: {e}。" "以降のフレームではEasyOCRをスキップします。")
             _easyocr_reader = False
             return None
     return _easyocr_reader
