@@ -349,7 +349,6 @@ def test_reprojection_error():
         ColorPrint.info("可視化方法:")
         print(
             """
-        import cv2
         error_map_normalized = (error_map / (error_map.max() + 1e-8) * 255).astype(np.uint8)
         error_colored = cv2.applyColorMap(error_map_normalized, cv2.COLORMAP_JET)
         cv2.imwrite("reprojection_error_map.jpg", error_colored)
@@ -383,7 +382,6 @@ def test_export():
     )
 
     try:
-        import cv2
         import numpy as np
 
         from src.models.data_models import Detection
