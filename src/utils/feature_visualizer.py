@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -42,7 +42,7 @@ class FeatureVisualizer:
         features: np.ndarray,
         labels: np.ndarray | None = None,
         track_ids: list[int] | None = None,
-        output_path: "Path | None" = None,
+        output_path: Path | None = None,
         title: str = "Feature Visualization (t-SNE)",
     ) -> np.ndarray:
         """t-SNEを使用して特徴量を可視化
@@ -153,7 +153,7 @@ class FeatureVisualizer:
         cluster_stats = {
             "n_clusters": n_clusters,
             "n_samples": features.shape[0],
-            "cluster_sizes": [int(np.sum(labels == i)) for i in range(n_clusters)],
+            "cluster_sizes": [int(np.sum(labels == cluster_id)) for cluster_id in range(n_clusters)],
             "inertia": float(kmeans.inertia_),
         }
 

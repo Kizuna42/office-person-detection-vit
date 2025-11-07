@@ -8,10 +8,7 @@ import json
 import logging
 from pathlib import Path
 
-from src.config import ConfigManager
 from src.evaluation.mot_metrics import MOTMetrics
-from src.models.data_models import Detection
-from src.tracking.kalman_filter import KalmanFilter
 from src.tracking.track import Track
 from src.utils.logging_utils import setup_logging
 

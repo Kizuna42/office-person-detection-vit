@@ -205,9 +205,7 @@ class ViTDetector:
             logger.error(f"Feature extraction failed: {e}")
             raise
 
-    def _extract_features_from_outputs(
-        self, outputs, detections: list[Detection]
-    ) -> np.ndarray:
+    def _extract_features_from_outputs(self, outputs, detections: list[Detection]) -> np.ndarray:
         """モデル出力から特徴量を抽出
 
         Args:

@@ -68,8 +68,7 @@ class CoordinateTransformer:
         if self.use_distortion_correction:
             if self.camera_matrix is None or self.dist_coeffs is None:
                 logger.warning(
-                    "歪み補正が有効ですが、カメラ行列または歪み係数が設定されていません。"
-                    "歪み補正を無効化します。"
+                    "歪み補正が有効ですが、カメラ行列または歪み係数が設定されていません。" "歪み補正を無効化します。"
                 )
                 self.use_distortion_correction = False
             else:
@@ -135,9 +134,7 @@ class CoordinateTransformer:
         point = np.array([[x, y]], dtype=np.float32)
 
         # 歪み補正
-        undistorted = cv2.undistortPoints(
-            point, self.camera_matrix, self.dist_coeffs, None, self.camera_matrix
-        )
+        undistorted = cv2.undistortPoints(point, self.camera_matrix, self.dist_coeffs, None, self.camera_matrix)
 
         return (float(undistorted[0, 0, 0]), float(undistorted[0, 0, 1]))
 
@@ -160,9 +157,7 @@ class CoordinateTransformer:
             raise RuntimeError("カメラ行列または歪み係数が設定されていません。")
 
         h, w = image.shape[:2]
-        new_camera_matrix, roi = cv2.getOptimalNewCameraMatrix(
-            self.camera_matrix, self.dist_coeffs, (w, h), 1, (w, h)
-        )
+        new_camera_matrix, roi = cv2.getOptimalNewCameraMatrix(self.camera_matrix, self.dist_coeffs, (w, h), 1, (w, h))
 
         dst = cv2.undistort(image, self.camera_matrix, self.dist_coeffs, None, new_camera_matrix)
         return dst

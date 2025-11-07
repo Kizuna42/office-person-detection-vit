@@ -13,14 +13,17 @@ try:
     import psutil
 except ImportError:
     psutil = None
-    logger.warning("psutilがインストールされていません。メモリ測定ができません。")
-import numpy as np
+
+from tqdm import tqdm
 
 from src.config import ConfigManager
 from src.pipeline.orchestrator import PipelineOrchestrator
 from src.utils.logging_utils import setup_logging
 
 logger = logging.getLogger(__name__)
+
+if psutil is None:
+    logger.warning("psutilがインストールされていません。メモリ測定ができません。")
 
 
 def measure_memory_usage() -> float:
