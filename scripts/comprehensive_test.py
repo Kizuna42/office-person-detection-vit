@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """実装機能の包括的な動作確認テスト（解説付き）"""
 
-import sys
-from pathlib import Path
 import json
+from pathlib import Path
+import sys
 
 # プロジェクトルートをパスに追加
 project_root = Path(__file__).parent.parent
@@ -65,9 +65,10 @@ def test_tracking():
     )
 
     try:
-        from src.tracking import Tracker
-        from src.models.data_models import Detection
         import numpy as np
+
+        from src.models.data_models import Detection
+        from src.tracking import Tracker
 
         ColorPrint.section("テスト1: トラッカーの初期化")
         tracker = Tracker(max_age=30, min_hits=3, iou_threshold=0.3)
@@ -216,8 +217,9 @@ def test_coordinate_transformation():
     )
 
     try:
-        from src.transform.coordinate_transformer import CoordinateTransformer
         import numpy as np
+
+        from src.transform.coordinate_transformer import CoordinateTransformer
 
         ColorPrint.section("テスト1: 基本的な座標変換（歪み補正なし）")
         homography_matrix = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
@@ -301,8 +303,9 @@ def test_reprojection_error():
     )
 
     try:
-        from src.calibration import ReprojectionErrorEvaluator
         import numpy as np
+
+        from src.calibration import ReprojectionErrorEvaluator
 
         ColorPrint.section("テスト1: 評価器の初期化")
         evaluator = ReprojectionErrorEvaluator()
@@ -380,12 +383,13 @@ def test_export():
     )
 
     try:
-        from src.utils.export_utils import TrajectoryExporter
-        from src.tracking.track import Track
+        import cv2
+        import numpy as np
+
         from src.models.data_models import Detection
         from src.tracking.kalman_filter import KalmanFilter
-        import numpy as np
-        import cv2
+        from src.tracking.track import Track
+        from src.utils.export_utils import TrajectoryExporter
 
         ColorPrint.section("テスト1: エクスポーターの初期化")
         output_dir = Path("output/test_export_comprehensive")
@@ -422,10 +426,10 @@ def test_export():
         ColorPrint.success(f"CSVエクスポート成功: {csv_path}")
 
         # CSVファイルの内容を確認
-        with open(csv_path, "r", encoding="utf-8") as f:
+        with open(csv_path, encoding="utf-8") as f:
             lines = f.readlines()
             ColorPrint.info(f"  CSVファイル: {len(lines)}行（ヘッダー含む）")
-            ColorPrint.info(f"  最初の3行:")
+            ColorPrint.info("  最初の3行:")
             for i, line in enumerate(lines[:3]):
                 print(f"    {line.strip()}")
 
@@ -435,7 +439,7 @@ def test_export():
         ColorPrint.success(f"JSONエクスポート成功: {json_path}")
 
         # JSONファイルの内容を確認
-        with open(json_path, "r", encoding="utf-8") as f:
+        with open(json_path, encoding="utf-8") as f:
             data = json.load(f)
             ColorPrint.info(f"  トラック数: {data['metadata']['num_tracks']}")
             ColorPrint.info(f"  総軌跡点数: {data['metadata']['total_points']}")
@@ -499,9 +503,9 @@ def test_mot_metrics():
 
     try:
         from src.evaluation.mot_metrics import MOTMetrics
-        from src.tracking.track import Track
         from src.models.data_models import Detection
         from src.tracking.kalman_filter import KalmanFilter
+        from src.tracking.track import Track
 
         ColorPrint.section("テスト1: MOTメトリクス評価器の初期化")
         mot_metrics = MOTMetrics()
@@ -602,11 +606,12 @@ def test_integration():
     )
 
     try:
+        import numpy as np
+
+        from src.models.data_models import Detection
         from src.tracking import Tracker
         from src.transform.coordinate_transformer import CoordinateTransformer
         from src.utils.export_utils import TrajectoryExporter
-        from src.models.data_models import Detection
-        import numpy as np
 
         ColorPrint.section("テスト1: 追跡 → 座標変換の連携")
         # 追跡
@@ -668,7 +673,7 @@ def main():
         """
     このスクリプトは、実装したすべての機能を自動的にテストします。
     各機能について、解説とテスト結果を表示します。
-    
+
     目視確認が必要な項目:
     - 画像ファイル（軌跡の可視化）
     - 動画ファイル（軌跡のアニメーション）

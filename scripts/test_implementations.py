@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """実装機能の動作確認スクリプト"""
 
-import sys
 from pathlib import Path
+import sys
 
 # プロジェクトルートをパスに追加
 project_root = Path(__file__).parent.parent
@@ -15,9 +15,10 @@ def test_tracking():
     print("追跡機能のテスト")
     print("=" * 60)
 
-    from src.tracking import Tracker
-    from src.models.data_models import Detection
     import numpy as np
+
+    from src.models.data_models import Detection
+    from src.tracking import Tracker
 
     tracker = Tracker(min_hits=1)
     detection = Detection(
@@ -81,8 +82,9 @@ def test_reprojection_error():
     print("再投影誤差評価のテスト")
     print("=" * 60)
 
-    from src.calibration import ReprojectionErrorEvaluator
     import numpy as np
+
+    from src.calibration import ReprojectionErrorEvaluator
 
     evaluator = ReprojectionErrorEvaluator()
     result = evaluator.evaluate_homography(
@@ -90,7 +92,7 @@ def test_reprojection_error():
         dst_points=[(50.0, 50.0), (150.0, 100.0)],
         homography_matrix=np.eye(3),
     )
-    print(f"✓ 再投影誤差評価成功")
+    print("✓ 再投影誤差評価成功")
     print(f"  平均誤差: {result['mean_error']:.2f}px")
     print(f"  最大誤差: {result['max_error']:.2f}px")
     print(f"  標準偏差: {result['std_error']:.2f}px")
@@ -102,11 +104,12 @@ def test_export():
     print("エクスポート機能のテスト")
     print("=" * 60)
 
-    from src.utils.export_utils import TrajectoryExporter
-    from src.tracking.track import Track
+    import numpy as np
+
     from src.models.data_models import Detection
     from src.tracking.kalman_filter import KalmanFilter
-    import numpy as np
+    from src.tracking.track import Track
+    from src.utils.export_utils import TrajectoryExporter
 
     output_dir = Path("output/test_export")
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -142,9 +145,9 @@ def test_mot_metrics():
     print("=" * 60)
 
     from src.evaluation.mot_metrics import MOTMetrics
-    from src.tracking.track import Track
     from src.models.data_models import Detection
     from src.tracking.kalman_filter import KalmanFilter
+    from src.tracking.track import Track
 
     mot_metrics = MOTMetrics()
 
@@ -171,7 +174,7 @@ def test_mot_metrics():
         frame_count=10,
     )
 
-    print(f"✓ MOTメトリクス評価成功")
+    print("✓ MOTメトリクス評価成功")
     print(f"  MOTA: {metrics['MOTA']:.3f}")
     print(f"  IDF1: {metrics['IDF1']:.3f}")
     print(f"  ID Switches: {metrics['ID_Switches']}")

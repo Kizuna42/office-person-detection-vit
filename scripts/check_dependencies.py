@@ -5,7 +5,6 @@
 """
 
 import sys
-from typing import Dict, Tuple
 
 # 必須パッケージ
 REQUIRED_PACKAGES = {
