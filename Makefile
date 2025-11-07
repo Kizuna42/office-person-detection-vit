@@ -367,4 +367,3 @@ precommit-run: ## Pre-commitフックを手動実行（全ファイル）
 		echo "  インストール: pip install pre-commit"; \
 		exit 1; \
 	fi
-

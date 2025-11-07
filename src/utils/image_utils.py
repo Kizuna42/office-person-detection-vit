@@ -2,7 +2,6 @@
 
 import logging
 from pathlib import Path
-from typing import List
 
 import cv2
 import numpy as np
@@ -61,12 +60,17 @@ def save_detection_image(
                 cv2.circle(result_image, (int(foot_x), int(foot_y)), 5, (0, 0, 255), -1)
 
             # ファイル名を生成（タイムスタンプの特殊文字を置換）
-            # / と : と スペースを _ に置換（ファイル名として無効な文字を除去）
+            # ファイル名として無効な文字を全て除去
+            # / と : と スペースを _ に置換し、Pathオブジェクトで安全に処理
             timestamp_clean = timestamp.replace("/", "_").replace(":", "").replace(" ", "_")
+            # 念のため、残っている可能性のある特殊文字も除去
+            timestamp_clean = "".join(c for c in timestamp_clean if c.isalnum() or c in "_-.")
             filename = f"detection_{timestamp_clean}.jpg"
+
+            # Pathオブジェクトで安全に結合（ファイル名に/が含まれていても正しく処理）
             output_path = output_dir / filename
 
-            logger.debug(f"保存先パス: {output_path}, ファイル名: {filename}")
+            logger.debug(f"保存先パス: {output_path}, ファイル名: {filename}, 元のタイムスタンプ: {timestamp}")
 
             # 保存
             success = cv2.imwrite(str(output_path), result_image)
