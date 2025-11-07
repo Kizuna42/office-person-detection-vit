@@ -6,6 +6,10 @@ import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+import numpy as np
+
+from src.calibration.reprojection_error import ReprojectionErrorEvaluator
+from src.evaluation.mot_metrics import MOTMetrics
 from src.models.data_models import Detection, EvaluationMetrics
 
 logger = logging.getLogger(__name__)
@@ -298,6 +302,44 @@ class EvaluationModule:
 
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(report, f, indent=2, ensure_ascii=False)
+
+    def evaluate_tracking(
+        self,
+        ground_truth_tracks: list[dict],
+        predicted_tracks: list,
+        frame_count: int,
+    ) -> dict[str, float]:
+        """追跡精度を評価（MOTメトリクス）
+
+        Args:
+            ground_truth_tracks: Ground Truthトラックのリスト
+            predicted_tracks: 予測トラックのリスト（Trackオブジェクトまたは辞書）
+            frame_count: 総フレーム数
+
+        Returns:
+            MOTメトリクスの辞書
+        """
+        mot_metrics = MOTMetrics()
+        return mot_metrics.calculate_tracking_metrics(ground_truth_tracks, predicted_tracks, frame_count)
+
+    def evaluate_reprojection_error(
+        self,
+        src_points: list[tuple[float, float]],
+        dst_points: list[tuple[float, float]],
+        homography_matrix: np.ndarray,
+    ) -> dict[str, float]:
+        """再投影誤差を評価
+
+        Args:
+            src_points: 変換元の点のリスト（カメラ座標）
+            dst_points: 変換先の点のリスト（フロアマップ座標）
+            homography_matrix: ホモグラフィ変換行列
+
+        Returns:
+            再投影誤差評価結果の辞書
+        """
+        evaluator = ReprojectionErrorEvaluator()
+        return evaluator.evaluate_homography(src_points, dst_points, homography_matrix)
 
 
 def run_evaluation(

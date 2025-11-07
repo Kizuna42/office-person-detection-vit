@@ -182,6 +182,15 @@ def test_extract_frames(
     """フレーム抽出が正しく動作する"""
     mock_pipeline = Mock()
     mock_pipeline.run.return_value = sample_extraction_results
+    # extractor.get_cache_stats()のMock設定
+    mock_extractor = Mock()
+    mock_extractor.get_cache_stats.return_value = {
+        "cache_hits": 0,
+        "cache_misses": 0,
+        "cache_size": 0,
+        "hit_rate": 0.0,
+    }
+    mock_pipeline.extractor = mock_extractor
     mock_pipeline_class.return_value = mock_pipeline
 
     orchestrator = PipelineOrchestrator(sample_config, sample_logger)

@@ -13,6 +13,7 @@ from src.models import Detection, FrameResult
 from src.pipeline.aggregation_phase import AggregationPhase
 from src.pipeline.detection_phase import DetectionPhase
 from src.pipeline.frame_extraction_pipeline import FrameExtractionPipeline
+from src.pipeline.tracking_phase import TrackingPhase
 from src.pipeline.transform_phase import TransformPhase
 from src.pipeline.visualization_phase import VisualizationPhase
 from src.utils import OutputManager, PerformanceMonitor, cleanup_resources, setup_output_directories
@@ -208,6 +209,42 @@ class PipelineOrchestrator:
             detection_phase.log_statistics(detection_results, output_dir)
 
             return detection_results, detection_phase
+
+    def run_tracking(
+        self,
+        detection_results: list[tuple[int, str, list[Detection]]],
+        sample_frames: list[tuple[int, str, np.ndarray]],
+    ) -> tuple[list[tuple[int, str, list[Detection]]], TrackingPhase]:
+        """追跡処理を実行
+
+        Args:
+            detection_results: 検出結果のリスト
+            sample_frames: サンプルフレームのリスト [(frame_num, timestamp, frame), ...]
+
+        Returns:
+            (track_idが割り当てられた検出結果のリスト, TrackingPhaseインスタンス)
+        """
+        # 追跡が無効な場合は検出結果をそのまま返す
+        if not self.config.get("tracking.enabled", False):
+            self.logger.info("追跡機能が無効です（tracking.enabled=false）")
+            tracking_phase = TrackingPhase(self.config, self.logger)
+            tracking_phase.initialize()  # 初期化のみ（実行はスキップ）
+            return detection_results, tracking_phase
+
+        with self.performance_monitor.measure("phase2.5_tracking"):
+            tracking_phase = TrackingPhase(self.config, self.logger)
+            tracking_phase.initialize()
+
+            output_dir = self.get_phase_output_dir("phase2.5_tracking")
+            output_dir.mkdir(parents=True, exist_ok=True)
+
+            # 追跡実行（sample_framesをそのまま渡す）
+            tracked_results = tracking_phase.execute(detection_results, sample_frames)
+
+            # 結果をエクスポート
+            tracking_phase.export_results(output_dir)
+
+            return tracked_results, tracking_phase
 
     def run_transform(
         self, detection_results: list[tuple[int, str, list[Detection]]]

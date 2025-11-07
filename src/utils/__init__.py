@@ -1,5 +1,6 @@
 """Utility modules for the office person detection system."""
 
+from src.utils.export_utils import TrajectoryExporter
 from src.utils.image_utils import save_detection_image
 from src.utils.logging_utils import setup_logging
 from src.utils.memory_utils import cleanup_resources
@@ -23,4 +24,5 @@ __all__ = [
     "save_detection_image",
     "setup_mps_compatibility",
     "PerformanceMonitor",
+    "TrajectoryExporter",
 ]

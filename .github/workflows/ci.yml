@@ -25,8 +25,8 @@ jobs:
           pip install ruff
 
       - name: Run ruff format check
-        run: ruff format --check . || echo "Format check failed - some files need formatting"
-        continue-on-error: true # フォーマットエラーは警告として扱う
+        run: ruff format --check .
+        continue-on-error: false  # フォーマットエラーは失敗として扱う
 
   # Lintチェック
   lint:
@@ -46,8 +46,8 @@ jobs:
           pip install ruff
 
       - name: Run ruff lint
-        run: ruff check . || echo "Lint check found issues"
-        continue-on-error: true # Lintエラーは警告として扱う（段階的導入）
+        run: ruff check .
+        continue-on-error: false  # Lintエラーは失敗として扱う
 
   # 型チェック
   type-check:
@@ -67,8 +67,8 @@ jobs:
           pip install mypy
 
       - name: Run mypy
-        run: mypy src/ --ignore-missing-imports || true
-        continue-on-error: true # 型チェックは警告のみ（段階的導入）
+        run: mypy src/ --ignore-missing-imports
+        continue-on-error: false  # 型チェックエラーは失敗として扱う（既存コードのエラーは別途対応）
 
   # テスト実行
   test:
@@ -107,8 +107,8 @@ jobs:
           pip install pytest pytest-cov
 
       - name: Run tests
-        run: pytest tests/ -v --cov=src --cov-report=xml --cov-report=term-missing --cov-fail-under=0 || true
-        continue-on-error: false # テスト自体は失敗させないが、カバレッジは警告のみ
+        run: pytest tests/ -v --cov=src --cov-report=xml --cov-report=term-missing --cov-fail-under=80
+        continue-on-error: false  # テスト失敗またはカバレッジ不足は失敗として扱う
 
       - name: Upload coverage reports
         uses: codecov/codecov-action@v4
@@ -145,5 +145,5 @@ jobs:
           pip install pre-commit
 
       - name: Run pre-commit
-        run: pre-commit run --all-files || echo "Pre-commit checks found issues"
-        continue-on-error: true # Pre-commitエラーは警告として扱う（段階的導入）
+        run: pre-commit run --all-files
+        continue-on-error: false  # Pre-commitエラーは失敗として扱う

@@ -1,6 +1,7 @@
 """Data models for the office person detection system."""
 
 from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -19,21 +20,21 @@ class Detection:
         floor_coords_mm: フロアマップ座標系での変換後座標 (x, y) mm単位
         zone_ids: 所属するゾーンIDのリスト
         track_id: 追跡ID（オプション）
-        features: 外観特徴量（オプション、L2正規化済み）
+        features: 外観特徴量（オプション、256次元）
         appearance_score: 外観マッチングスコア（オプション）
     """
 
-    bbox: tuple[float, float, float, float]
+    bbox: Tuple[float, float, float, float]
     confidence: float
     class_id: int
     class_name: str
-    camera_coords: tuple[float, float]
-    floor_coords: tuple[float, float] | None = None
-    floor_coords_mm: tuple[float, float] | None = None
-    zone_ids: list[str] = field(default_factory=list)
-    track_id: int | None = None
-    features: np.ndarray | None = None
-    appearance_score: float | None = None
+    camera_coords: Tuple[float, float]
+    floor_coords: Optional[Tuple[float, float]] = None
+    floor_coords_mm: Optional[Tuple[float, float]] = None
+    zone_ids: List[str] = field(default_factory=list)
+    track_id: Optional[int] = None
+    features: Optional[np.ndarray] = None
+    appearance_score: Optional[float] = None
 
 
 @dataclass
@@ -49,8 +50,8 @@ class FrameResult:
 
     frame_number: int
     timestamp: str
-    detections: list[Detection]
-    zone_counts: dict[str, int]
+    detections: List[Detection]
+    zone_counts: Dict[str, int]
 
 
 @dataclass

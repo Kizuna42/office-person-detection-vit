@@ -103,16 +103,20 @@ class MultiEngineOCR:
         """PaddleOCR: 中国語カメラでも対応"""
         from paddleocr import PaddleOCR
 
-        # 新しいバージョンではuse_gpuの代わりにdeviceを使用
+        # 新しいバージョンではuse_textline_orientationを使用（use_angle_clsは非推奨）
         try:
-            ocr = PaddleOCR(use_angle_cls=True, lang="japan", device="cpu")
+            ocr = PaddleOCR(use_textline_orientation=True, lang="japan", device="cpu")
         except (ValueError, TypeError):
-            # 古いバージョンとの互換性
+            # 古いバージョンとの互換性（use_angle_clsを使用）
             try:
-                ocr = PaddleOCR(use_angle_cls=True, lang="japan", use_gpu=False)
-            except Exception:
-                # パラメータなしで初期化を試みる
-                ocr = PaddleOCR(lang="japan")
+                ocr = PaddleOCR(use_angle_cls=True, lang="japan", device="cpu")
+            except (ValueError, TypeError):
+                # さらに古いバージョンとの互換性
+                try:
+                    ocr = PaddleOCR(use_angle_cls=True, lang="japan", use_gpu=False)
+                except Exception:
+                    # パラメータなしで初期化を試みる
+                    ocr = PaddleOCR(lang="japan")
 
         def paddleocr_func(img: np.ndarray) -> str:
             result = ocr.ocr(img, cls=True)

@@ -1,92 +1,24 @@
-"""Object tracking module using DeepSORT-like algorithm.
+"""DeepSORT-based tracker implementation."""
 
-This module provides tracking functionality to assign consistent IDs
-to detected objects across frames.
-"""
+from __future__ import annotations
 
-from dataclasses import dataclass, field
-from enum import Enum
 import logging
 
 import numpy as np
 
 from src.models.data_models import Detection
+from src.tracking.hungarian import HungarianAlgorithm
+from src.tracking.kalman_filter import KalmanFilter
 from src.tracking.similarity import SimilarityCalculator
+from src.tracking.track import Track
 
 logger = logging.getLogger(__name__)
 
 
-class TrackState(Enum):
-    """Track状態の列挙型"""
-
-    TENTATIVE = "tentative"  # 仮確定（検証中）
-    CONFIRMED = "confirmed"  # 確定
-    DELETED = "deleted"  # 削除済み
-
-
-@dataclass
-class Track:
-    """追跡対象を表すクラス
-
-    Attributes:
-        track_id: 追跡ID
-        bbox: 最新のバウンディングボックス (x, y, width, height)
-        floor_coords: 最新のフロアマップ座標 (x, y)
-        features: 最新の外観特徴量
-        state: Track状態
-        hits: マッチング成功回数
-        time_since_update: 最後の更新からのフレーム数
-        age: Trackの存在期間（フレーム数）
-    """
-
-    track_id: int
-    bbox: tuple[float, float, float, float]
-    floor_coords: tuple[float, float] | None
-    features: np.ndarray | None
-    state: TrackState = TrackState.TENTATIVE
-    hits: int = 1
-    time_since_update: int = 0
-    age: int = 1
-
-    # 軌跡情報（可視化用）
-    trajectory: list[tuple[float, float]] = field(default_factory=list)
-
-    def __post_init__(self):
-        """初期化後の処理"""
-        if self.floor_coords is not None:
-            self.trajectory.append(self.floor_coords)
-
-    def update(self, detection: Detection) -> None:
-        """Trackを更新
-
-        Args:
-            detection: マッチした検出結果
-        """
-        self.bbox = detection.bbox
-        self.floor_coords = detection.floor_coords
-        self.features = detection.features
-        self.hits += 1
-        self.time_since_update = 0
-        self.age += 1
-
-        # 軌跡に追加
-        if self.floor_coords is not None:
-            self.trajectory.append(self.floor_coords)
-
-    def mark_missed(self) -> None:
-        """マッチしなかったことを記録"""
-        self.time_since_update += 1
-
-    def predict(self) -> None:
-        """次の位置を予測（簡略版：現在位置を維持）"""
-        # 簡略化：Kalman Filterの代わりに現在位置を維持
-        # 実際の実装では、速度を考慮した予測を行う
-
-
 class Tracker:
-    """DeepSORTベースのオブジェクト追跡クラス
+    """DeepSORTベースのトラッカー
 
-    フレーム間で検出結果に一貫したIDを割り当てます。
+    検出結果に対して一貫したIDを割り当て、フレーム間で追跡します。
     """
 
     def __init__(
@@ -100,31 +32,32 @@ class Tracker:
         """Trackerを初期化
 
         Args:
-            max_age: Trackが削除されるまでの最大フレーム数（更新されない場合）
-            min_hits: Trackが確定状態になるのに必要な最小マッチング回数
-            iou_threshold: IoU距離の閾値
+            max_age: IDが消失してから削除するまでの最大フレーム数
+            min_hits: 追跡確立に必要な最小検出回数
+            iou_threshold: IoU閾値（マッチング用）
             appearance_weight: 外観特徴量の重み（0.0-1.0）
             motion_weight: 位置情報の重み（0.0-1.0）
         """
         self.max_age = max_age
         self.min_hits = min_hits
-        self.next_id = 1
-        self.tracks: list[Track] = []
+        self.iou_threshold = iou_threshold
 
+        # 類似度計算器
         self.similarity_calculator = SimilarityCalculator(
-            appearance_weight=appearance_weight,
-            motion_weight=motion_weight,
-            iou_threshold=iou_threshold,
+            appearance_weight=appearance_weight, motion_weight=motion_weight
         )
 
-        logger.info(
-            f"Tracker initialized: max_age={max_age}, min_hits={min_hits}, "
-            f"iou_threshold={iou_threshold}, appearance_weight={appearance_weight}, "
-            f"motion_weight={motion_weight}"
-        )
+        # ハンガリアンアルゴリズム
+        self.hungarian = HungarianAlgorithm()
+
+        # トラック管理
+        self.tracks: list[Track] = []
+        self.next_id = 1  # 次のトラックID
+
+        logger.info(f"Tracker initialized: max_age={max_age}, min_hits={min_hits}, " f"iou_threshold={iou_threshold}")
 
     def update(self, detections: list[Detection]) -> list[Detection]:
-        """検出結果を更新して追跡IDを割り当て
+        """検出結果でトラッカーを更新
 
         Args:
             detections: 現在フレームの検出結果
@@ -132,203 +65,191 @@ class Tracker:
         Returns:
             track_idが割り当てられた検出結果のリスト
         """
-        # 既存のTrackを予測
+        # 既存トラックの予測
         for track in self.tracks:
             track.predict()
 
         # マッチング
-        matches, unmatched_dets, unmatched_tracks = self._associate_detections_to_tracks(detections)
+        matched, unmatched_dets, unmatched_tracks = self._associate_detections_to_tracks(detections)
 
-        # マッチしたTrackを更新
-        for det_idx, track_idx in matches:
-            track = self.tracks[track_idx]
-            track.update(detections[det_idx])
-            detections[det_idx].track_id = track.track_id
+        # マッチしたトラックを更新
+        for track_idx, det_idx in matched:
+            self.tracks[track_idx].update(detections[det_idx])
+            detections[det_idx].track_id = self.tracks[track_idx].track_id
 
-            # 確定状態に移行
-            if track.state == TrackState.TENTATIVE and track.hits >= self.min_hits:
-                track.state = TrackState.CONFIRMED
-
-        # マッチしなかったTrackをマーク
-        for track_idx in unmatched_tracks:
-            track = self.tracks[track_idx]
-            track.mark_missed()
-
-            # 削除条件をチェック
-            if track.time_since_update > self.max_age:
-                track.state = TrackState.DELETED
-
-        # マッチしなかった検出結果で新しいTrackを作成
+        # 未マッチの検出結果で新しいトラックを作成
         for det_idx in unmatched_dets:
             track = self._create_track(detections[det_idx])
+            # 検出結果にtrack_idを割り当て
             detections[det_idx].track_id = track.track_id
 
-        # 削除されたTrackを除去
-        self.tracks = [track for track in self.tracks if track.state != TrackState.DELETED]
+        # 未マッチのトラックを削除（max_ageを超えた場合）
+        self.tracks = [track for track in self.tracks if track.time_since_update < self.max_age]
+
+        # track_idが割り当てられた検出結果のみを返す
+        tracked_detections = [det for det in detections if det.track_id is not None]
 
         logger.debug(
-            f"Tracking update: {len(matches)} matches, "
-            f"{len(unmatched_dets)} new tracks, "
-            f"{len(unmatched_tracks)} unmatched tracks, "
-            f"{len(detections)} total detections"
+            f"Tracker update: {len(matched)} matched, {len(unmatched_dets)} new tracks, "
+            f"{len(unmatched_tracks)} unmatched tracks, {len(self.tracks)} total tracks"
         )
 
-        return detections
+        return tracked_detections
 
     def _associate_detections_to_tracks(
         self, detections: list[Detection]
     ) -> tuple[list[tuple[int, int]], list[int], list[int]]:
-        """検出結果とTrackをマッチング
+        """検出結果とトラックを関連付け
 
         Args:
             detections: 検出結果のリスト
 
         Returns:
-            (マッチしたペアのリスト, マッチしなかった検出結果のインデックス, マッチしなかったTrackのインデックス)
+            (マッチしたペアのリスト, 未マッチの検出インデックス, 未マッチのトラックインデックス)
         """
         if len(self.tracks) == 0:
-            return ([], list(range(len(detections))), [])
+            return [], list(range(len(detections))), []
 
         if len(detections) == 0:
-            return ([], [], list(range(len(self.tracks))))
+            return [], [], list(range(len(self.tracks)))
 
-        # 確定状態のTrackのみをマッチング対象とする
-        confirmed_tracks = [i for i, track in enumerate(self.tracks) if track.state == TrackState.CONFIRMED]
-        tentative_tracks = [i for i, track in enumerate(self.tracks) if track.state == TrackState.TENTATIVE]
+        # 確立されたトラックと仮のトラックを分離
+        confirmed_tracks = [i for i, track in enumerate(self.tracks) if track.is_confirmed(self.min_hits)]
+        tentative_tracks = [i for i, track in enumerate(self.tracks) if not track.is_confirmed(self.min_hits)]
 
-        matches = []
-        unmatched_dets = list(range(len(detections)))
-        unmatched_tracks = []
+        # 確立されたトラックと検出結果をマッチング
+        matches_a, unmatched_dets_a, unmatched_tracks_a = self._match(confirmed_tracks, detections, self.iou_threshold)
 
-        # 確定Trackとのマッチング
-        if confirmed_tracks:
-            confirmed_matches, unmatched_dets, unmatched_confirmed = self._match_tracks(
-                detections, confirmed_tracks, unmatched_dets
-            )
-            matches.extend(confirmed_matches)
-            unmatched_tracks.extend(unmatched_confirmed)
+        # 仮のトラックと未マッチの検出結果をマッチング（より厳しい閾値）
+        iou_threshold_tentative = 0.5  # 仮のトラックにはより厳しい閾値
+        matches_b, unmatched_dets_b, unmatched_tracks_b = self._match(
+            tentative_tracks, [detections[i] for i in unmatched_dets_a], iou_threshold_tentative
+        )
 
-        # 仮確定Trackとのマッチング（確定Trackとマッチしなかった検出結果のみ）
-        if tentative_tracks and unmatched_dets:
-            tentative_matches, unmatched_dets, unmatched_tentative = self._match_tracks(
-                detections, tentative_tracks, unmatched_dets
-            )
-            matches.extend(tentative_matches)
-            unmatched_tracks.extend(unmatched_tentative)
+        # インデックスを調整
+        matches_b = [(tentative_tracks[m[0]], unmatched_dets_a[m[1]]) for m in matches_b]
 
-        return (matches, unmatched_dets, unmatched_tracks)
+        # 結果を統合
+        matches = matches_a + matches_b
+        unmatched_dets = [unmatched_dets_a[i] for i in unmatched_dets_b]
+        unmatched_tracks = [confirmed_tracks[i] for i in unmatched_tracks_a] + [
+            tentative_tracks[i] for i in unmatched_tracks_b
+        ]
 
-    def _match_tracks(
-        self, detections: list[Detection], track_indices: list[int], det_indices: list[int]
+        return matches, unmatched_dets, unmatched_tracks
+
+    def _match(
+        self, track_indices: list[int], detections: list[Detection], iou_threshold: float
     ) -> tuple[list[tuple[int, int]], list[int], list[int]]:
-        """Trackと検出結果をマッチング（Hungarian Algorithmの簡略版）
+        """トラックと検出結果をマッチング
 
         Args:
+            track_indices: トラックのインデックスリスト
             detections: 検出結果のリスト
-            track_indices: マッチング対象のTrackインデックス
-            det_indices: マッチング対象の検出結果インデックス
+            iou_threshold: IoU閾値
 
         Returns:
-            (マッチしたペアのリスト, マッチしなかった検出結果のインデックス, マッチしなかったTrackのインデックス)
+            (マッチしたペアのリスト, 未マッチの検出インデックス, 未マッチのトラックインデックス)
         """
-        if not track_indices or not det_indices:
-            return ([], det_indices, track_indices)
+        if len(track_indices) == 0 or len(detections) == 0:
+            return [], list(range(len(detections))), list(range(len(track_indices)))
 
-        # 類似度行列を計算
-        similarity_matrix = np.zeros((len(det_indices), len(track_indices)), dtype=np.float32)
+        # コスト行列を計算
+        cost_matrix = self._compute_cost_matrix(track_indices, detections)
 
-        for i, det_idx in enumerate(det_indices):
-            detection = detections[det_idx]
-            for j, track_idx in enumerate(track_indices):
-                track = self.tracks[track_idx]
+        # ハンガリアンアルゴリズムで最適割り当て
+        assignment, _ = self.hungarian.solve(cost_matrix)
 
-                # Trackの最新情報でDetectionオブジェクトを作成
-                track_detection = Detection(
-                    bbox=track.bbox,
-                    confidence=0.0,  # 使用しない
-                    class_id=detection.class_id,
-                    class_name=detection.class_name,
-                    camera_coords=detection.camera_coords,  # 使用しない
-                    floor_coords=track.floor_coords,
-                    features=track.features,
-                )
-
-                # 類似度を計算
-                combined_dist, _, _ = self.similarity_calculator.compute_similarity(detection, track_detection)
-                similarity_matrix[i, j] = combined_dist
-
-        # 簡略版Hungarian Algorithm（貪欲法）
-        # 実際の実装では、scipy.optimize.linear_sum_assignmentを使用
+        # マッチング結果を処理
         matches = []
-        unmatched_dets = list(det_indices)
-        unmatched_tracks = list(track_indices)
+        unmatched_dets = []
+        unmatched_tracks = []
 
-        # 距離が小さい順にソート
-        match_candidates = []
-        for i, det_idx in enumerate(det_indices):
-            for j, track_idx in enumerate(track_indices):
-                distance = similarity_matrix[i, j]
-                match_candidates.append((distance, det_idx, track_idx))
+        for track_idx_in_list, det_idx in enumerate(assignment):
+            track_idx = track_indices[track_idx_in_list]
 
-        match_candidates.sort(key=lambda x: x[0])
+            if det_idx >= 0 and cost_matrix[track_idx_in_list, det_idx] < (1.0 - iou_threshold):
+                # マッチ成功
+                matches.append((track_idx, det_idx))
+            else:
+                # 未マッチ
+                unmatched_tracks.append(track_idx)
 
-        # 貪欲にマッチング
-        used_dets = set()
-        used_tracks = set()
+        # 未マッチの検出結果を特定
+        matched_det_indices = {det_idx for _, det_idx in matches}
+        unmatched_dets = [i for i in range(len(detections)) if i not in matched_det_indices]
 
-        for distance, det_idx, track_idx in match_candidates:
-            if det_idx in used_dets or track_idx in used_tracks:
-                continue
+        return matches, unmatched_dets, unmatched_tracks
 
-            # 距離が閾値以下の場合のみマッチ
-            if distance < 0.5:  # 閾値（調整可能）
-                matches.append((det_idx, track_idx))
-                used_dets.add(det_idx)
-                used_tracks.add(track_idx)
-                unmatched_dets.remove(det_idx)
-                unmatched_tracks.remove(track_idx)
+    def _compute_cost_matrix(self, track_indices: list[int], detections: list[Detection]) -> np.ndarray:
+        """コスト行列を計算
 
-        return (matches, unmatched_dets, unmatched_tracks)
+        Args:
+            track_indices: トラックのインデックスリスト
+            detections: 検出結果のリスト
+
+        Returns:
+            コスト行列 (len(track_indices), len(detections))
+            コストは距離（0が最も類似、1が最も異なる）
+        """
+        n_tracks = len(track_indices)
+        n_dets = len(detections)
+
+        cost_matrix = np.ones((n_tracks, n_dets), dtype=np.float32)
+
+        for i, track_idx in enumerate(track_indices):
+            track = self.tracks[track_idx]
+            track_detection = track.detection
+
+            for j, detection in enumerate(detections):
+                # 統合距離を計算
+                distance = self.similarity_calculator.compute_distance(
+                    track_detection, detection, use_appearance=True, use_motion=True
+                )
+                cost_matrix[i, j] = distance
+
+        return cost_matrix
 
     def _create_track(self, detection: Detection) -> Track:
-        """新しいTrackを作成
+        """新しいトラックを作成
 
         Args:
             detection: 検出結果
 
         Returns:
-            作成されたTrack
+            作成されたTrackオブジェクト
         """
+        kalman_filter = KalmanFilter()
         track = Track(
             track_id=self.next_id,
-            bbox=detection.bbox,
-            floor_coords=detection.floor_coords,
-            features=detection.features,
-            state=TrackState.TENTATIVE,
+            detection=detection,
+            kalman_filter=kalman_filter,
         )
         self.tracks.append(track)
         self.next_id += 1
 
-        logger.debug(f"Created new track: ID={track.track_id}")
+        logger.debug(f"Created new track {track.track_id}")
+
         return track
 
     def get_tracks(self) -> list[Track]:
-        """現在のTrackリストを取得
+        """全てのトラックを取得
 
         Returns:
-            Trackのリスト
+            トラックのリスト
         """
-        return [track for track in self.tracks if track.state != TrackState.DELETED]
+        return self.tracks.copy()
 
-    def get_trajectories(self) -> dict[int, list[tuple[float, float]]]:
-        """全Trackの軌跡を取得
+    def get_confirmed_tracks(self) -> list[Track]:
+        """確立されたトラックのみを取得
 
         Returns:
-            {track_id: 軌跡座標のリスト}の辞書
+            確立されたトラックのリスト
         """
-        trajectories = {}
-        for track in self.tracks:
-            if track.state != TrackState.DELETED and track.trajectory:
-                trajectories[track.track_id] = track.trajectory
-        return trajectories
+        return [track for track in self.tracks if track.is_confirmed(self.min_hits)]
 
+    def reset(self) -> None:
+        """トラッカーをリセット"""
+        self.tracks = []
+        self.next_id = 1
+        logger.info("Tracker reset")

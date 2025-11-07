@@ -244,15 +244,27 @@ class FloormapVisualizer:
             else:
                 color = self.zone_colors["unclassified"]
 
+            # track_idがある場合は色を変更（IDごとに異なる色）
+            if detection.track_id is not None:
+                # track_idに基づいて色を生成（HSV色空間を使用）
+                hue = (detection.track_id * 137) % 180  # 黄金角を使用して色を分散
+                color_hsv = np.uint8([[[hue, 255, 255]]])
+                color_bgr = cv2.cvtColor(color_hsv, cv2.COLOR_HSV2BGR)[0][0]
+                color = tuple(int(c) for c in color_bgr)
+
             # 円を描画（足元位置）
             cv2.circle(image, (x, y), 8, color, -1)
             cv2.circle(image, (x, y), 10, (255, 255, 255), 2)
 
             # ラベルを描画
             if draw_labels:
-                label = f"{detection.confidence:.2f}"
+                label_parts = []
+                if detection.track_id is not None:
+                    label_parts.append(f"ID:{detection.track_id}")
+                label_parts.append(f"{detection.confidence:.2f}")
                 if detection.zone_ids:
-                    label += f" ({','.join(detection.zone_ids)})"
+                    label_parts.append(f"({','.join(detection.zone_ids)})")
+                label = " ".join(label_parts)
 
                 cv2.putText(
                     image,
@@ -272,6 +284,86 @@ class FloormapVisualizer:
                     color,
                     1,
                 )
+
+        return image
+
+    def draw_trajectories(
+        self,
+        image: np.ndarray,
+        tracks: list,
+        max_length: Optional[int] = None,
+        alpha: float = 0.6,
+    ) -> np.ndarray:
+        """軌跡線を描画する
+
+        Args:
+            image: 描画対象の画像
+            tracks: トラックのリスト（Trackオブジェクトまたは軌跡データ）
+            max_length: 描画する最大軌跡長（Noneの場合は全て）
+            alpha: 透明度（0.0-1.0）
+
+        Returns:
+            軌跡線を描画した画像
+        """
+        for track in tracks:
+            # Trackオブジェクトまたは辞書形式の軌跡データを処理
+            if hasattr(track, "trajectory"):
+                trajectory = track.trajectory
+                track_id = track.track_id
+            elif isinstance(track, dict) and "trajectory" in track:
+                trajectory = track["trajectory"]
+                track_id = track.get("track_id", None)
+            else:
+                continue
+
+            if len(trajectory) < 2:
+                continue
+
+            # 軌跡の長さを制限
+            if max_length is not None:
+                trajectory = trajectory[-max_length:]
+
+            # track_idに基づいて色を生成
+            if track_id is not None:
+                hue = (track_id * 137) % 180
+                color_hsv = np.uint8([[[hue, 255, 255]]])
+                color_bgr = cv2.cvtColor(color_hsv, cv2.COLOR_HSV2BGR)[0][0]
+                color = tuple(int(c) for c in color_bgr)
+            else:
+                color = (0, 255, 0)  # デフォルトは緑
+
+            # 軌跡を描画（時系列でグラデーション）
+            for i in range(len(trajectory) - 1):
+                pt1 = trajectory[i]
+                pt2 = trajectory[i + 1]
+
+                # 座標変換（camera_coords → floor_coords）が必要な場合は変換
+                # ここでは既にfloor_coordsが含まれていると仮定
+                if isinstance(pt1, tuple) and len(pt1) == 2:
+                    x1, y1 = int(pt1[0]), int(pt1[1])
+                    x2, y2 = int(pt2[0]), int(pt2[1])
+                else:
+                    continue
+
+                # 画像範囲内かチェック
+                if not (
+                    0 <= x1 < image.shape[1]
+                    and 0 <= y1 < image.shape[0]
+                    and 0 <= x2 < image.shape[1]
+                    and 0 <= y2 < image.shape[0]
+                ):
+                    continue
+
+                # 透明度を計算（古い軌跡ほど薄く）
+                if max_length is not None:
+                    line_alpha = alpha * (i / len(trajectory))
+                else:
+                    line_alpha = alpha
+
+                # 線を描画
+                overlay = image.copy()
+                cv2.line(overlay, (x1, y1), (x2, y2), color, 2)
+                cv2.addWeighted(overlay, line_alpha, image, 1 - line_alpha, 0, image)
 
         return image
 
