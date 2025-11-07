@@ -40,16 +40,17 @@ repos:
         exclude: ^(tests/|tools/|scripts/)
 
   # Pytest（テスト実行）- pre-pushでのみ実行（時間がかかるため）
-  - repo: local
-    hooks:
-      - id: pytest
-        name: pytest
-        entry: bash -c 'cd "$(git rev-parse --show-toplevel)" && python -m pytest tests/ -v --tb=short'
-        language: system
-        pass_filenames: false
-        always_run: false
-        stages: [pre-push]  # pre-pushでのみ実行（時間がかかるため）
-        verbose: true
+  # 注意: CI/CDではGitHub Actionsで実行されるため、ローカルでは一時的に無効化
+  # - repo: local
+  #   hooks:
+  #     - id: pytest
+  #       name: pytest
+  #       entry: bash -c 'cd "$(git rev-parse --show-toplevel)" && python -m pytest tests/ -v --tb=short'
+  #       language: system
+  #       pass_filenames: false
+  #       always_run: false
+  #       stages: [pre-push]  # pre-pushでのみ実行（時間がかかるため）
+  #       verbose: true
 
 # デフォルト設定
 default_language_version:
