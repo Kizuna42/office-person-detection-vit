@@ -7,7 +7,6 @@ import tempfile
 
 import cv2
 import numpy as np
-import pytest
 
 from src.models.data_models import Detection
 from src.tracking.kalman_filter import KalmanFilter

@@ -192,7 +192,7 @@ class FeatureVisualizer:
 
         # 同一トラックIDが同じクラスタに属する割合を計算
         track_to_cluster = {}
-        for i, (track_id, cluster_id) in enumerate(zip(track_ids, labels, strict=False)):
+        for track_id, cluster_id in zip(track_ids, labels, strict=False):
             if track_id not in track_to_cluster:
                 track_to_cluster[track_id] = cluster_id
             elif track_to_cluster[track_id] != cluster_id:
@@ -207,7 +207,7 @@ class FeatureVisualizer:
             if len(track_indices) < 2:
                 continue
 
-            cluster_ids = [labels[i] for i in track_indices]
+            cluster_ids = [labels[idx] for idx in track_indices]
             if len(set(cluster_ids)) == 1:  # 全て同じクラスタ
                 same_cluster_count += len(track_indices) * (len(track_indices) - 1) // 2
 
