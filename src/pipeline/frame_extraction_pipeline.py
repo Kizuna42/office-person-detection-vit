@@ -4,7 +4,6 @@ import csv
 from datetime import datetime, timedelta
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional
 
 import cv2
 from tqdm import tqdm
@@ -27,8 +26,8 @@ class FrameExtractionPipeline:
         self,
         video_path: str,
         output_dir: str,
-        start_datetime: Optional[datetime] = None,
-        end_datetime: Optional[datetime] = None,
+        start_datetime: datetime | None = None,
+        end_datetime: datetime | None = None,
         interval_minutes: int = 5,
         tolerance_seconds: float = 10.0,
         confidence_threshold: float = 0.7,
@@ -36,8 +35,8 @@ class FrameExtractionPipeline:
         fine_search_window_seconds: float = 60.0,
         fine_interval_seconds: float = 0.1,
         fps: float = 30.0,
-        roi_config: dict[str, float] = None,
-        enabled_ocr_engines: list[str] = None,
+        roi_config: dict[str, float] | None = None,
+        enabled_ocr_engines: list[str] | None = None,
         use_improved_validator: bool = False,
         base_tolerance_seconds: float = 10.0,
         history_size: int = 10,
@@ -158,7 +157,7 @@ class FrameExtractionPipeline:
         finally:
             self.cleanup()
 
-    def _extract_frame_for_target(self, target_ts: datetime) -> Optional[dict[str, any]]:
+    def _extract_frame_for_target(self, target_ts: datetime) -> dict[str, any] | None:
         """目標タイムスタンプに最も近いフレームを抽出
 
         Args:
@@ -178,7 +177,7 @@ class FrameExtractionPipeline:
 
         return best_frame
 
-    def _find_approximate_frame(self, target_ts: datetime) -> Optional[int]:
+    def _find_approximate_frame(self, target_ts: datetime) -> int | None:
         """粗サンプリングで目標時刻の近傍フレームを特定
 
         Args:
@@ -209,7 +208,7 @@ class FrameExtractionPipeline:
 
         return approx_frame_idx
 
-    def _find_best_frame_around(self, target_ts: datetime, approx_frame_idx: int) -> Optional[dict[str, any]]:
+    def _find_best_frame_around(self, target_ts: datetime, approx_frame_idx: int) -> dict[str, any] | None:
         """精密サンプリングで±10秒以内のベストフレームを探す
 
         Args:
@@ -309,7 +308,7 @@ class FrameExtractionPipeline:
 
     def run_with_auto_targets(
         self,
-        max_frames: Optional[int] = None,
+        max_frames: int | None = None,
         disable_validation: bool = False,
     ) -> list[dict[str, any]]:
         """5分刻みフレーム抽出（自動目標タイムスタンプ生成）
@@ -330,7 +329,7 @@ class FrameExtractionPipeline:
         if disable_validation:
 
             class NoOpValidator:
-                def validate(self, timestamp, frame_idx):
+                def validate(self, _timestamp, _frame_idx):
                     return True, 1.0, "Validation disabled"
 
                 def reset(self):

@@ -1,9 +1,7 @@
 """Integration tests for tracking pipeline."""
 
-import pytest
 import numpy as np
 
-from src.detection.vit_detector import ViTDetector
 from src.models.data_models import Detection
 from src.tracking.tracker import Tracker
 from src.transform.coordinate_transformer import CoordinateTransformer

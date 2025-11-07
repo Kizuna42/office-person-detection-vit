@@ -9,17 +9,16 @@ import json
 import logging
 from pathlib import Path
 import sys
-from typing import Dict
 
 # プロジェクトルートをパスに追加（直接実行可能にする）
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from tqdm import tqdm  # noqa: E402
+from tqdm import tqdm
 
-from src.config import ConfigManager  # noqa: E402
-from src.pipeline import FrameExtractionPipeline  # noqa: E402
-from src.utils import setup_logging  # noqa: E402
+from src.config import ConfigManager
+from src.pipeline import FrameExtractionPipeline
+from src.utils import setup_logging
 
 logger = logging.getLogger(__name__)
 
@@ -255,10 +254,7 @@ def main():
     # ベンチマーク実行
     config = ConfigManager(args.config)
 
-    if args.video:
-        video_path = args.video
-    else:
-        video_path = config.get("video.input_path")
+    video_path = args.video if args.video else config.get("video.input_path")
 
     if not Path(video_path).exists():
         logger.error(f"動画ファイルが見つかりません: {video_path}")

@@ -1,11 +1,11 @@
 """Output file management with session-based organization."""
 
+from contextlib import suppress
 from datetime import datetime, timedelta
 import json
 import logging
 from pathlib import Path
 import shutil
-from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +62,7 @@ class OutputManager:
         logger.info(f"セッションディレクトリを作成しました: {session_dir}")
         return session_dir
 
-    def save_metadata(self, session_dir: Path, config: dict, args: Optional[dict] = None) -> None:
+    def save_metadata(self, session_dir: Path, config: dict, args: dict | None = None) -> None:
         """セッションメタデータを保存
 
         Args:
@@ -126,7 +126,7 @@ class OutputManager:
             # Windowsなど、シンボリックリンクが使えない環境ではスキップ
             logger.warning(f"シンボリックリンクの作成に失敗しました: {e}")
 
-    def get_latest_session(self) -> Optional[Path]:
+    def get_latest_session(self) -> Path | None:
         """最新のセッションを取得
 
         Returns:
@@ -143,9 +143,9 @@ class OutputManager:
 
     def find_sessions(
         self,
-        start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None,
-        pattern: Optional[str] = None,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+        pattern: str | None = None,
     ) -> list[Path]:
         """条件に一致するセッションを検索
 
@@ -157,7 +157,7 @@ class OutputManager:
         Returns:
             セッションディレクトリのリスト（新しい順）
         """
-        sessions = []
+        sessions: list[Path] = []
 
         if not self.sessions_dir.exists():
             return sessions
@@ -226,11 +226,8 @@ class OutputManager:
         total = 0
         for file_path in session_dir.rglob("*"):
             if file_path.is_file():
-                try:
+                with suppress(OSError):
                     total += file_path.stat().st_size
-                except OSError:
-                    # ファイルアクセスエラーは無視
-                    pass
         return total
 
     def cleanup_old_archives(self, days: int = 90) -> int:
@@ -273,11 +270,12 @@ def format_file_size(size_bytes: int) -> str:
     Returns:
         フォーマットされた文字列（例: "1.5 MB"）
     """
+    size: float = float(size_bytes)
     for unit in ["B", "KB", "MB", "GB", "TB"]:
-        if size_bytes < 1024.0:
-            return f"{size_bytes:.2f} {unit}"
-        size_bytes /= 1024.0
-    return f"{size_bytes:.2f} PB"
+        if size < 1024.0:
+            return f"{size:.2f} {unit}"
+        size = size / 1024.0
+    return f"{size:.2f} PB"
 
 
 def setup_output_directories(output_dir: Path) -> None:

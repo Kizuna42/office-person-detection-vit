@@ -1,7 +1,6 @@
 """Aggregation phase of the pipeline."""
 
 from pathlib import Path
-from typing import List
 
 from tqdm import tqdm
 
@@ -88,3 +87,6 @@ class AggregationPhase(BasePhase):
         self.logger.info(f"集計結果をCSVに出力しました: {csv_path}")
 
         return aggregator
+
+    def cleanup(self) -> None:
+        """リソースのクリーンアップ"""

@@ -9,7 +9,6 @@ import argparse
 import logging
 from pathlib import Path
 import sys
-from typing import List, Tuple
 
 import cv2
 import numpy as np
@@ -31,7 +30,7 @@ def visualize_roi_on_frame(
     frame: np.ndarray,
     roi_coords: tuple[int, int, int, int],
     frame_idx: int,
-    timestamp_text: str = None,
+    timestamp_text: str | None = None,
 ) -> np.ndarray:
     """フレームにROI矩形を描画
 
@@ -131,10 +130,7 @@ def visualize_roi_on_frame(
             )
 
             # ROI拡大画像を配置
-            if len(roi_zoomed.shape) == 2:
-                roi_zoomed_bgr = cv2.cvtColor(roi_zoomed, cv2.COLOR_GRAY2BGR)
-            else:
-                roi_zoomed_bgr = roi_zoomed
+            roi_zoomed_bgr = cv2.cvtColor(roi_zoomed, cv2.COLOR_GRAY2BGR) if len(roi_zoomed.shape) == 2 else roi_zoomed
 
             overlay[zoom_y : zoom_y + zoom_h, zoom_x : zoom_x + zoom_w] = roi_zoomed_bgr
 
@@ -153,7 +149,7 @@ def visualize_roi_on_frame(
 def extract_sample_frames(
     video_path: str,
     num_frames: int = 10,
-    frame_indices: list[int] = None,
+    frame_indices: list[int] | None = None,
 ) -> list[tuple[int, np.ndarray]]:
     """動画からサンプルフレームを抽出
 
@@ -196,7 +192,7 @@ def visualize_roi_on_multiple_frames(
     roi_config: dict,
     output_dir: Path,
     num_frames: int = 10,
-    frame_indices: list[int] = None,
+    frame_indices: list[int] | None = None,
 ):
     """複数フレームでROI位置を可視化
 
@@ -386,10 +382,7 @@ def main():
     config = ConfigManager(args.config)
 
     # 動画パスの取得
-    if args.video:
-        video_path = args.video
-    else:
-        video_path = config.get("video.input_path")
+    video_path = args.video if args.video else config.get("video.input_path")
 
     if not Path(video_path).exists():
         logger.error(f"動画ファイルが見つかりません: {video_path}")

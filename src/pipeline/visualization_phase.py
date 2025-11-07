@@ -1,7 +1,6 @@
 """Visualization phase of the pipeline."""
 
 from pathlib import Path
-from typing import List
 
 from tqdm import tqdm
 
@@ -115,3 +114,6 @@ class VisualizationPhase(BasePhase):
 
             except Exception as e:
                 self.logger.error(f"Side-by-side動画生成エラー: {e}", exc_info=True)
+
+    def cleanup(self) -> None:
+        """リソースのクリーンアップ"""

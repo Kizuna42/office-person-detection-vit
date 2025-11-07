@@ -1,0 +1,69 @@
+{
+  "session_id": "20251107_165935",
+  "timestamp": "2025-11-07T17:00:15.526103",
+  "status": "completed",
+  "phases": {
+    "extraction": {
+      "frames_extracted": 4,
+      "success_rate": 1.0
+    },
+    "detection": {
+      "total_detections": 85,
+      "avg_per_frame": 21.25
+    },
+    "transform": {
+      "frames_processed": 4
+    },
+    "aggregation": {
+      "zones_count": 4
+    },
+    "visualization": {
+      "graphs_generated": 2,
+      "floormaps_generated": 4
+    }
+  },
+  "performance": {
+    "phase1_extraction": {
+      "total_time": 34.09475922584534,
+      "count": 1,
+      "avg_time": 34.09475922584534,
+      "min_time": 34.09475922584534,
+      "max_time": 34.09475922584534
+    },
+    "phase2_detection": {
+      "total_time": 2.7396888732910156,
+      "count": 1,
+      "avg_time": 2.7396888732910156,
+      "min_time": 2.7396888732910156,
+      "max_time": 2.7396888732910156
+    },
+    "phase2.5_tracking": {
+      "total_time": 2.28926420211792,
+      "count": 1,
+      "avg_time": 2.28926420211792,
+      "min_time": 2.28926420211792,
+      "max_time": 2.28926420211792
+    },
+    "phase3_transform": {
+      "total_time": 0.003937959671020508,
+      "count": 1,
+      "avg_time": 0.003937959671020508,
+      "min_time": 0.003937959671020508,
+      "max_time": 0.003937959671020508
+    },
+    "phase4_aggregation": {
+      "total_time": 0.002441883087158203,
+      "count": 1,
+      "avg_time": 0.002441883087158203,
+      "min_time": 0.002441883087158203,
+      "max_time": 0.002441883087158203
+    },
+    "phase5_visualization": {
+      "total_time": 0.8236880302429199,
+      "count": 1,
+      "avg_time": 0.8236880302429199,
+      "min_time": 0.8236880302429199,
+      "max_time": 0.8236880302429199
+    }
+  }
+}

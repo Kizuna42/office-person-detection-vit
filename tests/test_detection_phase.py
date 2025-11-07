@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from typing import TYPE_CHECKING
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
@@ -12,6 +12,9 @@ import pytest
 from src.config import ConfigManager
 from src.models import Detection
 from src.pipeline.detection_phase import DetectionPhase
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 @pytest.fixture()

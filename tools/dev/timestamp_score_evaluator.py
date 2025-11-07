@@ -6,11 +6,10 @@
 
 import argparse
 import csv
-from datetime import datetime, timedelta
+from datetime import datetime
 import logging
 from pathlib import Path
 import sys
-from typing import Dict, List, Tuple
 
 # プロジェクトルートをパスに追加（直接実行可能にする）
 project_root = Path(__file__).parent.parent
@@ -19,7 +18,6 @@ sys.path.insert(0, str(project_root))
 from tqdm import tqdm
 
 from src.config import ConfigManager
-from src.pipeline import FrameExtractionPipeline
 from src.utils import setup_logging
 
 logger = logging.getLogger(__name__)
@@ -54,7 +52,7 @@ def calculate_temporal_consistency_score(
 
         # 時間差を計算
         time_diff = abs((next_result["timestamp"] - current["timestamp"]).total_seconds())
-        frame_diff = next_result["frame_idx"] - current["frame_idx"]
+        next_result["frame_idx"] - current["frame_idx"]
 
         # 期待される時間差を計算（フレーム差から）
         # タイムラプス動画の場合、実際の時間差は動画の時間差より大きい
@@ -134,7 +132,7 @@ def evaluate_extraction_results(csv_path: Path) -> dict:
         }
 
     # 抽出成功率
-    total_targets = len(results)  # 簡易的な計算（実際はtarget_timestampから計算すべき）
+    len(results)  # 簡易的な計算（実際はtarget_timestampから計算すべき）
     success_rate = 100.0  # CSVに含まれるのは成功したもののみ
 
     # 平均信頼度

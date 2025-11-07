@@ -2,7 +2,6 @@
 
 import logging
 import os
-from typing import Optional, Tuple
 
 import cv2
 import numpy as np
@@ -37,11 +36,11 @@ class VideoProcessor:
             video_path: 動画ファイルのパス
         """
         self.video_path = video_path
-        self.cap: Optional[cv2.VideoCapture] = None
-        self.fps: Optional[float] = None
-        self.total_frames: Optional[int] = None
-        self.width: Optional[int] = None
-        self.height: Optional[int] = None
+        self.cap: cv2.VideoCapture | None = None
+        self.fps: float | None = None
+        self.total_frames: int | None = None
+        self.width: int | None = None
+        self.height: int | None = None
 
     def open(self) -> bool:
         """動画ファイルを開く
@@ -124,7 +123,7 @@ class VideoProcessor:
                 f"動画仕様検証: 解像度({self.width}×{self.height})、" f"FPS({self.fps:.2f})が要件を満たしています"
             )
 
-    def get_frame(self, frame_number: int) -> Optional[np.ndarray]:
+    def get_frame(self, frame_number: int) -> np.ndarray | None:
         """指定フレームを取得する
 
         Args:
@@ -180,7 +179,7 @@ class VideoProcessor:
 
         return int(self.cap.get(cv2.CAP_PROP_POS_FRAMES))
 
-    def read_next_frame(self) -> tuple[bool, Optional[np.ndarray]]:
+    def read_next_frame(self) -> tuple[bool, np.ndarray | None]:
         """次のフレームを順次読み込む
 
         Returns:

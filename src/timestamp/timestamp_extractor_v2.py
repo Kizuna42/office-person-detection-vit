@@ -2,7 +2,6 @@
 
 import hashlib
 import logging
-from typing import Optional
 
 import numpy as np
 
@@ -24,9 +23,9 @@ class TimestampExtractorV2:
     def __init__(
         self,
         confidence_threshold: float = 0.7,
-        roi_config: dict[str, float] = None,
+        roi_config: dict[str, float] | None = None,
         fps: float = 30.0,
-        enabled_ocr_engines: list = None,
+        enabled_ocr_engines: list | None = None,
         use_improved_validator: bool = False,
         base_tolerance_seconds: float = 10.0,
         history_size: int = 10,
@@ -79,7 +78,7 @@ class TimestampExtractorV2:
 
         # OCR結果のキャッシュ（フレームハッシュをキーに）
         # maxsize=256: 最近の256フレーム分のOCR結果をキャッシュ
-        self._ocr_cache: dict[str, tuple[Optional[str], float]] = {}
+        self._ocr_cache: dict[str, tuple[str | None, float]] = {}
         self._cache_hits = 0
         self._cache_misses = 0
 
@@ -96,7 +95,7 @@ class TimestampExtractorV2:
         roi_bytes = roi.tobytes()
         return hashlib.md5(roi_bytes).hexdigest()
 
-    def extract(self, frame: np.ndarray, frame_idx: int, retry_count: int = 3) -> Optional[dict[str, any]]:
+    def extract(self, frame: np.ndarray, frame_idx: int, retry_count: int = 3) -> dict[str, any] | None:
         """フレームからタイムスタンプを抽出（キャッシュ対応）
 
         Args:
@@ -186,19 +185,17 @@ class TimestampExtractorV2:
                         "ocr_text": ocr_text,
                         "roi_coords": roi_coords,
                     }
+                # デバッグ情報を詳細に出力（時系列検証の失敗原因を確認）
+                if not is_valid:
+                    logger.warning(
+                        f"Frame {frame_idx}: Temporal validation failed - {reason}, "
+                        f"confidence={total_confidence:.2f}, "
+                        f"threshold={self.confidence_threshold:.2f}"
+                    )
                 else:
-                    # デバッグ情報を詳細に出力（時系列検証の失敗原因を確認）
-                    if not is_valid:
-                        logger.warning(
-                            f"Frame {frame_idx}: Temporal validation failed - {reason}, "
-                            f"confidence={total_confidence:.2f}, "
-                            f"threshold={self.confidence_threshold:.2f}"
-                        )
-                    else:
-                        logger.debug(
-                            f"Frame {frame_idx}: Low confidence ({total_confidence:.2f}), "
-                            f"valid={is_valid}, {reason}"
-                        )
+                    logger.debug(
+                        f"Frame {frame_idx}: Low confidence ({total_confidence:.2f}), " f"valid={is_valid}, {reason}"
+                    )
             except Exception as e:
                 logger.error(f"Frame {frame_idx}: Error during extraction (attempt {attempt+1}/{retry_count}): {e}")
 

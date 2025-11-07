@@ -2,7 +2,6 @@
 
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
@@ -28,7 +27,7 @@ class FloormapVisualizer:
         floormap_path: str,
         floormap_config: dict,
         zones: list[dict],
-        camera_config: Optional[dict] = None,
+        camera_config: dict | None = None,
     ):
         """FloormapVisualizerを初期化する
 
@@ -291,7 +290,7 @@ class FloormapVisualizer:
         self,
         image: np.ndarray,
         tracks: list,
-        max_length: Optional[int] = None,
+        max_length: int | None = None,
         alpha: float = 0.6,
     ) -> np.ndarray:
         """軌跡線を描画する
@@ -355,10 +354,7 @@ class FloormapVisualizer:
                     continue
 
                 # 透明度を計算（古い軌跡ほど薄く）
-                if max_length is not None:
-                    line_alpha = alpha * (i / len(trajectory))
-                else:
-                    line_alpha = alpha
+                line_alpha = alpha * (i / len(trajectory)) if max_length is not None else alpha
 
                 # 線を描画
                 overlay = image.copy()
@@ -457,7 +453,7 @@ class FloormapVisualizer:
         else:
             logger.error(f"可視化画像の保存に失敗しました: {output_path}")
 
-    def create_legend(self, width: int = 300, height: int = None) -> np.ndarray:
+    def create_legend(self, width: int = 300, height: int | None = None) -> np.ndarray:
         """凡例画像を作成する
 
         Args:

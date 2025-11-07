@@ -2,7 +2,6 @@
 
 import json
 from pathlib import Path
-from typing import List, Optional, Tuple
 
 from tqdm import tqdm
 
@@ -23,8 +22,8 @@ class TransformPhase(BasePhase):
             logger: ロガー
         """
         super().__init__(config, logger)
-        self.coordinate_transformer: Optional[CoordinateTransformer] = None
-        self.zone_classifier: Optional[ZoneClassifier] = None
+        self.coordinate_transformer: CoordinateTransformer | None = None
+        self.zone_classifier: ZoneClassifier | None = None
 
     def initialize(self) -> None:
         """座標変換器とゾーン分類器を初期化"""
@@ -208,3 +207,8 @@ class TransformPhase(BasePhase):
             self.logger.info(f"  総検出数: {sum(len(f['detections']) for f in coordinate_data)}")
         except Exception as e:
             self.logger.error(f"座標変換結果のJSON出力に失敗しました: {e}")
+
+    def cleanup(self) -> None:
+        """リソースのクリーンアップ"""
+        self.coordinate_transformer = None
+        self.zone_classifier = None

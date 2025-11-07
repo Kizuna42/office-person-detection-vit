@@ -1,14 +1,14 @@
 """Unit tests for tracking module."""
 
-import pytest
 import numpy as np
+import pytest
 
 from src.models.data_models import Detection
+from src.tracking.hungarian import HungarianAlgorithm
 from src.tracking.kalman_filter import KalmanFilter
 from src.tracking.similarity import SimilarityCalculator
 from src.tracking.track import Track
 from src.tracking.tracker import Tracker
-from src.tracking.hungarian import HungarianAlgorithm
 
 
 class TestKalmanFilter:
@@ -67,7 +67,7 @@ class TestSimilarityCalculator:
 
     def test_init_invalid_weights(self):
         """無効な重みでの初期化テスト"""
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match=".*must equal.*"):
             SimilarityCalculator(appearance_weight=0.8, motion_weight=0.3)
 
     def test_cosine_similarity(self):

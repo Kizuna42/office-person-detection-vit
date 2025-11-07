@@ -3,7 +3,6 @@
 from collections import deque
 from datetime import datetime, timedelta
 import logging
-from typing import Optional, Tuple
 
 import numpy as np
 
@@ -36,8 +35,8 @@ class TemporalValidatorV2:
         self.history_size = history_size
         self.z_score_threshold = z_score_threshold
 
-        self.last_timestamp: Optional[datetime] = None
-        self.last_frame_idx: Optional[int] = None
+        self.last_timestamp: datetime | None = None
+        self.last_frame_idx: int | None = None
         self.interval_history: deque = deque(maxlen=history_size)
 
     def validate(self, timestamp: datetime, frame_idx: int) -> tuple[bool, float, str]:
@@ -101,13 +100,12 @@ class TemporalValidatorV2:
                 f"Valid: expected={expected_seconds:.1f}s, actual={time_diff:.1f}s, "
                 f"tolerance={adaptive_tolerance:.1f}s",
             )
-        else:
-            return (
-                False,
-                0.0,
-                f"Invalid: expected={expected_seconds:.1f}s, actual={time_diff:.1f}s, "
-                f"tolerance={adaptive_tolerance:.1f}s",
-            )
+        return (
+            False,
+            0.0,
+            f"Invalid: expected={expected_seconds:.1f}s, actual={time_diff:.1f}s, "
+            f"tolerance={adaptive_tolerance:.1f}s",
+        )
 
     def _calculate_adaptive_tolerance(self) -> float:
         """適応的許容範囲を計算
@@ -136,7 +134,7 @@ class TemporalValidatorV2:
 
         return adaptive_tolerance
 
-    def _detect_outlier(self, time_diff: float, expected_seconds: float) -> tuple[bool, float]:
+    def _detect_outlier(self, time_diff: float, _expected_seconds: float) -> tuple[bool, float]:
         """外れ値検出（Z-score法）
 
         Args:
@@ -164,7 +162,7 @@ class TemporalValidatorV2:
 
         return is_outlier, z_score
 
-    def _recover_timestamp(self, frame_idx: int, expected_seconds: float) -> Optional[datetime]:
+    def _recover_timestamp(self, _frame_idx: int, expected_seconds: float) -> datetime | None:
         """異常値のリカバリー（前後フレームからの線形補間）
 
         Args:

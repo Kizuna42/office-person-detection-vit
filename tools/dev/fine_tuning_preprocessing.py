@@ -9,7 +9,6 @@ import argparse
 import logging
 from pathlib import Path
 import sys
-from typing import Dict, List, Tuple
 
 import cv2
 import numpy as np
@@ -50,8 +49,8 @@ def deskew_image(image: np.ndarray, max_angle: float = 5.0) -> tuple[np.ndarray,
     # 角度を計算
     angles = []
     for line in lines[:20]:  # 最初の20本のみ使用
-        if isinstance(line, (list, tuple)) and len(line) >= 2:
-            if not isinstance(line[0], (list, np.ndarray)):
+        if isinstance(line, list | tuple) and len(line) >= 2:
+            if not isinstance(line[0], list | np.ndarray):
                 rho, theta = line[0], line[1]
             else:
                 rho, theta = line[0]
@@ -123,16 +122,10 @@ def preprocess_with_fine_params(
         roi = cv2.resize(roi, (new_w, new_h), interpolation=cv2.INTER_CUBIC)
 
     # グレースケール化
-    if len(roi.shape) == 3:
-        gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-    else:
-        gray = roi.copy()
+    gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY) if len(roi.shape) == 3 else roi.copy()
 
     # ガウシアンブラー
-    if use_gaussian_blur:
-        blurred = cv2.GaussianBlur(gray, (blur_kernel_size, blur_kernel_size), 0)
-    else:
-        blurred = gray
+    blurred = cv2.GaussianBlur(gray, (blur_kernel_size, blur_kernel_size), 0) if use_gaussian_blur else gray
 
     # コントラスト強調（CLAHE）
     clahe = cv2.createCLAHE(clipLimit=clahe_clip_limit, tileGridSize=clahe_tile_size)
@@ -448,10 +441,7 @@ def main():
     config = ConfigManager(args.config)
 
     # 動画パスの取得
-    if args.video:
-        video_path = args.video
-    else:
-        video_path = config.get("video.input_path")
+    video_path = args.video if args.video else config.get("video.input_path")
 
     if not Path(video_path).exists():
         logger.error(f"動画ファイルが見つかりません: {video_path}")

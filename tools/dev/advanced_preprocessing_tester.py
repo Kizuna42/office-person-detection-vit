@@ -8,7 +8,6 @@ import argparse
 import logging
 from pathlib import Path
 import sys
-from typing import Dict, List, Tuple
 
 import cv2
 import numpy as np
@@ -35,10 +34,7 @@ def preprocess_strategy_1_upscale(roi: np.ndarray) -> np.ndarray:
         new_w, new_h = int(w * scale), int(h * scale)
         roi = cv2.resize(roi, (new_w, new_h), interpolation=cv2.INTER_CUBIC)
 
-    if len(roi.shape) == 3:
-        gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-    else:
-        gray = roi.copy()
+    gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY) if len(roi.shape) == 3 else roi.copy()
 
     clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
     enhanced = clahe.apply(gray)
@@ -54,10 +50,7 @@ def preprocess_strategy_2_invert(roi: np.ndarray) -> np.ndarray:
         new_w, new_h = int(w * scale), int(h * scale)
         roi = cv2.resize(roi, (new_w, new_h), interpolation=cv2.INTER_CUBIC)
 
-    if len(roi.shape) == 3:
-        gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-    else:
-        gray = roi.copy()
+    gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY) if len(roi.shape) == 3 else roi.copy()
 
     clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
     enhanced = clahe.apply(gray)
@@ -73,10 +66,7 @@ def preprocess_strategy_3_adaptive(roi: np.ndarray) -> np.ndarray:
         new_w, new_h = int(w * scale), int(h * scale)
         roi = cv2.resize(roi, (new_w, new_h), interpolation=cv2.INTER_CUBIC)
 
-    if len(roi.shape) == 3:
-        gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-    else:
-        gray = roi.copy()
+    gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY) if len(roi.shape) == 3 else roi.copy()
 
     clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
     enhanced = clahe.apply(gray)
@@ -93,10 +83,7 @@ def preprocess_strategy_4_morphology(roi: np.ndarray) -> np.ndarray:
         new_w, new_h = int(w * scale), int(h * scale)
         roi = cv2.resize(roi, (new_w, new_h), interpolation=cv2.INTER_CUBIC)
 
-    if len(roi.shape) == 3:
-        gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-    else:
-        gray = roi.copy()
+    gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY) if len(roi.shape) == 3 else roi.copy()
 
     clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
     enhanced = clahe.apply(gray)
@@ -121,10 +108,7 @@ def preprocess_strategy_5_grayscale_only(roi: np.ndarray) -> np.ndarray:
         new_w, new_h = int(w * scale), int(h * scale)
         roi = cv2.resize(roi, (new_w, new_h), interpolation=cv2.INTER_CUBIC)
 
-    if len(roi.shape) == 3:
-        gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-    else:
-        gray = roi.copy()
+    gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY) if len(roi.shape) == 3 else roi.copy()
 
     clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
     enhanced = clahe.apply(gray)
@@ -140,10 +124,7 @@ def preprocess_strategy_6_original(roi: np.ndarray) -> np.ndarray:
         new_w, new_h = int(w * scale), int(h * scale)
         roi = cv2.resize(roi, (new_w, new_h), interpolation=cv2.INTER_CUBIC)
 
-    if len(roi.shape) == 3:
-        gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-    else:
-        gray = roi.copy()
+    gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY) if len(roi.shape) == 3 else roi.copy()
 
     return gray
 
@@ -292,10 +273,7 @@ def main():
     config = ConfigManager(args.config)
 
     # 動画パスの取得
-    if args.video:
-        video_path = args.video
-    else:
-        video_path = config.get("video.input_path")
+    video_path = args.video if args.video else config.get("video.input_path")
 
     if not Path(video_path).exists():
         logger.error(f"動画ファイルが見つかりません: {video_path}")

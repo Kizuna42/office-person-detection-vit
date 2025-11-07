@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
 import numpy as np
 
-from src.models.data_models import Detection
 from src.tracking.hungarian import HungarianAlgorithm
 from src.tracking.kalman_filter import KalmanFilter
 from src.tracking.similarity import SimilarityCalculator
 from src.tracking.track import Track
+
+if TYPE_CHECKING:
+    from src.models.data_models import Detection
 
 logger = logging.getLogger(__name__)
 

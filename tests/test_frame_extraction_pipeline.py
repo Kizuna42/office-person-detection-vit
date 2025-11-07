@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
 
 from src.pipeline.frame_extraction_pipeline import FrameExtractionPipeline
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 @pytest.fixture()
@@ -279,7 +282,7 @@ def test_missing_data_handling(
         tolerance_seconds=10.0,
     )
 
-    results = pipeline.run()
+    pipeline.run()
 
     # 失敗した場合は空のリストまたは警告が出力される
     # 実装に応じて調整が必要
@@ -804,7 +807,7 @@ def test_run_with_auto_targets_max_frames(
     )
 
     # 最大50フレームに制限
-    results = pipeline.run_with_auto_targets(max_frames=50)
+    pipeline.run_with_auto_targets(max_frames=50)
 
     # 最大フレーム数が適用されることを確認
     mock_video_processor.get_frame.assert_called()

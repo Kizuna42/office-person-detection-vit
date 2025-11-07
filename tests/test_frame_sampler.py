@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
 import cv2
@@ -10,6 +10,9 @@ import numpy as np
 import pytest
 
 from src.video.frame_sampler import AdaptiveSampler, CoarseSampler, FineSampler
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 @pytest.fixture()

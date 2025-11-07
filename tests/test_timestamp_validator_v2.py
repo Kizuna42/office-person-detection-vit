@@ -130,7 +130,7 @@ def test_outlier_detection(validator_30fps: TemporalValidatorV2):
         validator_30fps.validate(next_time, i * 30)
 
     # 外れ値（大きくずれた時間）
-    outlier_time = base_time + timedelta(seconds=10.0)  # 4秒後のはずが10秒後
+    base_time + timedelta(seconds=10.0)  # 4秒後のはずが10秒後
     is_outlier, z_score = validator_30fps._detect_outlier(10.0, 1.0)
 
     # 履歴が少ない場合は外れ値として検出されない可能性がある

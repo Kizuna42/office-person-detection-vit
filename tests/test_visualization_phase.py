@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -12,6 +12,9 @@ from src.aggregation import Aggregator
 from src.config import ConfigManager
 from src.models import Detection, FrameResult
 from src.pipeline.visualization_phase import VisualizationPhase
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 @pytest.fixture()

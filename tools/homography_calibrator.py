@@ -15,7 +15,6 @@ import json
 import logging
 from pathlib import Path
 import sys
-from typing import List, Tuple
 
 import cv2
 import numpy as np
@@ -25,8 +24,8 @@ import yaml
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.config import ConfigManager  # noqa: E402
-from src.utils import setup_logging  # noqa: E402
+from src.config import ConfigManager
+from src.utils import setup_logging
 
 LOGGER = logging.getLogger(__name__)
 

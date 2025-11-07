@@ -10,7 +10,6 @@ from datetime import datetime
 import logging
 from pathlib import Path
 import sys
-from typing import Dict, List
 
 # プロジェクトルートをパスに追加（直接実行可能にする）
 project_root = Path(__file__).parent.parent

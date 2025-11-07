@@ -2,7 +2,6 @@
 
 import json
 from pathlib import Path
-from typing import List, Optional, Tuple
 
 import numpy as np
 from tqdm import tqdm
@@ -26,9 +25,9 @@ class TrackingPhase(BasePhase):
             logger: ロガー
         """
         super().__init__(config, logger)
-        self.tracker: Optional[Tracker] = None
-        self.detector: Optional[ViTDetector] = None  # 特徴量抽出用
-        self.tracks: List[Track] = []
+        self.tracker: Tracker | None = None
+        self.detector: ViTDetector | None = None  # 特徴量抽出用
+        self.tracks: list[Track] = []
 
     def initialize(self) -> None:
         """トラッカーを初期化"""
@@ -195,7 +194,7 @@ class TrackingPhase(BasePhase):
         except Exception as e:
             self.logger.error(f"追跡統計情報のJSON出力に失敗しました: {e}")
 
-    def get_tracks(self) -> List[Track]:
+    def get_tracks(self) -> list[Track]:
         """追跡結果のトラックを取得
 
         Returns:

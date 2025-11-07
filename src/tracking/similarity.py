@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
 import numpy as np
 
-from src.models.data_models import Detection
+if TYPE_CHECKING:
+    from src.models.data_models import Detection
 
 logger = logging.getLogger(__name__)
 
@@ -162,10 +164,7 @@ class SimilarityCalculator:
             total_weight += self.motion_weight
 
         # 重みの正規化
-        if total_weight > 0:
-            similarity_score = similarity_score / total_weight
-        else:
-            similarity_score = 0.0
+        similarity_score = similarity_score / total_weight if total_weight > 0 else 0.0
 
         return float(np.clip(similarity_score, 0.0, 1.0))
 

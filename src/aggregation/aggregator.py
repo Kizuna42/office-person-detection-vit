@@ -3,7 +3,6 @@
 from collections import defaultdict
 import csv
 import logging
-from typing import Dict, List
 
 import numpy as np
 
@@ -75,7 +74,7 @@ class Aggregator:
 
         return dict(zone_counts)
 
-    def export_csv(self, output_path: str, zone_ids: list[str] = None) -> None:
+    def export_csv(self, output_path: str, zone_ids: list[str] | None = None) -> None:
         """CSV形式でエクスポート
 
         集計結果をCSVファイルに出力する。
@@ -109,14 +108,14 @@ class Aggregator:
             else:
                 # 指定された順序を使用（unclassifiedが含まれていない場合は追加）
                 if "unclassified" not in zone_ids:
-                    zone_ids = list(zone_ids) + ["unclassified"]
+                    zone_ids = [*list(zone_ids), "unclassified"]
 
             # CSV出力
             with open(output_path, "w", newline="", encoding="utf-8") as csvfile:
                 writer = csv.writer(csvfile)
 
                 # ヘッダー行: timestamp, zone_1, zone_2, ..., unclassified
-                header = ["timestamp"] + zone_ids
+                header = ["timestamp", *zone_ids]
                 writer.writerow(header)
 
                 # データ行: タイムスタンプごとに1行
@@ -255,7 +254,7 @@ class Aggregator:
             timestamp_data[result.timestamp][result.zone_id] = result.count
 
         # 各ゾーンのピーク時間帯を計算
-        for zone_id in self._zone_data.keys():
+        for zone_id in self._zone_data:
             zone_peaks = []
             for timestamp, zone_counts in timestamp_data.items():
                 count = zone_counts.get(zone_id, 0)

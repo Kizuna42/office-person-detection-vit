@@ -2,7 +2,6 @@
 
 from collections.abc import Iterator
 import logging
-from typing import Tuple
 
 import cv2
 import numpy as np
@@ -166,9 +165,8 @@ class AdaptiveSampler:
         if recent_confidence >= 0.9:
             # 信頼度が高い: 間隔を広げて効率化
             return min(self.base_interval * 2, self.max_interval)
-        elif recent_confidence < 0.5:
+        if recent_confidence < 0.5:
             # 信頼度が低い: 間隔を狭めて精度向上
             return self.min_interval
-        else:
-            # 通常: ベース間隔を使用
-            return self.base_interval
+        # 通常: ベース間隔を使用
+        return self.base_interval

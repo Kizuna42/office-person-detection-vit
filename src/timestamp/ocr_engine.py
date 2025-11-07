@@ -3,7 +3,6 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
 import re
-from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -45,7 +44,7 @@ class MultiEngineOCR:
 
     def __init__(
         self,
-        enabled_engines: list[str] = None,
+        enabled_engines: list[str] | None = None,
         use_weighted_consensus: bool = False,
         use_voting_consensus: bool = False,
     ):
@@ -126,7 +125,7 @@ class MultiEngineOCR:
 
         return paddleocr_func
 
-    def extract_with_consensus(self, roi: np.ndarray) -> tuple[Optional[str], float]:
+    def extract_with_consensus(self, roi: np.ndarray) -> tuple[str | None, float]:
         """複数エンジンの結果を統合（コンセンサスアルゴリズム）
 
         改善されたアルゴリズム（重み付けスキーム、投票ロジック）をサポート
@@ -153,7 +152,7 @@ class MultiEngineOCR:
         # デフォルトのコンセンサスアルゴリズム
         return self._extract_with_baseline_consensus(roi)
 
-    def _extract_with_baseline_consensus(self, roi: np.ndarray) -> tuple[Optional[str], float]:
+    def _extract_with_baseline_consensus(self, roi: np.ndarray) -> tuple[str | None, float]:
         """ベースラインのコンセンサスアルゴリズム（並列実行対応）
 
         Args:
@@ -165,7 +164,7 @@ class MultiEngineOCR:
         results: list[dict[str, any]] = []
 
         # 並列実行でOCR処理を高速化
-        def run_ocr(engine_name: str, engine_func: callable) -> Optional[dict]:
+        def run_ocr(engine_name: str, engine_func: callable) -> dict | None:
             """単一のOCRエンジンを実行"""
             try:
                 text = engine_func(roi)
@@ -212,7 +211,7 @@ class MultiEngineOCR:
         logger.debug(f"Best result from {best['engine']}: {best['text']} (confidence={best['confidence']:.2f})")
         return best["text"], best["confidence"]
 
-    def _extract_with_weighted_consensus(self, roi: np.ndarray) -> tuple[Optional[str], float]:
+    def _extract_with_weighted_consensus(self, roi: np.ndarray) -> tuple[str | None, float]:
         """重み付けスキームによるコンセンサス（並列実行対応）
 
         Args:
@@ -224,7 +223,7 @@ class MultiEngineOCR:
         results: list[dict[str, any]] = []
 
         # 並列実行でOCR処理を高速化
-        def run_ocr_weighted(engine_name: str, engine_func: callable) -> Optional[dict]:
+        def run_ocr_weighted(engine_name: str, engine_func: callable) -> dict | None:
             """単一のOCRエンジンを実行（重み付け版）"""
             try:
                 text = engine_func(roi)
@@ -284,7 +283,7 @@ class MultiEngineOCR:
         )
         return best["text"], best["weighted_confidence"]
 
-    def _extract_with_voting(self, roi: np.ndarray) -> tuple[Optional[str], float]:
+    def _extract_with_voting(self, roi: np.ndarray) -> tuple[str | None, float]:
         """投票ロジックによるコンセンサス（並列実行対応）
 
         Args:
@@ -296,7 +295,7 @@ class MultiEngineOCR:
         results: list[dict[str, any]] = []
 
         # 並列実行でOCR処理を高速化
-        def run_ocr_voting(engine_name: str, engine_func: callable) -> Optional[dict]:
+        def run_ocr_voting(engine_name: str, engine_func: callable) -> dict | None:
             """単一のOCRエンジンを実行（投票版）"""
             try:
                 text = engine_func(roi)

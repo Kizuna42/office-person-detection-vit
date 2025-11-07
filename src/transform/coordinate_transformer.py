@@ -1,7 +1,6 @@
 """Coordinate transformation module for the office person detection system."""
 
 import logging
-from typing import Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
@@ -27,9 +26,9 @@ class CoordinateTransformer:
     def __init__(
         self,
         homography_matrix: list[list[float]],
-        floormap_config: Optional[dict] = None,
-        camera_matrix: Optional[np.ndarray] = None,
-        dist_coeffs: Optional[np.ndarray] = None,
+        floormap_config: dict | None = None,
+        camera_matrix: np.ndarray | None = None,
+        dist_coeffs: np.ndarray | None = None,
         use_distortion_correction: bool = False,
     ):
         """CoordinateTransformerを初期化する
@@ -88,7 +87,7 @@ class CoordinateTransformer:
         Raises:
             ValueError: 行列が不正な形式の場合
         """
-        if not isinstance(matrix, (list, np.ndarray)):
+        if not isinstance(matrix, list | np.ndarray):
             raise ValueError("ホモグラフィ行列はリストまたはnumpy配列である必要があります。")
 
         H = np.array(matrix, dtype=np.float64)
@@ -180,7 +179,7 @@ class CoordinateTransformer:
         """
         try:
             # 入力値の検証
-            if not isinstance(camera_point, (tuple, list)) or len(camera_point) != 2:
+            if not isinstance(camera_point, tuple | list) or len(camera_point) != 2:
                 raise ValueError(f"カメラ座標は2要素のタプルまたはリストである必要があります: {camera_point}")
 
             camera_x, camera_y = float(camera_point[0]), float(camera_point[1])

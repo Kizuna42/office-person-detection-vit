@@ -3,15 +3,16 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from typing import TYPE_CHECKING
 
-import numpy as np
 import pytest
 
 from src.config import ConfigManager
 from src.models import Detection, FrameResult
 from src.pipeline.transform_phase import TransformPhase
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 @pytest.fixture()

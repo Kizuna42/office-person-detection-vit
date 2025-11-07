@@ -1,7 +1,6 @@
 """ROI (Region of Interest) extraction for timestamp detection."""
 
 import logging
-from typing import Dict, Tuple
 
 import cv2
 import numpy as np
@@ -16,7 +15,7 @@ class TimestampROIExtractor:
     OCR精度向上のための前処理を実行します。
     """
 
-    def __init__(self, roi_config: dict[str, float] = None):
+    def __init__(self, roi_config: dict[str, float] | None = None):
         """TimestampROIExtractorを初期化
 
         Args:
@@ -82,10 +81,7 @@ class TimestampROIExtractor:
             roi = cv2.resize(roi, (new_w, new_h), interpolation=cv2.INTER_CUBIC)
 
         # グレースケール化
-        if len(roi.shape) == 3:
-            gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-        else:
-            gray = roi.copy()
+        gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY) if len(roi.shape) == 3 else roi.copy()
 
         # ガウシアンブラーでノイズを軽減（軽度）
         blurred = cv2.GaussianBlur(gray, (3, 3), 0)

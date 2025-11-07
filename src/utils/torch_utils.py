@@ -1,7 +1,6 @@
 """PyTorch関連のユーティリティ関数"""
 
 import logging
-from typing import Optional
 import warnings
 
 import torch

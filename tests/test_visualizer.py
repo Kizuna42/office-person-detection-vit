@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pytest
@@ -10,6 +10,9 @@ import pytest
 from src.aggregation import Aggregator
 from src.models import Detection
 from src.visualization import Visualizer
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 @pytest.fixture()

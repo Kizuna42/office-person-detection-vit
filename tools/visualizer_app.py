@@ -1,7 +1,7 @@
 """Streamlit app entry point for interactive visualization."""
 
-import sys
 from pathlib import Path
+import sys
 
 # プロジェクトルートをパスに追加
 project_root = Path(__file__).parent.parent

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
 import cv2
@@ -10,6 +10,9 @@ import numpy as np
 import pytest
 
 from src.video import VideoProcessor
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 @pytest.fixture()
@@ -77,9 +80,8 @@ def test_open_failure(mock_video_capture, sample_video_path: Path):
     processor = VideoProcessor(str(sample_video_path))
     processor.video_path = str(sample_video_path)
 
-    with patch("os.path.exists", return_value=True):
-        with pytest.raises(RuntimeError):
-            processor.open()
+    with patch("os.path.exists", return_value=True), pytest.raises(RuntimeError):
+        processor.open()
 
 
 @patch("cv2.VideoCapture")
@@ -362,8 +364,7 @@ def test_context_manager(mock_video_capture, sample_video_path: Path):
     processor = VideoProcessor(str(sample_video_path))
     processor.video_path = str(sample_video_path)
 
-    with patch("os.path.exists", return_value=True):
-        with processor:
-            assert processor.cap is not None
+    with patch("os.path.exists", return_value=True), processor:
+        assert processor.cap is not None
 
     mock_cap.release.assert_called_once()

@@ -41,6 +41,7 @@ class BasePhase(ABC):
         """
         raise NotImplementedError("Subclass must implement execute method")
 
+    @abstractmethod
     def cleanup(self) -> None:
         """リソースのクリーンアップ（オプション）
 

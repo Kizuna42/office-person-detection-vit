@@ -7,11 +7,9 @@
 import argparse
 from collections import defaultdict
 import csv
-from datetime import datetime
 import logging
 from pathlib import Path
 import sys
-from typing import Dict, List, Optional, Tuple
 
 # プロジェクトルートをパスに追加（直接実行可能にする）
 project_root = Path(__file__).parent.parent
@@ -21,7 +19,6 @@ import cv2
 import numpy as np
 from tqdm import tqdm
 
-from src.config import ConfigManager
 from src.utils import setup_logging
 
 logger = logging.getLogger(__name__)
@@ -37,10 +34,7 @@ def calculate_image_quality_metrics(image: np.ndarray) -> dict[str, float]:
         品質メトリクスの辞書
     """
     # グレースケール変換
-    if len(image.shape) == 3:
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    else:
-        gray = image.copy()
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if len(image.shape) == 3 else image.copy()
 
     metrics = {}
 
@@ -152,7 +146,7 @@ def classify_failure_reason(
     return reason, recommendations
 
 
-def analyze_failures(csv_path: Path, video_path: Path, output_dir: Path, log_path: Optional[Path] = None) -> dict:
+def analyze_failures(csv_path: Path, video_path: Path, output_dir: Path, log_path: Path | None = None) -> dict:
     """失敗ケースを分析
 
     Args:

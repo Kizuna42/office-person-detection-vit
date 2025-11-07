@@ -3,7 +3,6 @@
 from contextlib import contextmanager
 import logging
 import time
-from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +48,7 @@ class PerformanceMonitor:
             self.metrics[operation_name]["max_time"] = max(self.metrics[operation_name]["max_time"], elapsed)
             del self.start_times[operation_name]
 
-    def get_metrics(self, operation_name: Optional[str] = None) -> dict:
+    def get_metrics(self, operation_name: str | None = None) -> dict:
         """メトリクスを取得
 
         Args:
@@ -80,7 +79,7 @@ class PerformanceMonitor:
                 }
         return summary
 
-    def log_summary(self, logger_instance: Optional[logging.Logger] = None) -> None:
+    def log_summary(self, logger_instance: logging.Logger | None = None) -> None:
         """サマリーをログ出力
 
         Args:

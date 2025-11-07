@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional
+from typing import TYPE_CHECKING
 
 import numpy as np
 
-from src.tracking.track import Track
+if TYPE_CHECKING:
+    from src.tracking.track import Track
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,7 @@ class MOTMetrics:
         self,
         ground_truth_tracks: list[dict],
         predicted_tracks: list[Track],
-        frame_count: int,
+        _frame_count: int,
     ) -> float:
         """MOTA (Multiple Object Tracking Accuracy) を計算
 
@@ -184,7 +185,7 @@ class MOTMetrics:
         # 簡易実装: 実際の実装ではより詳細なマッチングが必要
         return min(len(ground_truth_tracks), len(predicted_tracks))
 
-    def _count_id_switches(self, predicted_tracks: list[Track]) -> int:
+    def _count_id_switches(self, _predicted_tracks: list[Track]) -> int:
         """IDスイッチ数を計算
 
         Args:

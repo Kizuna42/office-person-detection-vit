@@ -1,7 +1,6 @@
 """Statistics calculation utilities."""
 
 from dataclasses import dataclass
-from typing import List, Tuple
 
 import numpy as np
 

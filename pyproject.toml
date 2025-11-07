@@ -89,8 +89,9 @@ split-on-trailing-comma = true
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]  # unused imports in __init__.py
 "tests/**/*.py" = ["ARG", "S101"]  # allow assert in tests
-"tools/**/*.py" = ["ARG", "S101"]
-"scripts/**/*.py" = ["ARG", "S101"]
+"tools/**/*.py" = ["ARG", "S101", "E402"]  # E402: module level import not at top of file (tools need sys.path manipulation)
+"scripts/**/*.py" = ["ARG", "S101", "E402"]
+"src/timestamp/ocr_engine.py" = ["F811"]  # F811: redefinition of unused (conditional imports)
 
 # ============================================================================
 # MyPy設定（型チェック）

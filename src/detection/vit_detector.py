@@ -1,7 +1,6 @@
 """Vision Transformer based person detection module."""
 
 import logging
-from typing import List, Optional, Tuple
 
 import numpy as np
 from PIL import Image
@@ -23,7 +22,7 @@ class ViTDetector:
         self,
         model_name: str = "facebook/detr-resnet-50",
         confidence_threshold: float = 0.5,
-        device: Optional[str] = None,
+        device: str | None = None,
     ):
         """ViTDetectorを初期化
 
@@ -42,7 +41,7 @@ class ViTDetector:
         logger.info(f"Using device: {self.device}")
         logger.info(f"Confidence threshold: {confidence_threshold}")
 
-    def _setup_device(self, device: Optional[str] = None) -> str:
+    def _setup_device(self, device: str | None = None) -> str:
         """デバイスを設定
 
         Args:
@@ -56,7 +55,7 @@ class ViTDetector:
             if device == "mps" and not torch.backends.mps.is_available():
                 logger.warning("MPS is not available. Falling back to CPU.")
                 return "cpu"
-            elif device == "cuda" and not torch.cuda.is_available():
+            if device == "cuda" and not torch.cuda.is_available():
                 logger.warning("CUDA is not available. Falling back to CPU.")
                 return "cpu"
             return device
@@ -65,12 +64,11 @@ class ViTDetector:
         if torch.backends.mps.is_available():
             logger.info("MPS device detected and will be used for acceleration.")
             return "mps"
-        elif torch.cuda.is_available():
+        if torch.cuda.is_available():
             logger.info("CUDA device detected and will be used for acceleration.")
             return "cuda"
-        else:
-            logger.info("No GPU acceleration available. Using CPU.")
-            return "cpu"
+        logger.info("No GPU acceleration available. Using CPU.")
+        return "cpu"
 
     def load_model(self) -> None:
         """事前学習済みViTモデルをロード
@@ -93,7 +91,7 @@ class ViTDetector:
 
         except Exception as e:
             logger.error(f"Failed to load model: {e}")
-            raise RuntimeError(f"Failed to load model {self.model_name}: {e}")
+            raise RuntimeError(f"Failed to load model {self.model_name}: {e}") from e
 
     def detect(self, frame: np.ndarray) -> list[Detection]:
         """人物検出を実行
@@ -365,7 +363,7 @@ class ViTDetector:
         foot_y = y + height
         return (foot_x, foot_y)
 
-    def get_attention_map(self, frame: np.ndarray, layer_index: int = -1) -> Optional[np.ndarray]:
+    def get_attention_map(self, frame: np.ndarray, layer_index: int = -1) -> np.ndarray | None:
         """Attention Mapを取得（可視化用）
 
         Args:
@@ -478,7 +476,7 @@ class ViTDetector:
             logger.error(f"Failed to save attention map: {e}")
             return False
 
-    def detect_batch(self, frames: list[np.ndarray], batch_size: Optional[int] = None) -> list[list[Detection]]:
+    def detect_batch(self, frames: list[np.ndarray], batch_size: int | None = None) -> list[list[Detection]]:
         """複数フレームのバッチ処理
 
         Args:

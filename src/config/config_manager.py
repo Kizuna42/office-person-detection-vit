@@ -4,7 +4,7 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, ClassVar
 
 import yaml
 
@@ -22,7 +22,7 @@ class ConfigManager:
     """
 
     # 必須項目の定義
-    REQUIRED_KEYS = {
+    REQUIRED_KEYS: ClassVar[dict[str, list[str]]] = {
         "video": ["input_path"],
         "detection": ["model_name", "confidence_threshold", "device"],
         "floormap": [
@@ -40,7 +40,7 @@ class ConfigManager:
     }
 
     # デフォルト設定値
-    DEFAULT_CONFIG = {
+    DEFAULT_CONFIG: ClassVar[dict[str, Any]] = {
         "video": {
             "input_path": "input/merged_moviefiles.mov",
             "is_timelapse": True,
@@ -126,14 +126,14 @@ class ConfigManager:
                     return self.DEFAULT_CONFIG.copy()
 
                 logger.info(f"設定ファイル '{self.config_path}' を読み込みました。")
-                return config
+                return dict(config)
 
         except yaml.YAMLError as e:
-            raise ValueError(f"YAML解析エラー: {e}")
+            raise ValueError(f"YAML解析エラー: {e}") from e
         except json.JSONDecodeError as e:
-            raise ValueError(f"JSON解析エラー: {e}")
+            raise ValueError(f"JSON解析エラー: {e}") from e
         except Exception as e:
-            raise ValueError(f"設定ファイルの読み込みに失敗しました: {e}")
+            raise ValueError(f"設定ファイルの読み込みに失敗しました: {e}") from e
 
     def validate(self) -> bool:
         """設定値の妥当性を検証する
@@ -147,7 +147,7 @@ class ConfigManager:
             ValueError: 設定値が不正な場合
         """
         # 必須セクションの存在チェック
-        for section in self.REQUIRED_KEYS.keys():
+        for section in self.REQUIRED_KEYS:
             if section not in self.config:
                 raise ValueError(f"必須セクション '{section}' が設定ファイルに存在しません。")
 
@@ -160,7 +160,7 @@ class ConfigManager:
             section_config = self.config.get(section, {})
             if not isinstance(section_config, dict):
                 raise ValueError(f"セクション '{section}' は辞書型である必要があります。")
-            if not isinstance(required_keys, (list, tuple)):
+            if not isinstance(required_keys, list | tuple):
                 raise ValueError(f"必須キー '{section}' はリストまたはタプルである必要があります。")
             for key in required_keys:
                 if key not in section_config:
@@ -202,13 +202,13 @@ class ConfigManager:
         # frame_interval_minutes の検証
         if "frame_interval_minutes" in video_config:
             interval = video_config["frame_interval_minutes"]
-            if not isinstance(interval, (int, float)) or interval <= 0:
+            if not isinstance(interval, int | float) or interval <= 0:
                 raise ValueError("video.frame_interval_minutes は正の数値である必要があります。")
 
         # tolerance_seconds の検証
         if "tolerance_seconds" in video_config:
             tolerance = video_config["tolerance_seconds"]
-            if not isinstance(tolerance, (int, float)) or tolerance < 0:
+            if not isinstance(tolerance, int | float) or tolerance < 0:
                 raise ValueError("video.tolerance_seconds は非負の数値である必要があります。")
 
     def _validate_detection_config(self):
@@ -221,13 +221,13 @@ class ConfigManager:
 
         # confidence_threshold の検証
         confidence = detection_config.get("confidence_threshold")
-        if not isinstance(confidence, (int, float)) or not (0.0 <= confidence <= 1.0):
+        if not isinstance(confidence, int | float) or not (0.0 <= confidence <= 1.0):
             raise ValueError("detection.confidence_threshold は 0.0 から 1.0 の範囲である必要があります。")
 
         # nms_threshold の検証
         if "nms_threshold" in detection_config:
             nms = detection_config["nms_threshold"]
-            if not isinstance(nms, (int, float)) or not (0.0 <= nms <= 1.0):
+            if not isinstance(nms, int | float) or not (0.0 <= nms <= 1.0):
                 raise ValueError("detection.nms_threshold は 0.0 から 1.0 の範囲である必要があります。")
 
         # device の検証
@@ -260,20 +260,20 @@ class ConfigManager:
 
         # 原点オフセットの検証
         origin_x = floormap_config.get("image_origin_x")
-        if not isinstance(origin_x, (int, float)) or origin_x < 0:
+        if not isinstance(origin_x, int | float) or origin_x < 0:
             raise ValueError("floormap.image_origin_x は非負の数値である必要があります。")
 
         origin_y = floormap_config.get("image_origin_y")
-        if not isinstance(origin_y, (int, float)) or origin_y < 0:
+        if not isinstance(origin_y, int | float) or origin_y < 0:
             raise ValueError("floormap.image_origin_y は非負の数値である必要があります。")
 
         # スケールの検証
         x_scale = floormap_config.get("image_x_mm_per_pixel")
-        if not isinstance(x_scale, (int, float)) or x_scale <= 0:
+        if not isinstance(x_scale, int | float) or x_scale <= 0:
             raise ValueError("floormap.image_x_mm_per_pixel は正の数値である必要があります。")
 
         y_scale = floormap_config.get("image_y_mm_per_pixel")
-        if not isinstance(y_scale, (int, float)) or y_scale <= 0:
+        if not isinstance(y_scale, int | float) or y_scale <= 0:
             raise ValueError("floormap.image_y_mm_per_pixel は正の数値である必要があります。")
 
     def _validate_homography_config(self):
@@ -293,7 +293,7 @@ class ConfigManager:
                 raise ValueError(f"homography.matrix の行 {i} は長さ3のリストである必要があります。")
 
             for j, val in enumerate(row):
-                if not isinstance(val, (int, float)):
+                if not isinstance(val, int | float):
                     raise ValueError(f"homography.matrix[{i}][{j}] は数値である必要があります。")
 
     def _validate_zones_config(self):
@@ -325,13 +325,13 @@ class ConfigManager:
                 if not isinstance(point, list) or len(point) != 2:
                     raise ValueError(f"zones[{i}].polygon[{j}] は [x, y] 形式である必要があります。")
 
-                if not all(isinstance(coord, (int, float)) for coord in point):
+                if not all(isinstance(coord, int | float) for coord in point):
                     raise ValueError(f"zones[{i}].polygon[{j}] の座標は数値である必要があります。")
 
             # priority の検証（任意）
             if "priority" in zone and zone["priority"] is not None:
                 priority = zone["priority"]
-                if not isinstance(priority, (int, float)):
+                if not isinstance(priority, int | float):
                     raise ValueError(f"zones[{i}].priority は数値である必要があります。")
 
     def _validate_camera_config(self):
@@ -341,25 +341,24 @@ class ConfigManager:
         # position_x の検証
         if "position_x" in camera_config:
             pos_x = camera_config["position_x"]
-            if not isinstance(pos_x, (int, float)) or pos_x < 0:
+            if not isinstance(pos_x, int | float) or pos_x < 0:
                 raise ValueError("camera.position_x は非負の数値である必要があります。")
 
         # position_y の検証
         if "position_y" in camera_config:
             pos_y = camera_config["position_y"]
-            if not isinstance(pos_y, (int, float)) or pos_y < 0:
+            if not isinstance(pos_y, int | float) or pos_y < 0:
                 raise ValueError("camera.position_y は非負の数値である必要があります。")
 
         # height_m の検証
         if "height_m" in camera_config:
             height = camera_config["height_m"]
-            if not isinstance(height, (int, float)) or height <= 0:
+            if not isinstance(height, int | float) or height <= 0:
                 raise ValueError("camera.height_m は正の数値である必要があります。")
 
         # show_on_floormap の検証
-        if "show_on_floormap" in camera_config:
-            if not isinstance(camera_config["show_on_floormap"], bool):
-                raise ValueError("camera.show_on_floormap はブール値である必要があります。")
+        if "show_on_floormap" in camera_config and not isinstance(camera_config["show_on_floormap"], bool):
+            raise ValueError("camera.show_on_floormap はブール値である必要があります。")
 
         # marker_color の検証
         if "marker_color" in camera_config:
@@ -421,7 +420,7 @@ class ConfigManager:
         Returns:
             セクションの設定データ
         """
-        return self.config.get(section, {})
+        return dict(self.config.get(section, {}))
 
     def set(self, key: str, value: Any):
         """設定値を動的に変更する
@@ -441,7 +440,7 @@ class ConfigManager:
         config[keys[-1]] = value
         logger.debug(f"設定値を変更しました: {key} = {value}")
 
-    def save(self, output_path: Optional[str] = None):
+    def save(self, output_path: str | None = None):
         """設定をファイルに保存する
 
         Args:

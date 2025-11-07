@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import cv2
 import numpy as np
@@ -10,6 +10,9 @@ import pytest
 
 from src.models import Detection, FrameResult
 from src.visualization.floormap_visualizer import FloormapVisualizer
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 @pytest.fixture()
@@ -93,7 +96,7 @@ def test_init_invalid_image(tmp_path: Path, sample_floormap_config: dict, sample
     invalid_path = tmp_path / "invalid.png"
     invalid_path.write_bytes(b"invalid image data")
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=".*画像.*"):
         FloormapVisualizer(str(invalid_path), sample_floormap_config, sample_zones)
 
 

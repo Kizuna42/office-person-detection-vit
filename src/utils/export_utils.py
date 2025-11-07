@@ -6,13 +6,14 @@ import csv
 import json
 import logging
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import cv2
 import numpy as np
 
-from src.tracking.track import Track
-from src.models.data_models import Detection, FrameResult
+if TYPE_CHECKING:
+    from src.models.data_models import Detection, FrameResult
+    from src.tracking.track import Track
 
 logger = logging.getLogger(__name__)
 

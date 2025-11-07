@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from src.timestamp.ocr_engine import TESSERACT_AVAILABLE, MultiEngineOCR
+from src.timestamp.ocr_engine import MultiEngineOCR
 
 
 @pytest.fixture()
@@ -221,7 +221,7 @@ def test_no_engines_available(sample_roi: np.ndarray):
 def test_enabled_engines_filtering():
     """有効化エンジンのフィルタリングテスト"""
     # Tesseractのみ有効化
-    ocr = MultiEngineOCR(enabled_engines=["tesseract"])
+    MultiEngineOCR(enabled_engines=["tesseract"])
 
     # 実装に応じて、有効化されたエンジンのみが含まれることを確認
     # （実際のエンジン利用可能性に依存）
@@ -281,7 +281,7 @@ def test_init_paddleocr(sample_roi: np.ndarray):
     """PaddleOCR初期化のテスト"""
     # PaddleOCRが利用可能な場合のみテスト
     try:
-        from paddleocr import PaddleOCR
+        from paddleocr import PaddleOCR  # noqa: F401
 
         # 実際のPaddleOCRをモックせず、初期化が成功することを確認
         ocr = MultiEngineOCR(enabled_engines=["paddleocr"])
@@ -385,7 +385,7 @@ def test_calculate_similarity_with_levenshtein():
     """Levenshtein距離を使用した類似度計算"""
     # Levenshteinが利用可能な場合のみテスト
     try:
-        from Levenshtein import ratio
+        from Levenshtein import ratio  # noqa: F401
 
         ocr = MultiEngineOCR(enabled_engines=[])
         similarity = ocr._calculate_similarity("2025/08/26 16:07:45", "2025/08/26 16:07:46")
@@ -402,7 +402,6 @@ def test_calculate_similarity_with_levenshtein():
 def test_calculate_similarity_without_levenshtein():
     """Levenshteinなしの類似度計算"""
     # Levenshteinをインポートできないようにする
-    import sys
 
     original_import = __import__
 

@@ -3,7 +3,6 @@
 import gc
 import json
 from pathlib import Path
-from typing import List, Optional, Tuple
 
 import numpy as np
 from tqdm import tqdm
@@ -25,8 +24,8 @@ class DetectionPhase(BasePhase):
             logger: ロガー
         """
         super().__init__(config, logger)
-        self.detector: Optional[ViTDetector] = None
-        self.output_path: Optional[Path] = None  # 検出画像の保存先
+        self.detector: ViTDetector | None = None
+        self.output_path: Path | None = None  # 検出画像の保存先
         self.performance_monitor = PerformanceMonitor()
 
     def initialize(self) -> None:
@@ -187,3 +186,11 @@ class DetectionPhase(BasePhase):
             self.logger.info(f"検出統計情報をJSONに出力しました: {detection_stats_path}")
         except Exception as e:
             self.logger.error(f"検出統計情報のJSON出力に失敗しました: {e}")
+
+    def cleanup(self) -> None:
+        """リソースのクリーンアップ"""
+        if self.detector is not None:
+            # モデルをメモリから解放
+            del self.detector
+            self.detector = None
+        gc.collect()

@@ -2,7 +2,6 @@
 
 import gc
 import logging
-from typing import Optional
 
 import torch
 
@@ -11,9 +10,9 @@ from src.video import VideoProcessor
 
 
 def cleanup_resources(
-    video_processor: Optional[VideoProcessor] = None,
-    detector: Optional[ViTDetector] = None,
-    logger: Optional[logging.Logger] = None,
+    video_processor: VideoProcessor | None = None,
+    detector: ViTDetector | None = None,
+    logger: logging.Logger | None = None,
 ) -> None:
     """リソースをクリーンアップする
 

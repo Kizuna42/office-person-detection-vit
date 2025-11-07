@@ -3,7 +3,6 @@
 from datetime import datetime
 import logging
 import re
-from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +24,7 @@ class TimestampParser:
             r"(\d{4})年(\d{2})月(\d{2})日\s+(\d{2}):(\d{2}):(\d{2})",  # 日本語: 2025年08月26日 16:07:45
         ]
 
-    def parse(self, ocr_text: str) -> tuple[Optional[datetime], float]:
+    def parse(self, ocr_text: str) -> tuple[datetime | None, float]:
         """OCR結果をdatetimeに変換
 
         Args:
@@ -57,7 +56,7 @@ class TimestampParser:
 
         return None, 0.0
 
-    def fuzzy_parse(self, ocr_text: str) -> tuple[Optional[datetime], float]:
+    def fuzzy_parse(self, ocr_text: str) -> tuple[datetime | None, float]:
         """OCR誤認識を考慮した柔軟なパース
 
         OCRエンジンがよく誤認識する文字を修正してからパースを試みます。

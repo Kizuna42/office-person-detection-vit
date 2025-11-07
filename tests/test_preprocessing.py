@@ -359,7 +359,7 @@ def test_apply_pipeline_invert_order(sample_bgr_image: np.ndarray):
 
 def test_apply_threshold_auto_switch(sample_grayscale_image: np.ndarray):
     """自動切替機能のテスト"""
-    import cv2
+    import cv2  # noqa: F401
 
     # 低コントラスト画像を作成（標準偏差が小さい）
     low_contrast_image = np.full((100, 100), 128, dtype=np.uint8).astype(np.int16)
@@ -381,7 +381,7 @@ def test_apply_threshold_auto_switch(sample_grayscale_image: np.ndarray):
 
 def test_apply_deskew_with_lines(sample_grayscale_image: np.ndarray):
     """線検出がある場合のdeskew"""
-    import cv2
+    import cv2  # noqa: F401
 
     # 水平線を含む画像を作成
     image_with_lines = np.zeros((100, 100), dtype=np.uint8)

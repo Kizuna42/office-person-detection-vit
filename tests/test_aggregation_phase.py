@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -11,6 +11,9 @@ from src.aggregation import Aggregator
 from src.config import ConfigManager
 from src.models import Detection, FrameResult
 from src.pipeline.aggregation_phase import AggregationPhase
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 @pytest.fixture()
