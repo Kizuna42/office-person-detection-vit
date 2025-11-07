@@ -16,7 +16,7 @@ class TimestampROIExtractor:
     OCR精度向上のための前処理を実行します。
     """
 
-    def __init__(self, roi_config: Dict[str, float] = None):
+    def __init__(self, roi_config: dict[str, float] = None):
         """TimestampROIExtractorを初期化
 
         Args:
@@ -34,9 +34,7 @@ class TimestampROIExtractor:
             "height_ratio": 0.08,  # 高さ8%
         }
 
-    def extract_roi(
-        self, frame: np.ndarray
-    ) -> Tuple[np.ndarray, Tuple[int, int, int, int]]:
+    def extract_roi(self, frame: np.ndarray) -> tuple[np.ndarray, tuple[int, int, int, int]]:
         """フレームからタイムスタンプ領域を切り出し
 
         Args:

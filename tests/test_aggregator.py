@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Optional, Sequence
+from typing import Optional
 
 import pytest
 
@@ -61,11 +62,11 @@ def test_export_csv(tmp_path: Path):
     aggregator.aggregate_frame("12:05", detections)
 
     output_path = tmp_path / "result.csv"
-    aggregator.export_csv(str(output_path))
+    aggregator.export_csv(str(output_path), zone_ids=["zone_a"])
 
     content = output_path.read_text(encoding="utf-8")
-    assert "timestamp,zone_id,count" in content
-    assert "12:05,zone_a,1" in content
+    assert "timestamp,zone_a" in content
+    assert "12:05,1" in content
 
 
 def test_get_statistics_returns_summary():

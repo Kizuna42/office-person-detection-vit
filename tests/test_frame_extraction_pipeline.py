@@ -12,13 +12,13 @@ import pytest
 from src.pipeline.frame_extraction_pipeline import FrameExtractionPipeline
 
 
-@pytest.fixture
+@pytest.fixture()
 def mock_video_path(tmp_path: Path) -> Path:
     """モック動画ファイルパス"""
     return tmp_path / "test_video.mov"
 
 
-@pytest.fixture
+@pytest.fixture()
 def sample_output_dir(tmp_path: Path) -> Path:
     """サンプル出力ディレクトリ"""
     output_dir = tmp_path / "output"
@@ -26,7 +26,7 @@ def sample_output_dir(tmp_path: Path) -> Path:
     return output_dir
 
 
-@pytest.fixture
+@pytest.fixture()
 def target_timestamps() -> list[datetime]:
     """テスト用の目標タイムスタンプリスト"""
     return [
@@ -292,9 +292,7 @@ def test_target_timestamps_generation(sample_output_dir: Path):
 
     with patch("src.pipeline.frame_extraction_pipeline.CoarseSampler"), patch(
         "src.pipeline.frame_extraction_pipeline.FineSampler"
-    ), patch("src.pipeline.frame_extraction_pipeline.TimestampExtractorV2"), patch(
-        "cv2.VideoCapture"
-    ):
+    ), patch("src.pipeline.frame_extraction_pipeline.TimestampExtractorV2"), patch("cv2.VideoCapture"):
         pipeline = FrameExtractionPipeline(
             video_path="dummy.mov",
             output_dir=str(sample_output_dir),
@@ -717,9 +715,7 @@ def test_run_with_auto_targets(
     # VideoProcessorのモック
     mock_video_processor = MagicMock()
     mock_video_processor.total_frames = 1000
-    mock_video_processor.get_frame.return_value = np.random.randint(
-        0, 255, (720, 1280, 3), dtype=np.uint8
-    )
+    mock_video_processor.get_frame.return_value = np.random.randint(0, 255, (720, 1280, 3), dtype=np.uint8)
     mock_video_processor_class.return_value = mock_video_processor
 
     mock_extractor = MagicMock()
@@ -730,9 +726,7 @@ def test_run_with_auto_targets(
             "timestamp": base_time + timedelta(seconds=i * 10),
             "frame_idx": i,
             "confidence": 0.9,
-            "ocr_text": (base_time + timedelta(seconds=i * 10)).strftime(
-                "%Y/%m/%d %H:%M:%S"
-            ),
+            "ocr_text": (base_time + timedelta(seconds=i * 10)).strftime("%Y/%m/%d %H:%M:%S"),
             "roi_coords": (832, 0, 448, 58),
         }
         if i % 10 == 0  # 10フレームごとにタイムスタンプを抽出
@@ -782,9 +776,7 @@ def test_run_with_auto_targets_max_frames(
 
     mock_video_processor = MagicMock()
     mock_video_processor.total_frames = 10000
-    mock_video_processor.get_frame.return_value = np.random.randint(
-        0, 255, (720, 1280, 3), dtype=np.uint8
-    )
+    mock_video_processor.get_frame.return_value = np.random.randint(0, 255, (720, 1280, 3), dtype=np.uint8)
     mock_video_processor_class.return_value = mock_video_processor
 
     mock_extractor = MagicMock()
@@ -794,9 +786,7 @@ def test_run_with_auto_targets_max_frames(
             "timestamp": base_time + timedelta(seconds=i * 10),
             "frame_idx": i,
             "confidence": 0.9,
-            "ocr_text": (base_time + timedelta(seconds=i * 10)).strftime(
-                "%Y/%m/%d %H:%M:%S"
-            ),
+            "ocr_text": (base_time + timedelta(seconds=i * 10)).strftime("%Y/%m/%d %H:%M:%S"),
             "roi_coords": (832, 0, 448, 58),
         }
         if i % 10 == 0
@@ -849,9 +839,7 @@ def test_run_with_auto_targets_disable_validation(
 
     mock_video_processor = MagicMock()
     mock_video_processor.total_frames = 100
-    mock_video_processor.get_frame.return_value = np.random.randint(
-        0, 255, (720, 1280, 3), dtype=np.uint8
-    )
+    mock_video_processor.get_frame.return_value = np.random.randint(0, 255, (720, 1280, 3), dtype=np.uint8)
     mock_video_processor_class.return_value = mock_video_processor
 
     mock_extractor = MagicMock()

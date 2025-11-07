@@ -1,0 +1,201 @@
+# オフィス人物検出システム - プロジェクト設定
+# Office Person Detection System - Project Configuration
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "office-person-detection"
+version = "1.0.0"
+description = "Vision Transformer (ViT) ベースのオフィス人物検出システム"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+
+# ============================================================================
+# Ruff設定（Lint + Format + Import整理）
+# ============================================================================
+
+[tool.ruff]
+# Pythonバージョン
+target-version = "py310"
+line-length = 120
+
+# 除外パス
+exclude = [
+    ".git",
+    "__pycache__",
+    ".venv",
+    "venv",
+    ".pytest_cache",
+    ".mypy_cache",
+    "output",
+    "models",
+    "build",
+    "dist",
+]
+
+# 有効にするルール
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "ARG", # flake8-unused-arguments
+    "SIM", # flake8-simplify
+    "TCH", # flake8-type-checking
+    "PIE", # flake8-pie
+    "PT",  # flake8-pytest-style
+    "RET", # flake8-return
+    "RUF", # Ruff-specific rules
+]
+
+# 無視するルール
+ignore = [
+    "E203",  # whitespace before ':' (black互換のため)
+    "E501",  # line too long (line-lengthで制御)
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+    "RET504", # unnecessary assignment before return
+]
+
+# 許可するルール（警告のみ）
+unfixable = [
+    "F401",  # imported but unused
+]
+
+[tool.ruff.format]
+# Black互換設定
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.ruff.lint]
+# インポート整理設定（isort互換）
+[tool.ruff.lint.isort]
+known-first-party = ["src"]
+force-sort-within-sections = true
+split-on-trailing-comma = true
+
+# Flake8互換設定
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]  # unused imports in __init__.py
+"tests/**/*.py" = ["ARG", "S101"]  # allow assert in tests
+"tools/**/*.py" = ["ARG", "S101"]
+"scripts/**/*.py" = ["ARG", "S101"]
+
+# ============================================================================
+# MyPy設定（型チェック）
+# ============================================================================
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+strict_equality = true
+ignore_missing_imports = true  # 外部ライブラリの型定義がない場合に許可
+
+# 除外パス
+exclude = [
+    "venv/",
+    ".venv/",
+    "build/",
+    "dist/",
+    "output/",
+    "models/",
+]
+
+# パスごとの設定
+[[tool.mypy.overrides]]
+module = [
+    "pytesseract.*",
+    "paddleocr.*",
+    "easyocr.*",
+    "cv2.*",
+]
+ignore_missing_imports = true
+
+# ============================================================================
+# Pytest設定
+# ============================================================================
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--strict-config",
+    "--cov=src",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-fail-under=80",  # カバレッジ80%以上を要求
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
+
+# カバレッジ設定
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__init__.py",
+    "*/conftest.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]
+
+# ============================================================================
+# Black設定（参考用、ruff formatが使用される）
+# ============================================================================
+
+[tool.black]
+line-length = 120
+target-version = ["py310"]
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | venv
+  | _build
+  | buck-out
+  | build
+  | dist
+  | output
+  | models
+)/
+'''
+

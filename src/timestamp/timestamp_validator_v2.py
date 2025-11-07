@@ -1,8 +1,8 @@
 """Improved temporal validator with adaptive tolerance and outlier recovery."""
 
-import logging
 from collections import deque
 from datetime import datetime, timedelta
+import logging
 from typing import Optional, Tuple
 
 import numpy as np
@@ -40,7 +40,7 @@ class TemporalValidatorV2:
         self.last_frame_idx: Optional[int] = None
         self.interval_history: deque = deque(maxlen=history_size)
 
-    def validate(self, timestamp: datetime, frame_idx: int) -> Tuple[bool, float, str]:
+    def validate(self, timestamp: datetime, frame_idx: int) -> tuple[bool, float, str]:
         """タイムスタンプの時系列整合性を検証（改善版）
 
         Args:
@@ -77,10 +77,7 @@ class TemporalValidatorV2:
             # 異常値リカバリー: 前後フレームからの線形補間
             recovered_timestamp = self._recover_timestamp(frame_idx, expected_seconds)
             if recovered_timestamp:
-                logger.warning(
-                    f"Outlier detected (z-score={z_score:.2f}), "
-                    f"recovered: {recovered_timestamp}"
-                )
+                logger.warning(f"Outlier detected (z-score={z_score:.2f}), " f"recovered: {recovered_timestamp}")
                 # リカバリー後のタイムスタンプで再検証
                 time_diff = (recovered_timestamp - self.last_timestamp).total_seconds()
                 timestamp = recovered_timestamp
@@ -92,9 +89,7 @@ class TemporalValidatorV2:
             # 履歴を更新
             self.interval_history.append(time_diff)
 
-            confidence = 1.0 - abs(time_diff - expected_seconds) / max(
-                adaptive_tolerance, 1.0
-            )
+            confidence = 1.0 - abs(time_diff - expected_seconds) / max(adaptive_tolerance, 1.0)
             confidence = max(0.0, min(1.0, confidence))
 
             self.last_timestamp = timestamp
@@ -141,9 +136,7 @@ class TemporalValidatorV2:
 
         return adaptive_tolerance
 
-    def _detect_outlier(
-        self, time_diff: float, expected_seconds: float
-    ) -> Tuple[bool, float]:
+    def _detect_outlier(self, time_diff: float, expected_seconds: float) -> tuple[bool, float]:
         """外れ値検出（Z-score法）
 
         Args:
@@ -171,9 +164,7 @@ class TemporalValidatorV2:
 
         return is_outlier, z_score
 
-    def _recover_timestamp(
-        self, frame_idx: int, expected_seconds: float
-    ) -> Optional[datetime]:
+    def _recover_timestamp(self, frame_idx: int, expected_seconds: float) -> Optional[datetime]:
         """異常値のリカバリー（前後フレームからの線形補間）
 
         Args:

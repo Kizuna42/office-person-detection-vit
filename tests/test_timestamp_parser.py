@@ -9,7 +9,7 @@ import pytest
 from src.timestamp.timestamp_parser import TimestampParser
 
 
-@pytest.fixture
+@pytest.fixture()
 def parser() -> TimestampParser:
     """TimestampParserインスタンス"""
     return TimestampParser()

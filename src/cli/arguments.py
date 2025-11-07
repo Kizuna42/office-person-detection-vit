@@ -20,9 +20,7 @@ def parse_arguments() -> argparse.Namespace:
 
     parser.add_argument("--debug", action="store_true", help="デバッグモードで実行（詳細ログ、中間結果出力）")
 
-    parser.add_argument(
-        "--evaluate", action="store_true", help="精度評価モードで実行（Ground Truthとの比較）"
-    )
+    parser.add_argument("--evaluate", action="store_true", help="精度評価モードで実行（Ground Truthとの比較）")
 
     parser.add_argument("--fine-tune", action="store_true", help="ファインチューニングモードで実行")
 

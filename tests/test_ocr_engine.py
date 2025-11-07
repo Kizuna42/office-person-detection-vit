@@ -10,19 +10,19 @@ import pytest
 from src.timestamp.ocr_engine import TESSERACT_AVAILABLE, MultiEngineOCR
 
 
-@pytest.fixture
+@pytest.fixture()
 def sample_roi() -> np.ndarray:
     """テスト用のROI画像（前処理済み）"""
     return np.random.randint(0, 255, (100, 200), dtype=np.uint8)
 
 
-@pytest.fixture
+@pytest.fixture()
 def valid_timestamp_text() -> str:
     """有効なタイムスタンプテキスト"""
     return "2025/08/26 16:07:45"
 
 
-@pytest.fixture
+@pytest.fixture()
 def invalid_timestamp_text() -> str:
     """無効なタイムスタンプテキスト"""
     return "invalid text"
@@ -388,9 +388,7 @@ def test_calculate_similarity_with_levenshtein():
         from Levenshtein import ratio
 
         ocr = MultiEngineOCR(enabled_engines=[])
-        similarity = ocr._calculate_similarity(
-            "2025/08/26 16:07:45", "2025/08/26 16:07:46"
-        )
+        similarity = ocr._calculate_similarity("2025/08/26 16:07:45", "2025/08/26 16:07:46")
 
         # Levenshteinが使用されている場合、類似度は計算される
         assert 0.0 <= similarity <= 1.0
@@ -418,15 +416,11 @@ def test_calculate_similarity_without_levenshtein():
         ocr = MultiEngineOCR(enabled_engines=[])
 
         # 同一テキスト
-        similarity = ocr._calculate_similarity(
-            "2025/08/26 16:07:45", "2025/08/26 16:07:45"
-        )
+        similarity = ocr._calculate_similarity("2025/08/26 16:07:45", "2025/08/26 16:07:45")
         assert similarity == 1.0
 
         # 異なるテキスト
-        similarity = ocr._calculate_similarity(
-            "2025/08/26 16:07:45", "2025/08/27 17:08:46"
-        )
+        similarity = ocr._calculate_similarity("2025/08/26 16:07:45", "2025/08/27 17:08:46")
         assert 0.0 <= similarity < 1.0
 
 

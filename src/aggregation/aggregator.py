@@ -1,8 +1,8 @@
 """集計モジュール - ゾーン別人数カウントと統計情報の計算"""
 
+from collections import defaultdict
 import csv
 import logging
-from collections import defaultdict
 from typing import Dict, List
 
 from src.models.data_models import AggregationResult, Detection
@@ -23,13 +23,11 @@ class Aggregator:
 
     def __init__(self):
         """Aggregatorを初期化"""
-        self.results: List[AggregationResult] = []
-        self._zone_data: Dict[str, List[int]] = defaultdict(list)
+        self.results: list[AggregationResult] = []
+        self._zone_data: dict[str, list[int]] = defaultdict(list)
         logger.info("Aggregator initialized")
 
-    def aggregate_frame(
-        self, timestamp: str, detections: List[Detection]
-    ) -> Dict[str, int]:
+    def aggregate_frame(self, timestamp: str, detections: list[Detection]) -> dict[str, int]:
         """1フレームの集計結果を追加
 
         Args:
@@ -43,18 +41,14 @@ class Aggregator:
 
         # 集計結果を保存
         for zone_id, count in zone_counts.items():
-            result = AggregationResult(
-                timestamp=timestamp, zone_id=zone_id, count=count
-            )
+            result = AggregationResult(timestamp=timestamp, zone_id=zone_id, count=count)
             self.results.append(result)
             self._zone_data[zone_id].append(count)
 
-        logger.debug(
-            f"Frame aggregated: timestamp={timestamp}, zone_counts={zone_counts}"
-        )
+        logger.debug(f"Frame aggregated: timestamp={timestamp}, zone_counts={zone_counts}")
         return zone_counts
 
-    def get_zone_counts(self, detections: List[Detection]) -> Dict[str, int]:
+    def get_zone_counts(self, detections: list[Detection]) -> dict[str, int]:
         """ゾーン別人数をカウント
 
         各検出結果のzone_idsを集計し、ゾーンごとの人数を計算する。
@@ -66,7 +60,7 @@ class Aggregator:
         Returns:
             ゾーン別人数カウント {zone_id: count}
         """
-        zone_counts: Dict[str, int] = defaultdict(int)
+        zone_counts: dict[str, int] = defaultdict(int)
 
         for detection in detections:
             if detection.zone_ids:
@@ -79,38 +73,65 @@ class Aggregator:
 
         return dict(zone_counts)
 
-    def export_csv(self, output_path: str) -> None:
+    def export_csv(self, output_path: str, zone_ids: list[str] = None) -> None:
         """CSV形式でエクスポート
 
         集計結果をCSVファイルに出力する。
-        フォーマット: timestamp, zone_id, count
+        フォーマット: timestamp, zone_1, zone_2, ..., unclassified
 
         Args:
             output_path: 出力ファイルパス
+            zone_ids: ゾーンIDのリスト（順序指定用、Noneの場合は自動検出）
 
         Raises:
             IOError: ファイル書き込みに失敗した場合
         """
         try:
+            # タイムスタンプごとに集計結果をグループ化
+            timestamp_data: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+
+            for result in self.results:
+                timestamp_data[result.timestamp][result.zone_id] = result.count
+
+            # ゾーンIDの順序を決定
+            if zone_ids is None:
+                # 自動検出: 設定ファイルの順序 + unclassified
+                all_zone_ids = set()
+                for result in self.results:
+                    all_zone_ids.add(result.zone_id)
+                # zone_1, zone_2, ... の順序でソート
+                sorted_zones = sorted([z for z in all_zone_ids if z.startswith("zone_")])
+                if "unclassified" in all_zone_ids:
+                    sorted_zones.append("unclassified")
+                zone_ids = sorted_zones
+            else:
+                # 指定された順序を使用（unclassifiedが含まれていない場合は追加）
+                if "unclassified" not in zone_ids:
+                    zone_ids = list(zone_ids) + ["unclassified"]
+
+            # CSV出力
             with open(output_path, "w", newline="", encoding="utf-8") as csvfile:
                 writer = csv.writer(csvfile)
 
-                # ヘッダー行
-                writer.writerow(["timestamp", "zone_id", "count"])
+                # ヘッダー行: timestamp, zone_1, zone_2, ..., unclassified
+                header = ["timestamp"] + zone_ids
+                writer.writerow(header)
 
-                # データ行
-                for result in self.results:
-                    writer.writerow([result.timestamp, result.zone_id, result.count])
+                # データ行: タイムスタンプごとに1行
+                for timestamp in sorted(timestamp_data.keys()):
+                    row = [timestamp]
+                    for zone_id in zone_ids:
+                        count = timestamp_data[timestamp].get(zone_id, 0)
+                        row.append(count)
+                    writer.writerow(row)
 
-            logger.info(
-                f"Aggregation results exported to CSV: {output_path} ({len(self.results)} rows)"
-            )
+            logger.info(f"Aggregation results exported to CSV: {output_path} ({len(timestamp_data)} rows)")
 
-        except IOError as e:
+        except OSError as e:
             logger.error(f"Failed to export CSV: {e}")
             raise
 
-    def get_statistics(self) -> Dict[str, dict]:
+    def get_statistics(self) -> dict[str, dict]:
         """各ゾーンの統計情報（平均、最大、最小）を計算
 
         Returns:
@@ -124,7 +145,7 @@ class Aggregator:
                 }
             }
         """
-        statistics: Dict[str, dict] = {}
+        statistics: dict[str, dict] = {}
 
         for zone_id, counts in self._zone_data.items():
             if counts:
@@ -153,7 +174,7 @@ class Aggregator:
         """
         return sum(result.count for result in self.results)
 
-    def get_zone_ids(self) -> List[str]:
+    def get_zone_ids(self) -> list[str]:
         """集計されたゾーンIDのリストを取得
 
         Returns:

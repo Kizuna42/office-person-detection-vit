@@ -32,7 +32,7 @@ class EvaluationModule:
         self.iou_threshold = iou_threshold
         self.ground_truth = self._load_ground_truth()
 
-    def _load_ground_truth(self) -> Dict:
+    def _load_ground_truth(self) -> dict:
         """Ground Truthデータを読み込む
 
         Returns:
@@ -43,13 +43,12 @@ class EvaluationModule:
             json.JSONDecodeError: JSON形式が不正な場合
         """
         try:
-            with open(self.ground_truth_path, "r", encoding="utf-8") as f:
+            with open(self.ground_truth_path, encoding="utf-8") as f:
                 data = json.load(f)
 
             logger.info(f"Ground Truthデータを読み込みました: {self.ground_truth_path}")
             logger.info(
-                f"画像数: {len(data.get('images', []))}, "
-                f"アノテーション数: {len(data.get('annotations', []))}"
+                f"画像数: {len(data.get('images', []))}, " f"アノテーション数: {len(data.get('annotations', []))}"
             )
 
             return data
@@ -61,7 +60,7 @@ class EvaluationModule:
             logger.error(f"Ground TruthファイルのJSON形式が不正です: {e}")
             raise
 
-    def _get_annotations_by_image(self, image_id: int) -> List[Dict]:
+    def _get_annotations_by_image(self, image_id: int) -> list[dict]:
         """指定された画像IDのアノテーションを取得
 
         Args:
@@ -76,7 +75,7 @@ class EvaluationModule:
                 annotations.append(ann)
         return annotations
 
-    def _get_image_by_filename(self, filename: str) -> Optional[Dict]:
+    def _get_image_by_filename(self, filename: str) -> Optional[dict]:
         """ファイル名から画像情報を取得
 
         Args:
@@ -92,8 +91,8 @@ class EvaluationModule:
 
     def calculate_iou(
         self,
-        bbox1: Tuple[float, float, float, float],
-        bbox2: Tuple[float, float, float, float],
+        bbox1: tuple[float, float, float, float],
+        bbox2: tuple[float, float, float, float],
     ) -> float:
         """2つのバウンディングボックスのIoU（Intersection over Union）を計算
 
@@ -138,7 +137,7 @@ class EvaluationModule:
         iou = inter_area / union_area
         return iou
 
-    def evaluate(self, detections: Dict[str, List[Detection]]) -> EvaluationMetrics:
+    def evaluate(self, detections: dict[str, list[Detection]]) -> EvaluationMetrics:
         """検出結果を評価し、精度指標を計算
 
         Args:
@@ -190,22 +189,15 @@ class EvaluationModule:
                     false_positives += 1
 
             # マッチングされなかったGround Truthは偽陰性
-            person_gt_count = sum(
-                1 for ann in gt_annotations if ann["category_id"] == 0
-            )
+            person_gt_count = sum(1 for ann in gt_annotations if ann["category_id"] == 0)
             false_negatives += person_gt_count - len(matched_gt)
 
         # 精度指標を計算
-        metrics = self.calculate_metrics(
-            true_positives, false_positives, false_negatives
-        )
+        metrics = self.calculate_metrics(true_positives, false_positives, false_negatives)
 
+        logger.info(f"評価完了 - TP: {true_positives}, FP: {false_positives}, FN: {false_negatives}")
         logger.info(
-            f"評価完了 - TP: {true_positives}, FP: {false_positives}, FN: {false_negatives}"
-        )
-        logger.info(
-            f"Precision: {metrics.precision:.4f}, Recall: {metrics.recall:.4f}, "
-            f"F1-score: {metrics.f1_score:.4f}"
+            f"Precision: {metrics.precision:.4f}, Recall: {metrics.recall:.4f}, " f"F1-score: {metrics.f1_score:.4f}"
         )
 
         return metrics
@@ -228,11 +220,7 @@ class EvaluationModule:
         recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
 
         # F1-scoreを計算（ゼロ除算を回避）
-        f1_score = (
-            2 * (precision * recall) / (precision + recall)
-            if (precision + recall) > 0
-            else 0.0
-        )
+        f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
 
         return EvaluationMetrics(
             precision=precision,
@@ -244,9 +232,7 @@ class EvaluationModule:
             confidence_threshold=0.5,  # デフォルト値、実際の値は外部から設定可能
         )
 
-    def export_report(
-        self, metrics: EvaluationMetrics, output_path: str, format: str = "csv"
-    ) -> None:
+    def export_report(self, metrics: EvaluationMetrics, output_path: str, format: str = "csv") -> None:
         """評価レポートをファイルに出力
 
         Args:
@@ -315,7 +301,7 @@ class EvaluationModule:
 
 
 def run_evaluation(
-    detection_results: List[Tuple[int, str, List[Detection]]],
+    detection_results: list[tuple[int, str, list[Detection]]],
     config,
     logger: logging.Logger,
 ) -> None:
@@ -348,12 +334,8 @@ def run_evaluation(
 
         # レポート出力
         output_dir = Path(config.get("output.directory", "output"))
-        evaluator.export_report(
-            metrics, str(output_dir / "evaluation_report.csv"), format="csv"
-        )
-        evaluator.export_report(
-            metrics, str(output_dir / "evaluation_report.json"), format="json"
-        )
+        evaluator.export_report(metrics, str(output_dir / "evaluation_report.csv"), format="csv")
+        evaluator.export_report(metrics, str(output_dir / "evaluation_report.json"), format="json")
 
         logger.info("=" * 60)
         logger.info("評価結果:")

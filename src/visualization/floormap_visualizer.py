@@ -26,9 +26,9 @@ class FloormapVisualizer:
     def __init__(
         self,
         floormap_path: str,
-        floormap_config: Dict,
-        zones: List[Dict],
-        camera_config: Optional[Dict] = None,
+        floormap_config: dict,
+        zones: list[dict],
+        camera_config: Optional[dict] = None,
     ):
         """FloormapVisualizerを初期化する
 
@@ -61,7 +61,7 @@ class FloormapVisualizer:
         # ゾーンごとの色を生成
         self.zone_colors = self._generate_zone_colors()
 
-    def _generate_zone_colors(self) -> Dict[str, Tuple[int, int, int]]:
+    def _generate_zone_colors(self) -> dict[str, tuple[int, int, int]]:
         """ゾーンごとの色を生成する
 
         Returns:
@@ -110,9 +110,7 @@ class FloormapVisualizer:
         pos = (int(camera_x), int(camera_y))
 
         # マーカー設定
-        marker_color = tuple(
-            self.camera_config.get("marker_color", [0, 0, 255])
-        )  # デフォルト: 赤
+        marker_color = tuple(self.camera_config.get("marker_color", [0, 0, 255]))  # デフォルト: 赤
         marker_size = self.camera_config.get("marker_size", 15)
         camera_height = self.camera_config.get("height_m", 0.0)
 
@@ -218,9 +216,7 @@ class FloormapVisualizer:
 
         return image
 
-    def draw_detections(
-        self, image: np.ndarray, detections: List[Detection], draw_labels: bool = True
-    ) -> np.ndarray:
+    def draw_detections(self, image: np.ndarray, detections: list[Detection], draw_labels: bool = True) -> np.ndarray:
         """検出結果を描画する
 
         Args:
@@ -312,9 +308,7 @@ class FloormapVisualizer:
         image = self.draw_detections(image, frame_result.detections, draw_labels)
 
         # フレーム情報を描画
-        info_text = (
-            f"Frame: {frame_result.frame_number} | Time: {frame_result.timestamp}"
-        )
+        info_text = f"Frame: {frame_result.frame_number} | Time: {frame_result.timestamp}"
         cv2.putText(
             image,
             info_text,
@@ -324,16 +318,12 @@ class FloormapVisualizer:
             (255, 255, 255),
             3,
         )
-        cv2.putText(
-            image, info_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 1
-        )
+        cv2.putText(image, info_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 1)
 
         # ゾーン別カウントを描画
         y_offset = 70
         for zone_id, count in frame_result.zone_counts.items():
-            zone_name = next(
-                (z["name"] for z in self.zones if z["id"] == zone_id), zone_id
-            )
+            zone_name = next((z["name"] for z in self.zones if z["id"] == zone_id), zone_id)
             count_text = f"{zone_name}: {count}"
             color = self.zone_colors.get(zone_id, (128, 128, 128))
 
@@ -391,9 +381,7 @@ class FloormapVisualizer:
         legend = np.ones((height, width, 3), dtype=np.uint8) * 255
 
         # タイトル
-        cv2.putText(
-            legend, "Zone Legend", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2
-        )
+        cv2.putText(legend, "Zone Legend", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2)
 
         # 各ゾーンの凡例
         y_offset = 60

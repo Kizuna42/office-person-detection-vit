@@ -6,10 +6,10 @@
 
 import argparse
 import csv
-import logging
-import sys
 from datetime import datetime
+import logging
 from pathlib import Path
+import sys
 from typing import Dict, List
 
 # プロジェクトルートをパスに追加（直接実行可能にする）
@@ -26,7 +26,7 @@ from src.utils import setup_logging
 logger = logging.getLogger(__name__)
 
 
-def load_extraction_results(csv_path: Path) -> List[Dict]:
+def load_extraction_results(csv_path: Path) -> list[dict]:
     """抽出結果CSVを読み込み
 
     Args:
@@ -48,12 +48,8 @@ def load_extraction_results(csv_path: Path) -> List[Dict]:
         reader = csv.DictReader(f)
         for row in tqdm(reader, total=total_lines - 1, desc="CSV読み込み中"):  # -1はヘッダー行
             try:
-                target_ts = datetime.strptime(
-                    row["target_timestamp"], "%Y/%m/%d %H:%M:%S"
-                )
-                extracted_ts = datetime.strptime(
-                    row["extracted_timestamp"], "%Y/%m/%d %H:%M:%S"
-                )
+                target_ts = datetime.strptime(row["target_timestamp"], "%Y/%m/%d %H:%M:%S")
+                extracted_ts = datetime.strptime(row["extracted_timestamp"], "%Y/%m/%d %H:%M:%S")
                 time_diff = float(row["time_diff_seconds"])
 
                 results.append(
@@ -71,7 +67,7 @@ def load_extraction_results(csv_path: Path) -> List[Dict]:
     return results
 
 
-def analyze_errors(results: List[Dict], tolerance_seconds: float = 10.0) -> Dict:
+def analyze_errors(results: list[dict], tolerance_seconds: float = 10.0) -> dict:
     """誤差を分析
 
     Args:
@@ -122,9 +118,7 @@ def analyze_errors(results: List[Dict], tolerance_seconds: float = 10.0) -> Dict
     return analysis
 
 
-def visualize_error_distribution(
-    results: List[Dict], output_path: Path, tolerance_seconds: float = 10.0
-):
+def visualize_error_distribution(results: list[dict], output_path: Path, tolerance_seconds: float = 10.0):
     """誤差分布を可視化
 
     Args:
@@ -145,9 +139,7 @@ def visualize_error_distribution(
     ax1 = axes[0, 0]
     ax1.hist(time_diffs, bins=50, edgecolor="black", alpha=0.7)
     ax1.axvline(x=0, color="green", linestyle="--", label="目標時刻")
-    ax1.axvline(
-        x=tolerance_seconds, color="red", linestyle="--", label=f"±{tolerance_seconds}秒"
-    )
+    ax1.axvline(x=tolerance_seconds, color="red", linestyle="--", label=f"±{tolerance_seconds}秒")
     ax1.axvline(x=-tolerance_seconds, color="red", linestyle="--")
     ax1.set_xlabel("誤差（秒）")
     ax1.set_ylabel("頻度")
@@ -160,9 +152,7 @@ def visualize_error_distribution(
     frame_indices = [r["frame_index"] for r in results]
     ax2.scatter(frame_indices, time_diffs, alpha=0.6, s=20)
     ax2.axhline(y=0, color="green", linestyle="--", label="目標時刻")
-    ax2.axhline(
-        y=tolerance_seconds, color="red", linestyle="--", label=f"±{tolerance_seconds}秒"
-    )
+    ax2.axhline(y=tolerance_seconds, color="red", linestyle="--", label=f"±{tolerance_seconds}秒")
     ax2.axhline(y=-tolerance_seconds, color="red", linestyle="--")
     ax2.set_xlabel("フレーム番号")
     ax2.set_ylabel("誤差（秒）")
@@ -200,7 +190,7 @@ def visualize_error_distribution(
     plt.close()
 
 
-def print_analysis_report(analysis: Dict):
+def print_analysis_report(analysis: dict):
     """分析レポートを出力
 
     Args:
@@ -211,7 +201,7 @@ def print_analysis_report(analysis: Dict):
     logger.info("=" * 80)
 
     logger.info(f"総抽出数: {analysis.get('total_count', 0)}")
-    logger.info(f"\n誤差統計:")
+    logger.info("\n誤差統計:")
     logger.info(f"  平均誤差: {analysis.get('mean_error_seconds', 0):.2f}秒")
     logger.info(f"  中央値誤差: {analysis.get('median_error_seconds', 0):.2f}秒")
     logger.info(f"  標準偏差: {analysis.get('std_error_seconds', 0):.2f}秒")
@@ -219,12 +209,10 @@ def print_analysis_report(analysis: Dict):
     logger.info(f"  最大誤差: {analysis.get('max_error_seconds', 0):.2f}秒")
 
     logger.info(f"\n許容誤差（±{analysis.get('tolerance_seconds', 10)}秒）:")
-    logger.info(
-        f"  達成数: {analysis.get('within_tolerance_count', 0)}/{analysis.get('total_count', 0)}"
-    )
+    logger.info(f"  達成数: {analysis.get('within_tolerance_count', 0)}/{analysis.get('total_count', 0)}")
     logger.info(f"  達成率: {analysis.get('tolerance_rate_percent', 0):.2f}%")
 
-    logger.info(f"\n誤差分布:")
+    logger.info("\n誤差分布:")
     error_dist = analysis.get("error_distribution", {})
     for range_name, count in error_dist.items():
         if count > 0:
@@ -240,9 +228,7 @@ def main():
     parser.add_argument("--csv", type=str, help="extraction_results.csvのパス")
     parser.add_argument("--output-dir", type=str, help="出力ディレクトリ（CSVが未指定の場合）")
     parser.add_argument("--config", type=str, default="config.yaml", help="設定ファイルのパス")
-    parser.add_argument(
-        "--tolerance", type=float, default=10.0, help="許容誤差（秒、デフォルト: 10.0）"
-    )
+    parser.add_argument("--tolerance", type=float, default=10.0, help="許容誤差（秒、デフォルト: 10.0）")
     parser.add_argument("--debug", action="store_true", help="デバッグモード")
 
     args = parser.parse_args()

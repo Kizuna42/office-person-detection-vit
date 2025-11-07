@@ -12,7 +12,7 @@ from src.models import Detection
 from src.visualization import Visualizer
 
 
-@pytest.fixture
+@pytest.fixture()
 def sample_detections() -> list[Detection]:
     """テスト用の検出結果リスト"""
 
@@ -58,28 +58,20 @@ def test_draw_detections(sample_frame: np.ndarray, sample_detections: list[Detec
     assert result.dtype == sample_frame.dtype
 
 
-def test_draw_detections_with_confidence(
-    sample_frame: np.ndarray, sample_detections: list[Detection]
-):
+def test_draw_detections_with_confidence(sample_frame: np.ndarray, sample_detections: list[Detection]):
     """信頼度情報を表示して描画できる。"""
 
     visualizer = Visualizer()
-    result = visualizer.draw_detections(
-        sample_frame, sample_detections, show_confidence=True
-    )
+    result = visualizer.draw_detections(sample_frame, sample_detections, show_confidence=True)
 
     assert result.shape == sample_frame.shape
 
 
-def test_draw_detections_with_coords(
-    sample_frame: np.ndarray, sample_detections: list[Detection]
-):
+def test_draw_detections_with_coords(sample_frame: np.ndarray, sample_detections: list[Detection]):
     """座標情報を表示して描画できる。"""
 
     visualizer = Visualizer(debug_mode=True)
-    result = visualizer.draw_detections(
-        sample_frame, sample_detections, show_coords=True
-    )
+    result = visualizer.draw_detections(sample_frame, sample_detections, show_coords=True)
 
     assert result.shape == sample_frame.shape
 
@@ -126,31 +118,23 @@ def test_draw_attention_map_with_alpha(sample_frame: np.ndarray):
     assert result.shape == sample_frame.shape
 
 
-def test_visualize_with_attention(
-    sample_frame: np.ndarray, sample_detections: list[Detection]
-):
+def test_visualize_with_attention(sample_frame: np.ndarray, sample_detections: list[Detection]):
     """検出結果とAttention Mapを同時に可視化できる。"""
 
     visualizer = Visualizer()
     attention_map = np.random.rand(32, 32)
 
-    result = visualizer.visualize_with_attention(
-        sample_frame, sample_detections, attention_map
-    )
+    result = visualizer.visualize_with_attention(sample_frame, sample_detections, attention_map)
 
     assert result.shape == sample_frame.shape
 
 
-def test_visualize_without_attention(
-    sample_frame: np.ndarray, sample_detections: list[Detection]
-):
+def test_visualize_without_attention(sample_frame: np.ndarray, sample_detections: list[Detection]):
     """Attention Mapなしで可視化できる。"""
 
     visualizer = Visualizer()
 
-    result = visualizer.visualize_with_attention(
-        sample_frame, sample_detections, attention_map=None
-    )
+    result = visualizer.visualize_with_attention(sample_frame, sample_detections, attention_map=None)
 
     assert result.shape == sample_frame.shape
 
@@ -179,9 +163,7 @@ def test_save_image_creates_directory(tmp_path: Path, sample_frame: np.ndarray):
     assert output_path.exists()
 
 
-def test_create_comparison_view(
-    sample_frame: np.ndarray, sample_detections: list[Detection]
-):
+def test_create_comparison_view(sample_frame: np.ndarray, sample_detections: list[Detection]):
     """比較ビューを作成できる。"""
 
     visualizer = Visualizer()
@@ -192,9 +174,7 @@ def test_create_comparison_view(
     assert result.shape[1] == sample_frame.shape[1] * 2  # 2つの画像を横に連結
 
 
-def test_create_comparison_view_with_attention(
-    sample_frame: np.ndarray, sample_detections: list[Detection]
-):
+def test_create_comparison_view_with_attention(sample_frame: np.ndarray, sample_detections: list[Detection]):
     """Attention Map付きの比較ビューを作成できる。"""
 
     visualizer = Visualizer()
@@ -202,9 +182,7 @@ def test_create_comparison_view_with_attention(
     attention_map = np.random.rand(32, 32)
     with_attention = visualizer.draw_attention_map(sample_frame, attention_map)
 
-    result = visualizer.create_comparison_view(
-        sample_frame, with_detections, with_attention
-    )
+    result = visualizer.create_comparison_view(sample_frame, with_detections, with_attention)
 
     assert result.shape[1] == sample_frame.shape[1] * 3  # 3つの画像を横に連結
 

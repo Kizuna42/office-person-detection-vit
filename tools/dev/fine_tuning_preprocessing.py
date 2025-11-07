@@ -7,8 +7,8 @@
 
 import argparse
 import logging
-import sys
 from pathlib import Path
+import sys
 from typing import Dict, List, Tuple
 
 import cv2
@@ -28,7 +28,7 @@ from src.video import VideoProcessor
 logger = logging.getLogger(__name__)
 
 
-def deskew_image(image: np.ndarray, max_angle: float = 5.0) -> Tuple[np.ndarray, float]:
+def deskew_image(image: np.ndarray, max_angle: float = 5.0) -> tuple[np.ndarray, float]:
     """画像の傾きを補正
 
     Args:
@@ -74,9 +74,7 @@ def deskew_image(image: np.ndarray, max_angle: float = 5.0) -> Tuple[np.ndarray,
     (h, w) = image.shape[:2]
     center = (w // 2, h // 2)
     M = cv2.getRotationMatrix2D(center, angle, 1.0)
-    rotated = cv2.warpAffine(
-        image, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE
-    )
+    rotated = cv2.warpAffine(image, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
 
     return rotated, angle
 
@@ -85,13 +83,13 @@ def preprocess_with_fine_params(
     roi: np.ndarray,
     min_size: int = 200,
     clahe_clip_limit: float = 3.0,
-    clahe_tile_size: Tuple[int, int] = (8, 8),
+    clahe_tile_size: tuple[int, int] = (8, 8),
     use_gaussian_blur: bool = True,
     blur_kernel_size: int = 3,
     threshold_method: str = "otsu_auto",  # "otsu_auto", "otsu", "otsu_inv", "adaptive"
-    morphology_close_kernel: Tuple[int, int] = (2, 2),
-    morphology_open_kernel: Tuple[int, int] = (2, 2),
-    dilate_kernel: Tuple[int, int] = (2, 1),
+    morphology_close_kernel: tuple[int, int] = (2, 2),
+    morphology_open_kernel: tuple[int, int] = (2, 2),
+    dilate_kernel: tuple[int, int] = (2, 1),
     dilate_iterations: int = 1,
     sharpen_strength: float = 0.0,
     apply_deskew: bool = False,
@@ -143,25 +141,17 @@ def preprocess_with_fine_params(
     # 二値化
     if threshold_method == "otsu_auto":
         # 通常と反転の両方を試す
-        _, binary1 = cv2.threshold(
-            enhanced, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
-        )
-        _, binary2 = cv2.threshold(
-            enhanced, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU
-        )
+        _, binary1 = cv2.threshold(enhanced, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        _, binary2 = cv2.threshold(enhanced, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
         white_pixels1 = np.sum(binary1 == 255)
         white_pixels2 = np.sum(binary2 == 255)
         binary = binary1 if white_pixels1 > white_pixels2 else binary2
     elif threshold_method == "otsu":
         _, binary = cv2.threshold(enhanced, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     elif threshold_method == "otsu_inv":
-        _, binary = cv2.threshold(
-            enhanced, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU
-        )
+        _, binary = cv2.threshold(enhanced, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
     elif threshold_method == "adaptive":
-        binary = cv2.adaptiveThreshold(
-            enhanced, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
-        )
+        binary = cv2.adaptiveThreshold(enhanced, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
     elif threshold_method == "none":
         # 二値化せずにグレースケールのまま
         binary = enhanced
@@ -205,7 +195,7 @@ def preprocess_with_fine_params(
 def test_fine_tuning(
     video_path: str,
     roi_config: dict,
-    frame_indices: List[int],
+    frame_indices: list[int],
     output_dir: Path,
 ):
     """細かいパラメータ調整のテスト"""
@@ -375,11 +365,7 @@ def test_fine_tuning(
             cv2.imwrite(str(preprocessed_path), preprocessed)
 
         # 平均信頼度を計算
-        avg_confidence = (
-            sum(r["confidence"] for r in param_results) / len(param_results)
-            if param_results
-            else 0.0
-        )
+        avg_confidence = sum(r["confidence"] for r in param_results) / len(param_results) if param_results else 0.0
         success_count = sum(1 for r in param_results if r["confidence"] > 0.0)
 
         # OCRテキストの正確性を評価（簡単なチェック）
@@ -483,9 +469,7 @@ def main():
     if args.output_dir:
         output_dir = Path(args.output_dir)
     else:
-        output_dir = (
-            Path(config.get("output.directory", "output")) / "fine_tuning_preprocessing"
-        )
+        output_dir = Path(config.get("output.directory", "output")) / "fine_tuning_preprocessing"
 
     # テスト実行
     logger.info("=" * 80)

@@ -26,7 +26,7 @@ class VisualizationPhase(BasePhase):
     def execute(
         self,
         aggregator: Aggregator,
-        frame_results: List[FrameResult],
+        frame_results: list[FrameResult],
         output_path: Path,
     ) -> None:
         """可視化を実行
@@ -36,9 +36,7 @@ class VisualizationPhase(BasePhase):
             frame_results: FrameResultのリスト
             output_path: 出力ディレクトリ
         """
-        self.logger.info("=" * 80)
-        self.logger.info("フェーズ5: 可視化")
-        self.logger.info("=" * 80)
+        self.log_phase_start("フェーズ5: 可視化")
 
         # Visualizerの初期化
         visualizer = Visualizer(debug_mode=self.config.get("output.debug_mode", False))
@@ -63,9 +61,7 @@ class VisualizationPhase(BasePhase):
             camera_config = self.config.get("camera", {})
 
             try:
-                floormap_visualizer = FloormapVisualizer(
-                    floormap_path, floormap_config, zones, camera_config
-                )
+                floormap_visualizer = FloormapVisualizer(floormap_path, floormap_config, zones, camera_config)
 
                 # 各フレームのフロアマップ画像を生成
                 for frame_result in tqdm(frame_results, desc="フロアマップ可視化中"):
@@ -76,13 +72,9 @@ class VisualizationPhase(BasePhase):
 
                     # 保存
                     floormap_output = (
-                        output_path
-                        / "floormaps"
-                        / f"floormap_{frame_result.timestamp.replace(':', '')}.png"
+                        output_path / "floormaps" / f"floormap_{frame_result.timestamp.replace(':', '')}.png"
                     )
-                    floormap_visualizer.save_visualization(
-                        floormap_image, str(floormap_output)
-                    )
+                    floormap_visualizer.save_visualization(floormap_image, str(floormap_output))
 
             except FileNotFoundError as e:
                 self.logger.warning(f"フロアマップ画像が見つかりません: {e}")

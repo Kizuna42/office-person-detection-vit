@@ -30,7 +30,7 @@ def apply_invert(image: np.ndarray, enabled: bool = True) -> np.ndarray:
 def apply_clahe(
     image: np.ndarray,
     clip_limit: float = 2.0,
-    tile_grid_size: Tuple[int, int] = (8, 8),
+    tile_grid_size: tuple[int, int] = (8, 8),
     enabled: bool = True,
 ) -> np.ndarray:
     """CLAHE（Contrast Limited Adaptive Histogram Equalization）を適用
@@ -119,9 +119,7 @@ def apply_threshold(
     elif method == "adaptive":
         if block_size % 2 == 0:
             block_size += 1  # 奇数に調整
-        binary = cv2.adaptiveThreshold(
-            image, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, block_size, C
-        )
+        binary = cv2.adaptiveThreshold(image, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, block_size, C)
         return binary
     else:
         logger.warning(f"未知の二値化方法: {method}。Otsuを使用します。")
@@ -129,9 +127,7 @@ def apply_threshold(
         return binary
 
 
-def apply_blur(
-    image: np.ndarray, kernel_size: int = 3, sigma: float = 0.0, enabled: bool = True
-) -> np.ndarray:
+def apply_blur(image: np.ndarray, kernel_size: int = 3, sigma: float = 0.0, enabled: bool = True) -> np.ndarray:
     """Gaussianブラーを適用
 
     Args:
@@ -224,9 +220,7 @@ def apply_morphology(
         return cv2.morphologyEx(image, cv2.MORPH_CLOSE, kernel, iterations=iterations)
 
 
-def apply_deskew(
-    image: np.ndarray, max_angle: float = 5.0, enabled: bool = True
-) -> Tuple[np.ndarray, float]:
+def apply_deskew(image: np.ndarray, max_angle: float = 5.0, enabled: bool = True) -> tuple[np.ndarray, float]:
     """傾き補正（deskew）を適用
 
     Args:
@@ -252,11 +246,7 @@ def apply_deskew(
     # 角度を計算
     angles = []
     for line in lines[:20]:  # 最初の20本のみ使用
-        if (
-            isinstance(line, (list, tuple))
-            and len(line) >= 2
-            and not isinstance(line[0], (list, np.ndarray))
-        ):
+        if isinstance(line, (list, tuple)) and len(line) >= 2 and not isinstance(line[0], (list, np.ndarray)):
             rho, theta = line[0], line[1]
         else:
             rho, theta = line[0]
@@ -274,14 +264,12 @@ def apply_deskew(
     (h, w) = image.shape[:2]
     center = (w // 2, h // 2)
     M = cv2.getRotationMatrix2D(center, angle, 1.0)
-    rotated = cv2.warpAffine(
-        image, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE
-    )
+    rotated = cv2.warpAffine(image, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
 
     return rotated, angle
 
 
-def apply_pipeline(image: np.ndarray, params: Dict) -> np.ndarray:
+def apply_pipeline(image: np.ndarray, params: dict) -> np.ndarray:
     """前処理パイプラインを適用
 
     パラメータ例:
@@ -318,9 +306,7 @@ def apply_pipeline(image: np.ndarray, params: Dict) -> np.ndarray:
     # CLAHE
     if "clahe" in params and params["clahe"].get("enabled", False):
         clahe_params = params["clahe"].copy()
-        if "tile_grid_size" in clahe_params and isinstance(
-            clahe_params["tile_grid_size"], list
-        ):
+        if "tile_grid_size" in clahe_params and isinstance(clahe_params["tile_grid_size"], list):
             clahe_params["tile_grid_size"] = tuple(clahe_params["tile_grid_size"])
         result = apply_clahe(result, **clahe_params)
 
@@ -341,9 +327,7 @@ def apply_pipeline(image: np.ndarray, params: Dict) -> np.ndarray:
         result = apply_threshold(result, **params["threshold"])
 
     # invert（二値化後に適用する場合）
-    if "invert_after_threshold" in params and params["invert_after_threshold"].get(
-        "enabled", False
-    ):
+    if "invert_after_threshold" in params and params["invert_after_threshold"].get("enabled", False):
         if np.mean(result) < 127:
             result = apply_invert(result, enabled=True)
 

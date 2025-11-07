@@ -1,7 +1,8 @@
 """Frame sampling strategies for timestamp-based extraction."""
 
+from collections.abc import Iterator
 import logging
-from typing import Iterator, Tuple
+from typing import Tuple
 
 import cv2
 import numpy as np
@@ -37,7 +38,7 @@ class CoarseSampler:
             self.fps = self.video.get(cv2.CAP_PROP_FPS)
             self.interval_frames = int(self.fps * self.interval_seconds)
 
-    def sample(self) -> Iterator[Tuple[int, np.ndarray]]:
+    def sample(self) -> Iterator[tuple[int, np.ndarray]]:
         """フレームをサンプリング
 
         Yields:
@@ -100,9 +101,7 @@ class FineSampler:
             if self.fps is None or self.fps <= 0:
                 raise RuntimeError("Failed to get FPS from video")
 
-    def sample_around_target(
-        self, approx_frame_idx: int
-    ) -> Iterator[Tuple[int, np.ndarray]]:
+    def sample_around_target(self, approx_frame_idx: int) -> Iterator[tuple[int, np.ndarray]]:
         """目標時刻の前後を指定間隔でサンプリング
 
         Args:

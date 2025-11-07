@@ -1,8 +1,8 @@
 """Frame extraction pipeline for 5-minute interval timestamp-based sampling."""
 
 import csv
-import logging
 from datetime import datetime, timedelta
+import logging
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -36,8 +36,8 @@ class FrameExtractionPipeline:
         fine_search_window_seconds: float = 60.0,
         fine_interval_seconds: float = 0.1,
         fps: float = 30.0,
-        roi_config: Dict[str, float] = None,
-        enabled_ocr_engines: List[str] = None,
+        roi_config: dict[str, float] = None,
+        enabled_ocr_engines: list[str] = None,
         use_improved_validator: bool = False,
         base_tolerance_seconds: float = 10.0,
         history_size: int = 10,
@@ -76,9 +76,7 @@ class FrameExtractionPipeline:
         self.tolerance_seconds = tolerance_seconds
 
         # サンプラーと抽出器を初期化
-        self.coarse_sampler = CoarseSampler(
-            video_path, interval_seconds=coarse_interval_seconds
-        )
+        self.coarse_sampler = CoarseSampler(video_path, interval_seconds=coarse_interval_seconds)
         self.video_cap = cv2.VideoCapture(video_path)
         if not self.video_cap.isOpened():
             raise RuntimeError(f"Failed to open video: {video_path}")
@@ -114,9 +112,7 @@ class FrameExtractionPipeline:
             start=start_datetime, end=end_datetime, interval_minutes=interval_minutes
         )
 
-    def _generate_target_timestamps(
-        self, start: datetime, end: datetime, interval_minutes: int
-    ) -> List[datetime]:
+    def _generate_target_timestamps(self, start: datetime, end: datetime, interval_minutes: int) -> list[datetime]:
         """5分刻みの目標タイムスタンプリストを生成
 
         Args:
@@ -134,7 +130,7 @@ class FrameExtractionPipeline:
             current += timedelta(minutes=interval_minutes)
         return targets
 
-    def run(self) -> List[Dict[str, any]]:
+    def run(self) -> list[dict[str, any]]:
         """パイプライン実行
 
         Returns:
@@ -142,9 +138,7 @@ class FrameExtractionPipeline:
         """
         results = []
 
-        logger.info(
-            f"Starting frame extraction for {len(self.target_timestamps)} target timestamps"
-        )
+        logger.info(f"Starting frame extraction for {len(self.target_timestamps)} target timestamps")
 
         try:
             for target_ts in tqdm(self.target_timestamps, desc="Extracting frames"):
@@ -158,17 +152,13 @@ class FrameExtractionPipeline:
             # 結果をCSV保存
             self._save_results_csv(results)
 
-            logger.info(
-                f"Extraction completed: {len(results)}/{len(self.target_timestamps)} frames extracted"
-            )
+            logger.info(f"Extraction completed: {len(results)}/{len(self.target_timestamps)} frames extracted")
             return results
 
         finally:
             self.cleanup()
 
-    def _extract_frame_for_target(
-        self, target_ts: datetime
-    ) -> Optional[Dict[str, any]]:
+    def _extract_frame_for_target(self, target_ts: datetime) -> Optional[dict[str, any]]:
         """目標タイムスタンプに最も近いフレームを抽出
 
         Args:
@@ -219,9 +209,7 @@ class FrameExtractionPipeline:
 
         return approx_frame_idx
 
-    def _find_best_frame_around(
-        self, target_ts: datetime, approx_frame_idx: int
-    ) -> Optional[Dict[str, any]]:
+    def _find_best_frame_around(self, target_ts: datetime, approx_frame_idx: int) -> Optional[dict[str, any]]:
         """精密サンプリングで±10秒以内のベストフレームを探す
 
         Args:
@@ -233,9 +221,7 @@ class FrameExtractionPipeline:
         """
         candidates = []
 
-        for frame_idx, frame in self.fine_sampler.sample_around_target(
-            approx_frame_idx
-        ):
+        for frame_idx, frame in self.fine_sampler.sample_around_target(approx_frame_idx):
             result = self.extractor.extract(frame, frame_idx)
 
             if result and result.get("timestamp"):
@@ -254,9 +240,7 @@ class FrameExtractionPipeline:
                     )
 
         if not candidates:
-            logger.warning(
-                f"No frames within ±{self.tolerance_seconds}s of {target_ts}"
-            )
+            logger.warning(f"No frames within ±{self.tolerance_seconds}s of {target_ts}")
             return None
 
         # 時間差が最小のフレームを選択
@@ -268,7 +252,7 @@ class FrameExtractionPipeline:
 
         return best
 
-    def _save_frame(self, result: Dict[str, any]) -> None:
+    def _save_frame(self, result: dict[str, any]) -> None:
         """抽出したフレームを保存
 
         Args:
@@ -287,7 +271,7 @@ class FrameExtractionPipeline:
             cv2.imwrite(str(output_path), frame)
             logger.debug(f"Saved frame: {output_path}")
 
-    def _save_results_csv(self, results: List[Dict[str, any]]) -> None:
+    def _save_results_csv(self, results: list[dict[str, any]]) -> None:
         """結果をCSVで保存
 
         Args:
@@ -327,7 +311,7 @@ class FrameExtractionPipeline:
         self,
         max_frames: Optional[int] = None,
         disable_validation: bool = False,
-    ) -> List[Dict[str, any]]:
+    ) -> list[dict[str, any]]:
         """5分刻みフレーム抽出（自動目標タイムスタンプ生成）
 
         指定範囲のフレームからタイムスタンプを全て抽出し、
@@ -399,26 +383,18 @@ class FrameExtractionPipeline:
             last_timestamp = all_extracted_frames[-1]["timestamp"]
 
             # 先頭フレームの時刻を5分刻みに切り上げ（例: 16:04:16 -> 16:05:00）
-            start_minute = (
-                first_timestamp.minute // self.interval_minutes + 1
-            ) * self.interval_minutes
+            start_minute = (first_timestamp.minute // self.interval_minutes + 1) * self.interval_minutes
             if start_minute >= 60:
                 start_minute = 0
                 start_hour = first_timestamp.hour + 1
             else:
                 start_hour = first_timestamp.hour
 
-            start_target = first_timestamp.replace(
-                hour=start_hour, minute=start_minute, second=0, microsecond=0
-            )
+            start_target = first_timestamp.replace(hour=start_hour, minute=start_minute, second=0, microsecond=0)
 
             # 終了時刻を5分刻みに切り下げ
-            end_minute = (
-                last_timestamp.minute // self.interval_minutes
-            ) * self.interval_minutes
-            end_target = last_timestamp.replace(
-                minute=end_minute, second=0, microsecond=0
-            )
+            end_minute = (last_timestamp.minute // self.interval_minutes) * self.interval_minutes
+            end_target = last_timestamp.replace(minute=end_minute, second=0, microsecond=0)
 
             # 5分刻みの目標タイムスタンプを生成
             target_timestamps = []
@@ -484,9 +460,7 @@ class FrameExtractionPipeline:
 
             for selected in selected_frames:
                 target_str = selected["target_timestamp"].strftime("%Y%m%d_%H%M%S")
-                output_path_frame = (
-                    frames_dir / f"frame_{target_str}_idx{selected['frame_index']}.jpg"
-                )
+                output_path_frame = frames_dir / f"frame_{target_str}_idx{selected['frame_index']}.jpg"
 
                 cv2.imwrite(str(output_path_frame), selected["frame"])
 

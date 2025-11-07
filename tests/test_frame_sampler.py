@@ -12,13 +12,13 @@ import pytest
 from src.video.frame_sampler import AdaptiveSampler, CoarseSampler, FineSampler
 
 
-@pytest.fixture
+@pytest.fixture()
 def mock_video_path(tmp_path: Path) -> Path:
     """モック動画ファイルパス"""
     return tmp_path / "test_video.mov"
 
 
-@pytest.fixture
+@pytest.fixture()
 def mock_video_capture():
     """モックVideoCapture"""
     mock_cap = MagicMock()
@@ -38,9 +38,7 @@ def mock_video_capture():
 
 
 @patch("cv2.VideoCapture")
-def test_coarse_sampler_interval(
-    mock_video_capture_class, mock_video_path: Path, mock_video_capture
-):
+def test_coarse_sampler_interval(mock_video_capture_class, mock_video_path: Path, mock_video_capture):
     """CoarseSamplerのフレーム間隔テスト"""
     mock_video_capture_class.return_value = mock_video_capture
 
@@ -60,9 +58,7 @@ def test_coarse_sampler_interval(
 
 
 @patch("cv2.VideoCapture")
-def test_coarse_sampler_fps_calculation(
-    mock_video_capture_class, mock_video_path: Path, mock_video_capture
-):
+def test_coarse_sampler_fps_calculation(mock_video_capture_class, mock_video_path: Path, mock_video_capture):
     """CoarseSamplerのFPS計算テスト"""
     mock_video_capture_class.return_value = mock_video_capture
 
@@ -107,10 +103,7 @@ def test_fine_sampler_interval(mock_video_capture):
     # 0.1秒間隔（3フレーム）でサンプリングされていることを確認
     if len(frames) >= 2:
         frame_indices = [idx for idx, _ in frames]
-        intervals = [
-            frame_indices[i + 1] - frame_indices[i]
-            for i in range(len(frame_indices) - 1)
-        ]
+        intervals = [frame_indices[i + 1] - frame_indices[i] for i in range(len(frame_indices) - 1)]
 
         # すべての間隔が3フレーム（0.1秒）であることを確認
         # 0.1秒間隔 = fps * 0.1 = 30 * 0.1 = 3フレーム間隔
@@ -185,9 +178,7 @@ def test_adaptive_sampler_boundary_values():
     interval_high = sampler.adjust_interval(0.9)  # >= 0.9なので間隔が広がる
     interval_low = sampler.adjust_interval(0.4)  # < 0.5なのでmin_interval
     interval_normal = sampler.adjust_interval(0.7)  # 0.5 <= x < 0.9なのでbase_interval
-    interval_boundary = sampler.adjust_interval(
-        0.5
-    )  # 0.5は境界値（< 0.5ではない）なのでbase_interval
+    interval_boundary = sampler.adjust_interval(0.5)  # 0.5は境界値（< 0.5ではない）なのでbase_interval
 
     assert interval_high > sampler.base_interval
     assert interval_low == sampler.min_interval

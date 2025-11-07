@@ -44,7 +44,7 @@ class MultiEngineOCR:
 
     def __init__(
         self,
-        enabled_engines: List[str] = None,
+        enabled_engines: list[str] = None,
         use_weighted_consensus: bool = False,
         use_voting_consensus: bool = False,
     ):
@@ -56,33 +56,27 @@ class MultiEngineOCR:
             use_weighted_consensus: 重み付けスキームを使用するか（デフォルト: False）
             use_voting_consensus: 投票ロジックを使用するか（デフォルト: False）
         """
-        self.engines: Dict[str, callable] = {}
+        self.engines: dict[str, callable] = {}
         self.enabled_engines = enabled_engines or []
         self.use_weighted_consensus = use_weighted_consensus
         self.use_voting_consensus = use_voting_consensus
 
         # 利用可能なエンジンを初期化
-        if TESSERACT_AVAILABLE and (
-            not enabled_engines or "tesseract" in enabled_engines
-        ):
+        if TESSERACT_AVAILABLE and (not enabled_engines or "tesseract" in enabled_engines):
             self.engines["tesseract"] = self._init_tesseract()
 
         if EASYOCR_AVAILABLE and (not enabled_engines or "easyocr" in enabled_engines):
             self.engines["easyocr"] = self._init_easyocr()
 
-        if PADDLEOCR_AVAILABLE and (
-            not enabled_engines or "paddleocr" in enabled_engines
-        ):
+        if PADDLEOCR_AVAILABLE and (not enabled_engines or "paddleocr" in enabled_engines):
             self.engines["paddleocr"] = self._init_paddleocr()
 
         if not self.engines:
-            logger.warning(
-                "No OCR engines available. Please install at least one OCR engine."
-            )
+            logger.warning("No OCR engines available. Please install at least one OCR engine.")
 
     def _init_tesseract(self) -> callable:
         """Tesseract: 高速、数字に強い"""
-        import pytesseract  # noqa: F811
+        import pytesseract
 
         # PSM 8: 単一の単語（最適化テストの結果、PSM 8が最も正確）
         config = r"--psm 8 --oem 3 -c tessedit_char_whitelist=0123456789/: "
@@ -94,7 +88,7 @@ class MultiEngineOCR:
 
     def _init_easyocr(self) -> callable:
         """EasyOCR: 高精度、やや遅い"""
-        import easyocr  # noqa: F811
+        import easyocr
 
         reader = easyocr.Reader(["en"], gpu=False)  # GPU利用は環境に応じて調整
 
@@ -106,7 +100,7 @@ class MultiEngineOCR:
 
     def _init_paddleocr(self) -> callable:
         """PaddleOCR: 中国語カメラでも対応"""
-        from paddleocr import PaddleOCR  # noqa: F811
+        from paddleocr import PaddleOCR
 
         # 新しいバージョンではuse_gpuの代わりにdeviceを使用
         try:
@@ -127,7 +121,7 @@ class MultiEngineOCR:
 
         return paddleocr_func
 
-    def extract_with_consensus(self, roi: np.ndarray) -> Tuple[Optional[str], float]:
+    def extract_with_consensus(self, roi: np.ndarray) -> tuple[Optional[str], float]:
         """複数エンジンの結果を統合（コンセンサスアルゴリズム）
 
         改善されたアルゴリズム（重み付けスキーム、投票ロジック）をサポート
@@ -154,9 +148,7 @@ class MultiEngineOCR:
         # デフォルトのコンセンサスアルゴリズム
         return self._extract_with_baseline_consensus(roi)
 
-    def _extract_with_baseline_consensus(
-        self, roi: np.ndarray
-    ) -> Tuple[Optional[str], float]:
+    def _extract_with_baseline_consensus(self, roi: np.ndarray) -> tuple[Optional[str], float]:
         """ベースラインのコンセンサスアルゴリズム（既存実装）
 
         Args:
@@ -165,7 +157,7 @@ class MultiEngineOCR:
         Returns:
             (抽出テキスト, 信頼度) のタプル
         """
-        results: List[Dict[str, any]] = []
+        results: list[dict[str, any]] = []
 
         for engine_name, engine_func in self.engines.items():
             try:
@@ -194,21 +186,15 @@ class MultiEngineOCR:
 
             if similarity > 0.8:
                 avg_confidence = (top1["confidence"] + top2["confidence"]) / 2
-                logger.debug(
-                    f"Consensus reached: {top1['text']} (similarity={similarity:.2f})"
-                )
+                logger.debug(f"Consensus reached: {top1['text']} (similarity={similarity:.2f})")
                 return top1["text"], avg_confidence
 
         # 最高信頼度の結果を返す
         best = results[0]
-        logger.debug(
-            f"Best result from {best['engine']}: {best['text']} (confidence={best['confidence']:.2f})"
-        )
+        logger.debug(f"Best result from {best['engine']}: {best['text']} (confidence={best['confidence']:.2f})")
         return best["text"], best["confidence"]
 
-    def _extract_with_weighted_consensus(
-        self, roi: np.ndarray
-    ) -> Tuple[Optional[str], float]:
+    def _extract_with_weighted_consensus(self, roi: np.ndarray) -> tuple[Optional[str], float]:
         """重み付けスキームによるコンセンサス
 
         Args:
@@ -217,7 +203,7 @@ class MultiEngineOCR:
         Returns:
             (抽出テキスト, 信頼度) のタプル
         """
-        results: List[Dict[str, any]] = []
+        results: list[dict[str, any]] = []
 
         for engine_name, engine_func in self.engines.items():
             try:
@@ -252,9 +238,7 @@ class MultiEngineOCR:
 
             # 一致度が高い場合は信頼度を向上
             if similarity > 0.8:
-                avg_confidence = (
-                    top1["weighted_confidence"] + top2["weighted_confidence"]
-                ) / 2
+                avg_confidence = (top1["weighted_confidence"] + top2["weighted_confidence"]) / 2
                 avg_confidence = min(avg_confidence * 1.1, 1.0)  # 10%向上
                 logger.debug(
                     f"Weighted consensus reached: {top1['text']} (similarity={similarity:.2f}, "
@@ -269,7 +253,7 @@ class MultiEngineOCR:
         )
         return best["text"], best["weighted_confidence"]
 
-    def _extract_with_voting(self, roi: np.ndarray) -> Tuple[Optional[str], float]:
+    def _extract_with_voting(self, roi: np.ndarray) -> tuple[Optional[str], float]:
         """投票ロジックによるコンセンサス
 
         Args:
@@ -278,7 +262,7 @@ class MultiEngineOCR:
         Returns:
             (抽出テキスト, 信頼度) のタプル
         """
-        results: List[Dict[str, any]] = []
+        results: list[dict[str, any]] = []
 
         for engine_name, engine_func in self.engines.items():
             try:
@@ -298,7 +282,7 @@ class MultiEngineOCR:
             return None, 0.0
 
         # テキストごとに投票
-        text_votes: Dict[str, List[float]] = {}
+        text_votes: dict[str, list[float]] = {}
         for r in results:
             text = r["text"]
             if text not in text_votes:
@@ -377,6 +361,6 @@ class MultiEngineOCR:
             if text1 == text2:
                 return 1.0
             # 簡易的な類似度計算
-            common_chars = sum(c1 == c2 for c1, c2 in zip(text1, text2))
+            common_chars = sum(c1 == c2 for c1, c2 in zip(text1, text2, strict=False))
             max_len = max(len(text1), len(text2))
             return common_chars / max_len if max_len > 0 else 0.0

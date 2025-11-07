@@ -106,7 +106,7 @@ clean-cache: ## Pythonキャッシュ（__pycache__、*.pyc）を削除（注意
 	@find . -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true
 	@find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
 	@find . -type d -name ".mypy_cache" -exec rm -rf {} + 2>/dev/null || true
-	@find . -type d -name ".coverage" -exec rm -rf {} + 2>/dev/null || true
+	@find . -type f -name ".coverage" -delete 2>/dev/null || true
 	@find . -type d -name "htmlcov" -exec rm -rf {} + 2>/dev/null || true
 	@echo "✓ Pythonキャッシュをクリーンアップしました"
 
@@ -252,6 +252,11 @@ help: ## 利用可能なコマンド一覧を表示
 	@echo "  make run-time START_TIME=\"16:05:00\" END_TIME=\"16:15:00\"  # 時刻指定（時刻のみ）"
 	@echo "  make clean                  # outputクリーンアップ"
 	@echo "  make test                   # テスト実行"
+	@echo "  make lint                   # Lintチェック（ruff + mypy）"
+	@echo "  make format                 # コードフォーマット（ruff）"
+	@echo "  make format-check           # フォーマットチェック（変更なし）"
+	@echo "  make precommit-install      # Pre-commitフレームワークのセットアップ"
+	@echo "  make precommit-run          # Pre-commitフックを手動実行"
 	@echo ""
 
 # ========================================
@@ -259,21 +264,17 @@ help: ## 利用可能なコマンド一覧を表示
 # ========================================
 
 .PHONY: lint
-lint: ## Lintチェック（flake8、black、mypy）
+lint: ## Lintチェック（ruff + mypy）
 	@echo "=========================================="
 	@echo "Lintチェック実行中..."
 	@echo "=========================================="
-	@if command -v flake8 >/dev/null 2>&1; then \
-		echo "✓ flake8チェック中..."; \
-		flake8 src/ tests/ --max-line-length=120 --ignore=E203 --exclude=venv,__pycache__ || true; \
+	@if command -v ruff >/dev/null 2>&1; then \
+		echo "✓ ruffチェック中..."; \
+		ruff check .; \
 	else \
-		echo "⚠ flake8がインストールされていません（スキップ）"; \
-	fi
-	@if command -v black >/dev/null 2>&1; then \
-		echo "✓ blackチェック中..."; \
-		black --check src/ tests/ || true; \
-	else \
-		echo "⚠ blackがインストールされていません（スキップ）"; \
+		echo "⚠ ruffがインストールされていません"; \
+		echo "  インストール: pip install ruff"; \
+		exit 1; \
 	fi
 	@if command -v mypy >/dev/null 2>&1; then \
 		echo "✓ mypyチェック中..."; \
@@ -281,54 +282,89 @@ lint: ## Lintチェック（flake8、black、mypy）
 	else \
 		echo "⚠ mypyがインストールされていません（スキップ）"; \
 	fi
+	@echo "✓ Lintチェックが完了しました"
 
 .PHONY: format
-format: ## コードフォーマット（black、isort）
+format: ## コードフォーマット（ruff format + ruff check --fix）
 	@echo "=========================================="
 	@echo "コードフォーマット実行中..."
 	@echo "=========================================="
-	@if command -v black >/dev/null 2>&1; then \
-		echo "✓ blackでフォーマット中..."; \
-		black src/ tests/; \
+	@if command -v ruff >/dev/null 2>&1; then \
+		echo "✓ ruff format実行中..."; \
+		ruff format .; \
+		echo "✓ ruff check --fix実行中..."; \
+		ruff check . --fix; \
 	else \
-		echo "⚠ blackがインストールされていません（スキップ）"; \
-	fi
-	@if command -v isort >/dev/null 2>&1; then \
-		echo "✓ isortでインポート整理中..."; \
-		isort src/ tests/; \
-	else \
-		echo "⚠ isortがインストールされていません（スキップ）"; \
+		echo "⚠ ruffがインストールされていません"; \
+		echo "  インストール: pip install ruff"; \
+		exit 1; \
 	fi
 	@echo "✓ フォーマットが完了しました"
 
-.PHONY: pre-commit
-pre-commit: format lint  ## commit前に実行するチェック（format + lint）
-	@echo "✓ pre-commit checks passed"
-
-.PHONY: pre-push
-pre-push: format lint test  ## push前に実行する総合チェック（format + lint + test）
-	@echo "✓ pre-push checks passed"
-
-.PHONY: precommit-install
-precommit-install: ## Gitフックをインストール（pre-commitとpre-push）
+.PHONY: format-check
+format-check: ## フォーマットチェック（変更なし）
 	@echo "=========================================="
-	@echo "Gitフックをインストール中..."
+	@echo "フォーマットチェック実行中..."
 	@echo "=========================================="
-	@if [ ! -d .git/hooks ]; then \
-		echo "エラー: .git/hooks ディレクトリが見つかりません。Gitリポジトリで実行してください。"; \
+	@if command -v ruff >/dev/null 2>&1; then \
+		echo "✓ ruff format --check実行中..."; \
+		ruff format --check .; \
+	else \
+		echo "⚠ ruffがインストールされていません"; \
+		echo "  インストール: pip install ruff"; \
 		exit 1; \
 	fi
-	@echo '#!/bin/bash' > .git/hooks/pre-commit
-	@echo 'set -e' >> .git/hooks/pre-commit
-	@echo 'echo "Running pre-commit checks..."' >> .git/hooks/pre-commit
-	@echo 'make pre-commit' >> .git/hooks/pre-commit
-	@chmod +x .git/hooks/pre-commit
-	@echo '#!/bin/bash' > .git/hooks/pre-push
-	@echo 'set -e' >> .git/hooks/pre-push
-	@echo 'echo "Running pre-push checks..."' >> .git/hooks/pre-push
-	@echo 'make pre-push' >> .git/hooks/pre-push
-	@chmod +x .git/hooks/pre-push
-	@echo "✓ Gitフックをインストールしました"
-	@echo "  - commit前に自動的に make pre-commit が実行されます（format + lint）"
-	@echo "  - push前に自動的に make pre-push が実行されます（format + lint + test）"
+	@echo "✓ フォーマットチェックが完了しました"
+
+.PHONY: precommit-install
+precommit-install: ## Pre-commitフレームワークのGitフックをインストール
+	@echo "=========================================="
+	@echo "Pre-commitフレームワークをセットアップ中..."
+	@echo "=========================================="
+	@if [ ! -d .git ]; then \
+		echo "エラー: .git ディレクトリが見つかりません。Gitリポジトリで実行してください。"; \
+		exit 1; \
+	fi
+	@if command -v pre-commit >/dev/null 2>&1; then \
+		echo "✓ pre-commitをインストール中..."; \
+		pre-commit install; \
+		pre-commit install --hook-type pre-push; \
+		echo ""; \
+		echo "✓ Pre-commitフレームワークのセットアップが完了しました"; \
+		echo "  - commit前に自動的にフックが実行されます"; \
+		echo "  - push前に自動的にテストが実行されます"; \
+		echo ""; \
+		echo "手動実行: pre-commit run --all-files"; \
+	else \
+		echo "⚠ pre-commitがインストールされていません"; \
+		echo "  インストール: pip install pre-commit"; \
+		exit 1; \
+	fi
+
+.PHONY: precommit-update
+precommit-update: ## Pre-commitフレームワークのフックを更新
+	@echo "=========================================="
+	@echo "Pre-commitフレームワークを更新中..."
+	@echo "=========================================="
+	@if command -v pre-commit >/dev/null 2>&1; then \
+		pre-commit autoupdate; \
+		echo "✓ Pre-commitフレームワークを更新しました"; \
+	else \
+		echo "⚠ pre-commitがインストールされていません"; \
+		echo "  インストール: pip install pre-commit"; \
+		exit 1; \
+	fi
+
+.PHONY: precommit-run
+precommit-run: ## Pre-commitフックを手動実行（全ファイル）
+	@echo "=========================================="
+	@echo "Pre-commitフックを手動実行中..."
+	@echo "=========================================="
+	@if command -v pre-commit >/dev/null 2>&1; then \
+		pre-commit run --all-files; \
+	else \
+		echo "⚠ pre-commitがインストールされていません"; \
+		echo "  インストール: pip install pre-commit"; \
+		exit 1; \
+	fi
 

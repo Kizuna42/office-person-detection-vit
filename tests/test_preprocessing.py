@@ -5,20 +5,27 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from src.detection.preprocessing import (apply_blur, apply_clahe, apply_deskew,
-                                         apply_invert, apply_morphology,
-                                         apply_pipeline, apply_resize,
-                                         apply_threshold, apply_unsharp_mask)
+from src.detection.preprocessing import (
+    apply_blur,
+    apply_clahe,
+    apply_deskew,
+    apply_invert,
+    apply_morphology,
+    apply_pipeline,
+    apply_resize,
+    apply_threshold,
+    apply_unsharp_mask,
+)
 
 
-@pytest.fixture
+@pytest.fixture()
 def sample_grayscale_image() -> np.ndarray:
     """テスト用のグレースケール画像"""
 
     return np.random.randint(0, 255, (100, 100), dtype=np.uint8)
 
 
-@pytest.fixture
+@pytest.fixture()
 def sample_bgr_image() -> np.ndarray:
     """テスト用のBGR画像"""
 
@@ -428,9 +435,7 @@ def test_apply_pipeline_deskew_with_angle(sample_bgr_image: np.ndarray):
     # 傾きのある画像を作成（回転変換を使用）
     center = (50, 50)
     rotation_matrix = cv2.getRotationMatrix2D(center, 5.0, 1.0)  # 5度回転
-    rotated_image = cv2.warpAffine(
-        sample_bgr_image, rotation_matrix, (100, 100), borderValue=(255, 255, 255)
-    )
+    rotated_image = cv2.warpAffine(sample_bgr_image, rotation_matrix, (100, 100), borderValue=(255, 255, 255))
 
     params = {
         "threshold": {"enabled": True, "method": "otsu"},

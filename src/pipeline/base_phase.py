@@ -1,7 +1,7 @@
 """Base class for pipeline phases."""
 
-import logging
 from abc import ABC, abstractmethod
+import logging
 
 from src.config import ConfigManager
 
@@ -22,6 +22,16 @@ class BasePhase(ABC):
         self.config = config
         self.logger = logger
 
+    def log_phase_start(self, phase_name: str) -> None:
+        """フェーズ開始のログを出力
+
+        Args:
+            phase_name: フェーズ名（例: "フェーズ2: ViT人物検出"）
+        """
+        self.logger.info("=" * 80)
+        self.logger.info(phase_name)
+        self.logger.info("=" * 80)
+
     @abstractmethod
     def execute(self, *args, **kwargs):
         """フェーズの実行処理（サブクラスで実装）
@@ -36,4 +46,3 @@ class BasePhase(ABC):
 
         サブクラスで必要に応じてオーバーライドします。
         """
-        pass

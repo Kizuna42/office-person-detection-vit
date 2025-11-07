@@ -40,7 +40,7 @@ class Visualizer:
     def draw_detections(
         self,
         frame: np.ndarray,
-        detections: List[Detection],
+        detections: list[Detection],
         show_confidence: bool = True,
         show_coords: bool = False,
     ) -> np.ndarray:
@@ -73,9 +73,7 @@ class Visualizer:
 
             # ラベル背景を描画
             label_size, _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
-            cv2.rectangle(
-                image, (x, y - label_size[1] - 10), (x + label_size[0], y), color, -1
-            )
+            cv2.rectangle(image, (x, y - label_size[1] - 10), (x + label_size[0], y), color, -1)
 
             # ラベルテキストを描画
             cv2.putText(
@@ -148,9 +146,7 @@ class Visualizer:
 
         return image
 
-    def draw_attention_map(
-        self, frame: np.ndarray, attention_map: np.ndarray, alpha: float = 0.4
-    ) -> np.ndarray:
+    def draw_attention_map(self, frame: np.ndarray, attention_map: np.ndarray, alpha: float = 0.4) -> np.ndarray:
         """Attention Mapをオーバーレイ表示
 
         Args:
@@ -191,17 +187,13 @@ class Visualizer:
                 attention_grid = attention_map
 
             # 元画像サイズにリサイズ
-            attention_resized = cv2.resize(
-                attention_grid, (width, height), interpolation=cv2.INTER_LINEAR
-            )
+            attention_resized = cv2.resize(attention_grid, (width, height), interpolation=cv2.INTER_LINEAR)
 
             # 正規化（0-255）
             attention_normalized = (attention_resized * 255).astype(np.uint8)
 
             # ヒートマップに変換（JETカラーマップ）
-            attention_colored = cv2.applyColorMap(
-                attention_normalized, cv2.COLORMAP_JET
-            )
+            attention_colored = cv2.applyColorMap(attention_normalized, cv2.COLORMAP_JET)
 
             # 元画像とブレンド
             blended = cv2.addWeighted(image, 1 - alpha, attention_colored, alpha, 0)
@@ -216,9 +208,7 @@ class Visualizer:
             logger.error(f"Failed to draw attention map: {e}")
             return image
 
-    def _add_colorbar(
-        self, image: np.ndarray, attention_normalized: np.ndarray
-    ) -> np.ndarray:
+    def _add_colorbar(self, image: np.ndarray, attention_normalized: np.ndarray) -> np.ndarray:
         """カラーバーを画像に追加
 
         Args:
@@ -251,9 +241,7 @@ class Visualizer:
         )
 
         # カラーバーを配置
-        image[
-            y_pos : y_pos + colorbar_height, x_pos : x_pos + colorbar_width
-        ] = colorbar_colored
+        image[y_pos : y_pos + colorbar_height, x_pos : x_pos + colorbar_width] = colorbar_colored
 
         # ラベルを追加
         cv2.putText(
@@ -280,7 +268,7 @@ class Visualizer:
     def visualize_with_attention(
         self,
         frame: np.ndarray,
-        detections: List[Detection],
+        detections: list[Detection],
         attention_map: Optional[np.ndarray] = None,
         alpha: float = 0.4,
     ) -> np.ndarray:
@@ -357,7 +345,7 @@ class Visualizer:
 
         # 各画像にラベルを追加
         labeled_images = []
-        for img, label in zip(images, labels):
+        for img, label in zip(images, labels, strict=False):
             img_copy = img.copy()
             cv2.putText(
                 img_copy,
@@ -368,9 +356,7 @@ class Visualizer:
                 (255, 255, 255),
                 3,
             )
-            cv2.putText(
-                img_copy, label, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 0), 1
-            )
+            cv2.putText(img_copy, label, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 0), 1)
             labeled_images.append(img_copy)
 
         # 水平方向に連結
@@ -378,9 +364,7 @@ class Visualizer:
 
         return comparison
 
-    def plot_time_series(
-        self, aggregator: Aggregator, output_path: str, figsize: tuple = (12, 6)
-    ) -> bool:
+    def plot_time_series(self, aggregator: Aggregator, output_path: str, figsize: tuple = (12, 6)) -> bool:
         """ゾーン別人数の時系列グラフを生成
 
         Args:
@@ -399,7 +383,7 @@ class Visualizer:
 
             # タイムスタンプとゾーン別データを整理
             timestamps = []
-            zone_data: Dict[str, List[int]] = {}
+            zone_data: dict[str, list[int]] = {}
 
             # ユニークなタイムスタンプを取得
             unique_timestamps = sorted(set(r.timestamp for r in aggregator.results))
@@ -409,9 +393,7 @@ class Visualizer:
                 timestamps.append(timestamp)
 
                 # このタイムスタンプの各ゾーンのカウントを取得
-                timestamp_results = [
-                    r for r in aggregator.results if r.timestamp == timestamp
-                ]
+                timestamp_results = [r for r in aggregator.results if r.timestamp == timestamp]
 
                 for result in timestamp_results:
                     if result.zone_id not in zone_data:
@@ -447,9 +429,7 @@ class Visualizer:
                 # タイムスタンプが多い場合は間引いて表示
                 step = len(timestamps) // 10
                 indices = range(0, len(timestamps), step)
-                plt.xticks(
-                    indices, [timestamps[i] for i in indices], rotation=45, ha="right"
-                )
+                plt.xticks(indices, [timestamps[i] for i in indices], rotation=45, ha="right")
 
             # レイアウトを調整
             plt.tight_layout()
@@ -469,9 +449,7 @@ class Visualizer:
             plt.close()
             return False
 
-    def plot_zone_statistics(
-        self, aggregator: Aggregator, output_path: str, figsize: tuple = (10, 6)
-    ) -> bool:
+    def plot_zone_statistics(self, aggregator: Aggregator, output_path: str, figsize: tuple = (10, 6)) -> bool:
         """ゾーン別統計情報のグラフを生成
 
         Args:
@@ -534,9 +512,7 @@ class Visualizer:
             plt.close()
             return False
 
-    def plot_heatmap(
-        self, aggregator: Aggregator, output_path: str, figsize: tuple = (12, 8)
-    ) -> bool:
+    def plot_heatmap(self, aggregator: Aggregator, output_path: str, figsize: tuple = (12, 8)) -> bool:
         """ゾーン×時間のヒートマップを生成
 
         Args:
@@ -563,9 +539,7 @@ class Visualizer:
                 for j, timestamp in enumerate(unique_timestamps):
                     # このゾーンとタイムスタンプの組み合わせのカウントを取得
                     matching_results = [
-                        r
-                        for r in aggregator.results
-                        if r.zone_id == zone_id and r.timestamp == timestamp
+                        r for r in aggregator.results if r.zone_id == zone_id and r.timestamp == timestamp
                     ]
                     if matching_results:
                         heatmap_data[i, j] = matching_results[0].count

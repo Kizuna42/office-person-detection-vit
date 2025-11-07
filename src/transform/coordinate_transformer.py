@@ -21,8 +21,8 @@ class CoordinateTransformer:
 
     def __init__(
         self,
-        homography_matrix: List[List[float]],
-        floormap_config: Optional[Dict] = None,
+        homography_matrix: list[list[float]],
+        floormap_config: Optional[dict] = None,
     ):
         """CoordinateTransformerを初期化する
 
@@ -50,11 +50,9 @@ class CoordinateTransformer:
         self.image_width = self.floormap_config.get("image_width", 0)
         self.image_height = self.floormap_config.get("image_height", 0)
 
-        logger.info(
-            f"CoordinateTransformerを初期化しました。原点オフセット: ({self.origin_x}, {self.origin_y})"
-        )
+        logger.info(f"CoordinateTransformerを初期化しました。原点オフセット: ({self.origin_x}, {self.origin_y})")
 
-    def _validate_and_convert_matrix(self, matrix: List[List[float]]) -> np.ndarray:
+    def _validate_and_convert_matrix(self, matrix: list[list[float]]) -> np.ndarray:
         """ホモグラフィ変換行列を検証し、numpy配列に変換する
 
         Args:
@@ -82,9 +80,7 @@ class CoordinateTransformer:
         logger.debug(f"ホモグラフィ行列:\n{H}")
         return H
 
-    def transform(
-        self, camera_point: Tuple[float, float], apply_origin_offset: bool = True
-    ) -> Tuple[float, float]:
+    def transform(self, camera_point: tuple[float, float], apply_origin_offset: bool = True) -> tuple[float, float]:
         """カメラ座標をフロアマップ座標に変換する
 
         同次座標系を使用した射影変換を実行し、原点オフセットを適用する。
@@ -125,8 +121,8 @@ class CoordinateTransformer:
             raise ValueError(f"座標変換エラー: {e}")
 
     def transform_batch(
-        self, camera_points: List[Tuple[float, float]], apply_origin_offset: bool = True
-    ) -> List[Tuple[float, float]]:
+        self, camera_points: list[tuple[float, float]], apply_origin_offset: bool = True
+    ) -> list[tuple[float, float]]:
         """複数のカメラ座標をバッチ変換する
 
         効率的な行列演算により、複数の座標を一度に変換する。
@@ -164,7 +160,7 @@ class CoordinateTransformer:
                 floor_y += self.origin_y
 
             # リスト形式に変換
-            floor_points = [(float(x), float(y)) for x, y in zip(floor_x, floor_y)]
+            floor_points = [(float(x), float(y)) for x, y in zip(floor_x, floor_y, strict=False)]
 
             logger.debug(f"{len(camera_points)}個の座標をバッチ変換しました。")
             return floor_points
@@ -175,9 +171,7 @@ class CoordinateTransformer:
             logger.info("個別変換にフォールバックします。")
             return [self.transform(p, apply_origin_offset) for p in camera_points]
 
-    def get_foot_position(
-        self, bbox: Tuple[float, float, float, float]
-    ) -> Tuple[float, float]:
+    def get_foot_position(self, bbox: tuple[float, float, float, float]) -> tuple[float, float]:
         """バウンディングボックスから足元座標を計算する
 
         バウンディングボックスの中心下端を足元座標として使用する。
@@ -196,9 +190,7 @@ class CoordinateTransformer:
 
         return (foot_x, foot_y)
 
-    def transform_detection(
-        self, bbox: Tuple[float, float, float, float]
-    ) -> Tuple[float, float]:
+    def transform_detection(self, bbox: tuple[float, float, float, float]) -> tuple[float, float]:
         """検出結果のバウンディングボックスをフロアマップ座標に変換する
 
         バウンディングボックスから足元座標を計算し、フロアマップ座標に変換する。
@@ -213,9 +205,7 @@ class CoordinateTransformer:
         floor_foot = self.transform(camera_foot)
         return floor_foot
 
-    def transform_detections_batch(
-        self, bboxes: List[Tuple[float, float, float, float]]
-    ) -> List[Tuple[float, float]]:
+    def transform_detections_batch(self, bboxes: list[tuple[float, float, float, float]]) -> list[tuple[float, float]]:
         """複数の検出結果をバッチ変換する
 
         Args:
@@ -228,7 +218,7 @@ class CoordinateTransformer:
         floor_feet = self.transform_batch(camera_feet)
         return floor_feet
 
-    def pixel_to_mm(self, pixel_point: Tuple[float, float]) -> Tuple[float, float]:
+    def pixel_to_mm(self, pixel_point: tuple[float, float]) -> tuple[float, float]:
         """フロアマップのピクセル座標をmm座標に変換する
 
         Args:
@@ -241,7 +231,7 @@ class CoordinateTransformer:
         y_mm = pixel_point[1] * self.y_mm_per_pixel
         return (float(x_mm), float(y_mm))
 
-    def mm_to_pixel(self, mm_point: Tuple[float, float]) -> Tuple[float, float]:
+    def mm_to_pixel(self, mm_point: tuple[float, float]) -> tuple[float, float]:
         """mm座標をフロアマップのピクセル座標に変換する
 
         Args:
@@ -254,7 +244,7 @@ class CoordinateTransformer:
         y_pixel = mm_point[1] / self.y_mm_per_pixel
         return (float(x_pixel), float(y_pixel))
 
-    def is_within_bounds(self, floor_point: Tuple[float, float]) -> bool:
+    def is_within_bounds(self, floor_point: tuple[float, float]) -> bool:
         """座標がフロアマップの範囲内にあるか判定する
 
         Args:
@@ -270,7 +260,7 @@ class CoordinateTransformer:
         x, y = floor_point
         return (0 <= x < self.image_width) and (0 <= y < self.image_height)
 
-    def get_floormap_info(self) -> Dict:
+    def get_floormap_info(self) -> dict:
         """フロアマップの情報を取得する
 
         Returns:

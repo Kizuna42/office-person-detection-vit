@@ -5,16 +5,16 @@ WARNING/ERRORレベルのログを抽出し、頻出エラーパターンを特�
 """
 
 import argparse
+from collections import defaultdict
 import logging
+from pathlib import Path
 import re
 import sys
-from collections import defaultdict
-from pathlib import Path
 from typing import Dict
 
 # プロジェクトルートをパスに追加（直接実行可能にする）
 project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))  # noqa: E402
+sys.path.insert(0, str(project_root))
 
 from tqdm import tqdm  # noqa: E402
 
@@ -24,7 +24,7 @@ from src.utils import setup_logging  # noqa: E402
 logger = logging.getLogger(__name__)
 
 
-def parse_log_file(log_path: Path) -> Dict:
+def parse_log_file(log_path: Path) -> dict:
     """ログファイルを解析
 
     Args:
@@ -88,18 +88,14 @@ def parse_log_file(log_path: Path) -> Dict:
         "total_warnings": len(warnings),
         "errors": errors[:100],  # 最初の100件
         "warnings": warnings[:100],  # 最初の100件
-        "error_patterns": dict(
-            sorted(error_patterns.items(), key=lambda x: x[1], reverse=True)[:20]
-        ),
-        "warning_patterns": dict(
-            sorted(warning_patterns.items(), key=lambda x: x[1], reverse=True)[:20]
-        ),
+        "error_patterns": dict(sorted(error_patterns.items(), key=lambda x: x[1], reverse=True)[:20]),
+        "warning_patterns": dict(sorted(warning_patterns.items(), key=lambda x: x[1], reverse=True)[:20]),
     }
 
     return analysis
 
 
-def analyze_performance_bottlenecks(log_path: Path) -> Dict:
+def analyze_performance_bottlenecks(log_path: Path) -> dict:
     """処理時間のボトルネックを分析
 
     Args:
@@ -147,7 +143,7 @@ def analyze_performance_bottlenecks(log_path: Path) -> Dict:
     return bottlenecks
 
 
-def print_log_analysis_report(analysis: Dict, bottlenecks: Dict):
+def print_log_analysis_report(analysis: dict, bottlenecks: dict):
     """ログ分析レポートを出力
 
     Args:
@@ -163,9 +159,7 @@ def print_log_analysis_report(analysis: Dict, bottlenecks: Dict):
 
     if analysis.get("error_patterns"):
         logger.info("\n  頻出エラーパターン（上位10件）:")
-        for i, (pattern, count) in enumerate(
-            list(analysis.get("error_patterns", {}).items())[:10], 1
-        ):
+        for i, (pattern, count) in enumerate(list(analysis.get("error_patterns", {}).items())[:10], 1):
             logger.info(f"    {i}. [{count}回] {pattern}")
 
     if analysis.get("errors"):
@@ -178,9 +172,7 @@ def print_log_analysis_report(analysis: Dict, bottlenecks: Dict):
 
     if analysis.get("warning_patterns"):
         logger.info("\n  頻出警告パターン（上位10件）:")
-        for i, (pattern, count) in enumerate(
-            list(analysis.get("warning_patterns", {}).items())[:10], 1
-        ):
+        for i, (pattern, count) in enumerate(list(analysis.get("warning_patterns", {}).items())[:10], 1):
             logger.info(f"    {i}. [{count}回] {pattern}")
 
     if analysis.get("warnings"):

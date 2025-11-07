@@ -109,19 +109,19 @@ class VideoProcessor:
         # FPSの検証
         if abs(self.fps - self.REQUIRED_FPS) > self.FPS_TOLERANCE:
             issues.append(
-                f"FPSが要件と異なります: {self.fps:.2f} "
-                f"(期待: {self.REQUIRED_FPS:.2f}±{self.FPS_TOLERANCE})"
+                f"FPSが要件と異なります: {self.fps:.2f} " f"(期待: {self.REQUIRED_FPS:.2f}±{self.FPS_TOLERANCE})"
             )
 
         # 警告を出力（処理は継続）
         if issues:
             for issue in issues:
                 logger.warning(f"動画仕様検証: {issue}")
-            logger.warning("動画仕様が要件と異なりますが、処理を継続します。" "予期しない動作が発生する可能性があります。")
+            logger.warning(
+                "動画仕様が要件と異なりますが、処理を継続します。" "予期しない動作が発生する可能性があります。"
+            )
         else:
             logger.debug(
-                f"動画仕様検証: 解像度({self.width}×{self.height})、"
-                f"FPS({self.fps:.2f})が要件を満たしています"
+                f"動画仕様検証: 解像度({self.width}×{self.height})、" f"FPS({self.fps:.2f})が要件を満たしています"
             )
 
     def get_frame(self, frame_number: int) -> Optional[np.ndarray]:
@@ -142,9 +142,7 @@ class VideoProcessor:
             logger.error(error_msg)
             raise RuntimeError(error_msg)
 
-        if frame_number < 0 or (
-            self.total_frames and frame_number >= self.total_frames
-        ):
+        if frame_number < 0 or (self.total_frames and frame_number >= self.total_frames):
             error_msg = f"フレーム番号が範囲外です: {frame_number} (総フレーム数: {self.total_frames})"
             logger.error(error_msg)
             raise ValueError(error_msg)
@@ -182,7 +180,7 @@ class VideoProcessor:
 
         return int(self.cap.get(cv2.CAP_PROP_POS_FRAMES))
 
-    def read_next_frame(self) -> Tuple[bool, Optional[np.ndarray]]:
+    def read_next_frame(self) -> tuple[bool, Optional[np.ndarray]]:
         """次のフレームを順次読み込む
 
         Returns:

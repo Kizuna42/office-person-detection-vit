@@ -5,15 +5,15 @@
 """
 
 import argparse
+from datetime import datetime, timedelta
 import logging
+from pathlib import Path
 import sys
 import time
-from datetime import datetime, timedelta
-from pathlib import Path
 
 # プロジェクトルートをパスに追加（直接実行可能にする）
 project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))  # noqa: E402
+sys.path.insert(0, str(project_root))
 
 import psutil  # noqa: E402
 
@@ -80,9 +80,7 @@ def verify_sample_video(video_path: str, config_path: str = "config.yaml"):
             tolerance_seconds=config.get("video.tolerance_seconds", 10.0),
             confidence_threshold=extraction_config.get("confidence_threshold", 0.7),
             coarse_interval_seconds=sampling_config.get("coarse_interval_seconds", 2.0),
-            fine_search_window_seconds=sampling_config.get(
-                "search_window_seconds", 60.0
-            ),
+            fine_search_window_seconds=sampling_config.get("search_window_seconds", 60.0),
             fine_interval_seconds=sampling_config.get("fine_interval_seconds", 0.1),
             fps=config.get("video.fps", 30.0),
             roi_config=extraction_config.get("roi"),
@@ -137,9 +135,7 @@ def verify_sample_video(video_path: str, config_path: str = "config.yaml"):
         return False
 
 
-def verify_production_video(
-    video_path: str, duration_seconds: int = 3600, config_path: str = "config.yaml"
-):
+def verify_production_video(video_path: str, duration_seconds: int = 3600, config_path: str = "config.yaml"):
     """本番動画での試験実行（最初の指定時間のみ）
 
     Args:
@@ -190,9 +186,7 @@ def verify_production_video(
             tolerance_seconds=config.get("video.tolerance_seconds", 10.0),
             confidence_threshold=extraction_config.get("confidence_threshold", 0.7),
             coarse_interval_seconds=sampling_config.get("coarse_interval_seconds", 2.0),
-            fine_search_window_seconds=sampling_config.get(
-                "search_window_seconds", 60.0
-            ),
+            fine_search_window_seconds=sampling_config.get("search_window_seconds", 60.0),
             fine_interval_seconds=sampling_config.get("fine_interval_seconds", 0.1),
             fps=config.get("video.fps", 30.0),
             roi_config=extraction_config.get("roi"),
@@ -238,9 +232,7 @@ def main():
     )
     parser.add_argument("--video", type=str, help="動画ファイルのパス")
     parser.add_argument("--config", type=str, default="config.yaml", help="設定ファイルのパス")
-    parser.add_argument(
-        "--duration", type=int, default=3600, help="本番動画モードでの処理時間（秒、デフォルト: 3600）"
-    )
+    parser.add_argument("--duration", type=int, default=3600, help="本番動画モードでの処理時間（秒、デフォルト: 3600）")
     parser.add_argument("--debug", action="store_true", help="デバッグモード")
 
     args = parser.parse_args()

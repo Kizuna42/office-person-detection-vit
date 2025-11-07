@@ -7,8 +7,8 @@ A/Bテストで効果を測定します。
 
 import argparse
 import logging
-import sys
 from pathlib import Path
+import sys
 from typing import Dict, List, Tuple
 
 import cv2
@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 def preprocess_roi_with_params(
     roi: np.ndarray,
     clahe_clip_limit: float = 2.0,
-    clahe_tile_size: Tuple[int, int] = (8, 8),
+    clahe_tile_size: tuple[int, int] = (8, 8),
     use_otsu: bool = True,
     threshold_value: int = 127,
     denoise_h: float = 10.0,
@@ -84,8 +84,8 @@ def preprocess_roi_with_params(
 def test_preprocessing_parameters(
     video_path: str,
     roi_config: dict,
-    frame_indices: List[int],
-    param_sets: List[Dict],
+    frame_indices: list[int],
+    param_sets: list[dict],
     output_dir: Path,
 ):
     """前処理パラメータのA/Bテスト
@@ -131,9 +131,7 @@ def test_preprocessing_parameters(
 
         param_results = []
 
-        for frame_idx, frame in tqdm(
-            frames, desc=f"  セット{param_idx+1}処理中", leave=False
-        ):
+        for frame_idx, frame in tqdm(frames, desc=f"  セット{param_idx+1}処理中", leave=False):
             # ROI抽出
             roi, roi_coords = roi_extractor.extract_roi(frame)
 
@@ -157,11 +155,7 @@ def test_preprocessing_parameters(
             cv2.imwrite(str(preprocessed_path), preprocessed)
 
         # 平均信頼度を計算
-        avg_confidence = (
-            sum(r["confidence"] for r in param_results) / len(param_results)
-            if param_results
-            else 0.0
-        )
+        avg_confidence = sum(r["confidence"] for r in param_results) / len(param_results) if param_results else 0.0
 
         results.append(
             {
@@ -284,9 +278,7 @@ def main():
     if args.output_dir:
         output_dir = Path(args.output_dir)
     else:
-        output_dir = (
-            Path(config.get("output.directory", "output")) / "preprocessing_tuning"
-        )
+        output_dir = Path(config.get("output.directory", "output")) / "preprocessing_tuning"
 
     # テスト実行
     logger.info("=" * 80)

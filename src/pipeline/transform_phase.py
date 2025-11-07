@@ -28,9 +28,7 @@ class TransformPhase(BasePhase):
 
     def initialize(self) -> None:
         """座標変換器とゾーン分類器を初期化"""
-        self.logger.info("=" * 80)
-        self.logger.info("フェーズ3: 座標変換とゾーン判定")
-        self.logger.info("=" * 80)
+        self.log_phase_start("フェーズ3: 座標変換とゾーン判定")
 
         # CoordinateTransformerの初期化
         homography_matrix = self.config.get("homography.matrix")
@@ -39,9 +37,7 @@ class TransformPhase(BasePhase):
         if homography_matrix is None:
             raise ValueError("ホモグラフィ行列が設定されていません")
 
-        self.coordinate_transformer = CoordinateTransformer(
-            homography_matrix, floormap_config
-        )
+        self.coordinate_transformer = CoordinateTransformer(homography_matrix, floormap_config)
         self.logger.info("CoordinateTransformer initialized")
 
         # ZoneClassifierの初期化
@@ -56,9 +52,7 @@ class TransformPhase(BasePhase):
             False,
         )
 
-    def execute(
-        self, detection_results: List[Tuple[int, str, List[Detection]]]
-    ) -> List[FrameResult]:
+    def execute(self, detection_results: list[tuple[int, str, list[Detection]]]) -> list[FrameResult]:
         """座標変換とゾーン判定を実行
 
         Args:
@@ -70,24 +64,18 @@ class TransformPhase(BasePhase):
         if self.coordinate_transformer is None or self.zone_classifier is None:
             raise RuntimeError("変換器または分類器が初期化されていません。initialize()を先に呼び出してください。")
 
-        frame_results: List[FrameResult] = []
+        frame_results: list[FrameResult] = []
 
-        for frame_num, timestamp, detections in tqdm(
-            detection_results, desc="座標変換・ゾーン判定中"
-        ):
+        for frame_num, timestamp, detections in tqdm(detection_results, desc="座標変換・ゾーン判定中"):
             # 各検出結果に対して座標変換とゾーン判定を適用
             for detection in detections:
                 try:
                     # フロアマップ座標に変換（ピクセル単位）
-                    floor_coords = self.coordinate_transformer.transform(
-                        detection.camera_coords
-                    )
+                    floor_coords = self.coordinate_transformer.transform(detection.camera_coords)
                     detection.floor_coords = floor_coords
 
                     # mm単位にも変換
-                    floor_coords_mm = self.coordinate_transformer.pixel_to_mm(
-                        floor_coords
-                    )
+                    floor_coords_mm = self.coordinate_transformer.pixel_to_mm(floor_coords)
                     detection.floor_coords_mm = floor_coords_mm
 
                     # 座標がフロアマップ範囲内かチェック
@@ -117,9 +105,7 @@ class TransformPhase(BasePhase):
 
         return frame_results
 
-    def export_results(
-        self, frame_results: List[FrameResult], output_path: Path
-    ) -> None:
+    def export_results(self, frame_results: list[FrameResult], output_path: Path) -> None:
         """座標変換結果をJSON形式で出力
 
         Args:
@@ -176,8 +162,6 @@ class TransformPhase(BasePhase):
                 json.dump(coordinate_data, f, indent=2, ensure_ascii=False)
             self.logger.info(f"座標変換結果をJSONに出力しました: {coordinate_output_path}")
             self.logger.info(f"  出力フレーム数: {len(coordinate_data)}")
-            self.logger.info(
-                f"  総検出数: {sum(len(f['detections']) for f in coordinate_data)}"
-            )
+            self.logger.info(f"  総検出数: {sum(len(f['detections']) for f in coordinate_data)}")
         except Exception as e:
             self.logger.error(f"座標変換結果のJSON出力に失敗しました: {e}")

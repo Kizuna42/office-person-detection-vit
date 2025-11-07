@@ -3,11 +3,11 @@
 
 import argparse
 import logging
-import sys
 from pathlib import Path
+import sys
 
 # プロジェクトルートをパスに追加
-sys.path.insert(0, str(Path(__file__).parent.parent))  # noqa: E402
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.config import ConfigManager  # noqa: E402
 from src.utils import OutputManager  # noqa: E402

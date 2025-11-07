@@ -12,19 +12,19 @@ from src.evaluation.evaluation_module import EvaluationModule, run_evaluation
 from src.models import Detection, EvaluationMetrics
 
 
-@pytest.fixture
+@pytest.fixture()
 def fixtures_dir() -> Path:
     """Return the directory containing static test fixtures."""
     return Path(__file__).parent / "fixtures"
 
 
-@pytest.fixture
+@pytest.fixture()
 def ground_truth_path(fixtures_dir: Path) -> Path:
     """Return the path to the sample COCO ground truth file."""
     return fixtures_dir / "sample_ground_truth.json"
 
 
-@pytest.fixture
+@pytest.fixture()
 def sample_detections() -> list[Detection]:
     """サンプル検出結果"""
     return [
@@ -394,7 +394,7 @@ def test_export_csv_format(ground_truth_path: Path, tmp_path: Path):
 
     import csv
 
-    with open(csv_path, "r", encoding="utf-8") as f:
+    with open(csv_path, encoding="utf-8") as f:
         reader = csv.reader(f)
         rows = list(reader)
 
@@ -426,7 +426,7 @@ def test_export_json_format(ground_truth_path: Path, tmp_path: Path):
 
     import json
 
-    with open(json_path, "r", encoding="utf-8") as f:
+    with open(json_path, encoding="utf-8") as f:
         data = json.load(f)
 
     assert "precision" in data

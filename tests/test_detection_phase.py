@@ -14,7 +14,7 @@ from src.models import Detection
 from src.pipeline.detection_phase import DetectionPhase
 
 
-@pytest.fixture
+@pytest.fixture()
 def sample_config(tmp_path: Path) -> ConfigManager:
     """テスト用のConfigManager"""
     config = ConfigManager("nonexistent_config.yaml")
@@ -27,7 +27,7 @@ def sample_config(tmp_path: Path) -> ConfigManager:
     return config
 
 
-@pytest.fixture
+@pytest.fixture()
 def sample_logger():
     """テスト用のロガー"""
     logger = logging.getLogger("test_detection_phase")
@@ -35,7 +35,7 @@ def sample_logger():
     return logger
 
 
-@pytest.fixture
+@pytest.fixture()
 def sample_frames() -> list[tuple[int, str, np.ndarray]]:
     """テスト用のフレームリスト"""
     return [
@@ -57,7 +57,7 @@ def sample_frames() -> list[tuple[int, str, np.ndarray]]:
     ]
 
 
-@pytest.fixture
+@pytest.fixture()
 def sample_detections() -> list[Detection]:
     """テスト用の検出結果"""
     return [
@@ -93,9 +93,7 @@ def test_initialize(mock_detector_class, sample_config, sample_logger):
 
 
 @patch("src.pipeline.detection_phase.ViTDetector")
-def test_execute_success(
-    mock_detector_class, sample_config, sample_logger, sample_frames, sample_detections
-):
+def test_execute_success(mock_detector_class, sample_config, sample_logger, sample_frames, sample_detections):
     """executeが正しく動作する"""
     mock_detector = MagicMock()
     # バッチサイズ2なので、最初の2フレームが1バッチ、最後の1フレームが1バッチ
@@ -121,9 +119,7 @@ def test_execute_success(
 
 
 @patch("src.pipeline.detection_phase.ViTDetector")
-def test_execute_without_initialize(
-    mock_detector_class, sample_config, sample_logger, sample_frames
-):
+def test_execute_without_initialize(mock_detector_class, sample_config, sample_logger, sample_frames):
     """初期化前にexecuteを呼ぶとエラー"""
     phase = DetectionPhase(sample_config, sample_logger)
 
@@ -161,9 +157,7 @@ def test_execute_with_image_saving(
 
 
 @patch("src.pipeline.detection_phase.ViTDetector")
-def test_execute_batch_processing(
-    mock_detector_class, sample_config, sample_logger, sample_frames, sample_detections
-):
+def test_execute_batch_processing(mock_detector_class, sample_config, sample_logger, sample_frames, sample_detections):
     """バッチ処理が正しく動作する"""
     sample_config.set("detection.batch_size", 2)
 
@@ -185,9 +179,7 @@ def test_execute_batch_processing(
 
 
 @patch("src.pipeline.detection_phase.ViTDetector")
-def test_execute_error_handling(
-    mock_detector_class, sample_config, sample_logger, sample_frames
-):
+def test_execute_error_handling(mock_detector_class, sample_config, sample_logger, sample_frames):
     """エラーハンドリングが正しく動作する"""
     mock_detector = MagicMock()
     mock_detector.detect_batch.side_effect = Exception("Detection error")
@@ -263,9 +255,7 @@ def test_execute_empty_frames(mock_detector_class, sample_config, sample_logger)
 
 
 @patch("src.pipeline.detection_phase.ViTDetector")
-def test_output_path_setting(
-    mock_detector_class, sample_config, sample_logger, tmp_path
-):
+def test_output_path_setting(mock_detector_class, sample_config, sample_logger, tmp_path):
     """output_pathが設定されている場合"""
     mock_detector = MagicMock()
     mock_detector_class.return_value = mock_detector

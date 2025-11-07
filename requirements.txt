@@ -64,8 +64,15 @@ easyocr>=1.7.0,<2.0.0
 # 以下のパッケージは開発環境でのみ必要です
 # The following packages are only required for development
 
+# テストフレームワーク
 pytest>=7.0.0,<9.0.0
 pytest-cov>=4.0.0,<6.0.0  # カバレッジ測定用
+
+# コード品質ツール
+pre-commit>=3.5.0,<4.0.0  # Gitフック管理フレームワーク
+ruff>=0.1.0,<1.0.0  # 高速なLint + Format + Import整理ツール（flake8/black/isortの代替）
+mypy>=1.7.0,<2.0.0  # 静的型チェッカー
+# types-allはオプション（MyPy用の型定義パッケージ、必要に応じて個別にインストール）
 
 # ----------------------------------------------------------------------------
 # インストール方法 (Installation Instructions)

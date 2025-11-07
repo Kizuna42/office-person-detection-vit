@@ -9,13 +9,13 @@ import pytest
 from src.timestamp.timestamp_validator_v2 import TemporalValidatorV2
 
 
-@pytest.fixture
+@pytest.fixture()
 def validator_30fps() -> TemporalValidatorV2:
     """30fps用のTemporalValidatorV2"""
     return TemporalValidatorV2(fps=30.0, base_tolerance_seconds=10.0)
 
 
-@pytest.fixture
+@pytest.fixture()
 def validator_60fps() -> TemporalValidatorV2:
     """60fps用のTemporalValidatorV2"""
     return TemporalValidatorV2(fps=60.0, base_tolerance_seconds=10.0)

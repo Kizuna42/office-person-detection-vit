@@ -22,9 +22,7 @@ class DetectionStatistics:
     confidence_median: float
 
 
-def calculate_detection_statistics(
-    detection_results: List[Tuple[int, str, List[Detection]]]
-) -> DetectionStatistics:
+def calculate_detection_statistics(detection_results: list[tuple[int, str, list[Detection]]]) -> DetectionStatistics:
     """検出結果から統計情報を計算する
 
     Args:
@@ -34,16 +32,10 @@ def calculate_detection_statistics(
         DetectionStatistics: 統計情報
     """
     total_detections = sum(len(dets) for _, _, dets in detection_results)
-    avg_detections = (
-        total_detections / len(detection_results) if detection_results else 0.0
-    )
+    avg_detections = total_detections / len(detection_results) if detection_results else 0.0
 
     # 信頼度スコアの統計を計算
-    all_confidences = [
-        detection.confidence
-        for _, _, detections in detection_results
-        for detection in detections
-    ]
+    all_confidences = [detection.confidence for _, _, detections in detection_results for detection in detections]
 
     if all_confidences:
         confidence_mean = float(np.mean(all_confidences))

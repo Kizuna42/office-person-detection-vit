@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List
 
 import cv2
 import numpy as np
@@ -12,7 +12,7 @@ from src.models import Detection
 
 def save_detection_image(
     frame: np.ndarray,
-    detections: List[Detection],
+    detections: list[Detection],
     timestamp: str,
     output_dir: Path,
     logger: logging.Logger,
@@ -62,9 +62,7 @@ def save_detection_image(
 
             # ファイル名を生成（タイムスタンプの特殊文字を置換）
             # / と : と スペースを _ に置換（ファイル名として無効な文字を除去）
-            timestamp_clean = (
-                timestamp.replace("/", "_").replace(":", "").replace(" ", "_")
-            )
+            timestamp_clean = timestamp.replace("/", "_").replace(":", "").replace(" ", "_")
             filename = f"detection_{timestamp_clean}.jpg"
             output_path = output_dir / filename
 
@@ -88,72 +86,3 @@ def save_detection_image(
         logger.error(f"  - output_dir: {output_dir}")
         logger.error(f"  - timestamp: {timestamp}")
         logger.error(f"  - detections count: {len(detections) if detections else 0}")
-
-
-def create_timestamp_overlay(
-    frame: np.ndarray,
-    roi: Tuple[int, int, int, int],
-    timestamp: Optional[str],
-    confidence: float,
-    frame_number: int,
-) -> np.ndarray:
-    """ROI矩形と抽出結果をオーバーレイした画像を作成
-
-    Args:
-        frame: 元のフレーム画像
-        roi: ROI座標 (x, y, width, height)
-        timestamp: 抽出されたタイムスタンプ
-        confidence: OCR信頼度
-        frame_number: フレーム番号
-
-    Returns:
-        オーバーレイ画像
-    """
-    overlay = frame.copy()
-    x, y, w, h = roi
-
-    # ROI矩形を描画
-    cv2.rectangle(overlay, (x, y), (x + w, y + h), (0, 255, 0), 2)
-
-    # ROI座標をテキストで表示
-    roi_text = f"ROI: ({x}, {y}, {w}, {h})"
-    cv2.putText(
-        overlay,
-        roi_text,
-        (x, max(y - 30, 20)),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.6,
-        (0, 255, 0),
-        2,
-    )
-
-    # フレーム番号を表示
-    frame_text = f"Frame: {frame_number:06d}"
-    cv2.putText(
-        overlay,
-        frame_text,
-        (x, max(y - 60, 20)),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.6,
-        (255, 255, 255),
-        2,
-    )
-
-    # 抽出結果を表示
-    if timestamp:
-        result_text = f"Timestamp: {timestamp}"
-        conf_text = f"Confidence: {confidence:.2f}"
-        color = (0, 255, 0)  # 成功時は緑
-    else:
-        result_text = "Timestamp: FAILED"
-        conf_text = f"Confidence: {confidence:.2f}"
-        color = (0, 0, 255)  # 失敗時は赤
-
-    cv2.putText(
-        overlay, result_text, (x, y + h + 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2
-    )
-    cv2.putText(
-        overlay, conf_text, (x, y + h + 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2
-    )
-
-    return overlay

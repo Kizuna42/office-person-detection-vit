@@ -1,8 +1,8 @@
 """Logging utilities for the office person detection system."""
 
 import logging
-import sys
 from pathlib import Path
+import sys
 
 
 def setup_logging(debug_mode: bool = False, output_dir: str = "output") -> None:

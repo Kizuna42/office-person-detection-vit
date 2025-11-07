@@ -22,9 +22,7 @@ class AggregationPhase(BasePhase):
         """
         super().__init__(config, logger)
 
-    def execute(
-        self, frame_results: List[FrameResult], output_path: Path
-    ) -> Aggregator:
+    def execute(self, frame_results: list[FrameResult], output_path: Path) -> Aggregator:
         """集計処理を実行
 
         Args:
@@ -34,17 +32,13 @@ class AggregationPhase(BasePhase):
         Returns:
             Aggregatorインスタンス
         """
-        self.logger.info("=" * 80)
-        self.logger.info("フェーズ4: 集計とレポート生成")
-        self.logger.info("=" * 80)
+        self.log_phase_start("フェーズ4: 集計とレポート生成")
 
         aggregator = Aggregator()
 
         # フレームごとに集計
         for frame_result in tqdm(frame_results, desc="集計中"):
-            zone_counts = aggregator.aggregate_frame(
-                frame_result.timestamp, frame_result.detections
-            )
+            zone_counts = aggregator.aggregate_frame(frame_result.timestamp, frame_result.detections)
             frame_result.zone_counts = zone_counts
 
         # 統計情報を表示
@@ -62,7 +56,10 @@ class AggregationPhase(BasePhase):
 
         # CSV出力
         csv_path = output_path / "zone_counts.csv"
-        aggregator.export_csv(str(csv_path))
+        # 設定からゾーンIDの順序を取得
+        zones = self.config.get("zones", [])
+        zone_ids = [zone["id"] for zone in zones] if zones else None
+        aggregator.export_csv(str(csv_path), zone_ids=zone_ids)
         self.logger.info(f"集計結果をCSVに出力しました: {csv_path}")
 
         return aggregator

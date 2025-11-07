@@ -7,7 +7,7 @@ import pytest
 from src.zone import ZoneClassifier
 
 
-@pytest.fixture
+@pytest.fixture()
 def sample_zones():
     return [
         {

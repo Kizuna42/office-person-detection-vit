@@ -33,7 +33,7 @@ OPTIONAL_PACKAGES = {
 }
 
 
-def check_package(package_name: str, display_name: str) -> Tuple[bool, str]:
+def check_package(package_name: str, display_name: str) -> tuple[bool, str]:
     """パッケージのインストール状況を確認
 
     Args:
@@ -51,10 +51,11 @@ def check_package(package_name: str, display_name: str) -> Tuple[bool, str]:
         return False, "未インストール"
 
 
-def check_tesseract() -> Tuple[bool, str]:
+def check_tesseract() -> tuple[bool, str]:
     """Tesseract OCRのインストール状況を確認"""
     try:
         import pytesseract
+
         version = pytesseract.get_tesseract_version()
         return True, version
     except Exception as e:
@@ -121,4 +122,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-

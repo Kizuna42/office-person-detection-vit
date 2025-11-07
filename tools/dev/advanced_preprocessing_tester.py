@@ -6,8 +6,8 @@
 
 import argparse
 import logging
-import sys
 from pathlib import Path
+import sys
 from typing import Dict, List, Tuple
 
 import cv2
@@ -81,9 +81,7 @@ def preprocess_strategy_3_adaptive(roi: np.ndarray) -> np.ndarray:
     clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
     enhanced = clahe.apply(gray)
     # 適応的閾値処理
-    binary = cv2.adaptiveThreshold(
-        enhanced, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
-    )
+    binary = cv2.adaptiveThreshold(enhanced, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
     return binary
 
 
@@ -153,7 +151,7 @@ def preprocess_strategy_6_original(roi: np.ndarray) -> np.ndarray:
 def test_all_strategies(
     video_path: str,
     roi_config: dict,
-    frame_indices: List[int],
+    frame_indices: list[int],
     output_dir: Path,
 ):
     """すべての前処理戦略をテスト"""
@@ -220,16 +218,12 @@ def test_all_strategies(
             )
 
             # 前処理済み画像を保存
-            preprocessed_path = (
-                output_dir / f"{strategy_name}_frame_{frame_idx:06d}.jpg"
-            )
+            preprocessed_path = output_dir / f"{strategy_name}_frame_{frame_idx:06d}.jpg"
             cv2.imwrite(str(preprocessed_path), preprocessed)
 
         # 平均信頼度を計算
         avg_confidence = (
-            sum(r["confidence"] for r in strategy_results) / len(strategy_results)
-            if strategy_results
-            else 0.0
+            sum(r["confidence"] for r in strategy_results) / len(strategy_results) if strategy_results else 0.0
         )
         success_count = sum(1 for r in strategy_results if r["confidence"] > 0.0)
 
@@ -243,9 +237,7 @@ def test_all_strategies(
             }
         )
 
-        logger.info(
-            f"  平均信頼度: {avg_confidence:.4f}, 成功数: {success_count}/{len(strategy_results)}"
-        )
+        logger.info(f"  平均信頼度: {avg_confidence:.4f}, 成功数: {success_count}/{len(strategy_results)}")
 
     # 結果を比較
     logger.info("=" * 80)
@@ -321,9 +313,7 @@ def main():
     if args.output_dir:
         output_dir = Path(args.output_dir)
     else:
-        output_dir = (
-            Path(config.get("output.directory", "output")) / "advanced_preprocessing"
-        )
+        output_dir = Path(config.get("output.directory", "output")) / "advanced_preprocessing"
 
     # テスト実行
     logger.info("=" * 80)

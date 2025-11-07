@@ -9,12 +9,12 @@ frame and the floor map, compute a homography matrix, and optionally update
 from __future__ import annotations
 
 import argparse
-import json
-import logging
-import sys
 from dataclasses import dataclass
 from datetime import datetime
+import json
+import logging
 from pathlib import Path
+import sys
 from typing import List, Tuple
 
 import cv2
@@ -23,7 +23,7 @@ import yaml
 
 # Add project root to Python path
 project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))  # noqa: E402
+sys.path.insert(0, str(project_root))
 
 from src.config import ConfigManager  # noqa: E402
 from src.utils import setup_logging  # noqa: E402
@@ -37,12 +37,10 @@ class PointCollector:
 
     image: np.ndarray
     window_name: str
-    color: Tuple[int, int, int]
-    points: List[Tuple[int, int]]
+    color: tuple[int, int, int]
+    points: list[tuple[int, int]]
 
-    def __init__(
-        self, image: np.ndarray, window_name: str, color: Tuple[int, int, int]
-    ):
+    def __init__(self, image: np.ndarray, window_name: str, color: tuple[int, int, int]):
         self.image = image
         self.window_name = window_name
         self.color = color
@@ -75,9 +73,7 @@ class PointCollector:
             )
 
         cv2.rectangle(canvas, (0, 0), (canvas.shape[1], 30), (0, 0, 0), -1)
-        cv2.putText(
-            canvas, status_text, (10, 20), font, 0.6, (255, 255, 255), 1, cv2.LINE_AA
-        )
+        cv2.putText(canvas, status_text, (10, 20), font, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
         return canvas
 
 
@@ -159,7 +155,7 @@ def collect_points_interactively(
     camera_image: np.ndarray,
     floormap_image: np.ndarray,
     min_points: int,
-) -> Tuple[List[Tuple[int, int]], List[Tuple[int, int]]]:
+) -> tuple[list[tuple[int, int]], list[tuple[int, int]]]:
     LOGGER.info(
         "クリック操作で対応点を収集します。左クリックで点を追加、'u' で取り消し、'c' で全消去、's' または Enter で確定、'q' で終了します。"
     )
@@ -206,9 +202,9 @@ def collect_points_interactively(
             if key in (ord("q"), 27):
                 raise KeyboardInterrupt("ユーザーにより中断されました")
             if key in (ord("s"), 13):
-                if len(floormap_collector.points) >= min_points and len(
-                    camera_collector.points
-                ) == len(floormap_collector.points):
+                if len(floormap_collector.points) >= min_points and len(camera_collector.points) == len(
+                    floormap_collector.points
+                ):
                     LOGGER.info("%d 組の対応点が確定しました。", len(floormap_collector.points))
                     break
                 LOGGER.warning("対応点が不足しています (必要: %d)", min_points)
@@ -238,11 +234,11 @@ def collect_points_interactively(
 
 
 def compute_homography(
-    camera_points: List[Tuple[int, int]],
-    floormap_points: List[Tuple[int, int]],
+    camera_points: list[tuple[int, int]],
+    floormap_points: list[tuple[int, int]],
     method: str,
     ransac_threshold: float,
-) -> Tuple[np.ndarray, np.ndarray, dict]:
+) -> tuple[np.ndarray, np.ndarray, dict]:
     if len(camera_points) < 4:
         raise ValueError("ホモグラフィ計算には4組以上の対応点が必要です。")
 
@@ -285,8 +281,8 @@ def compute_homography(
 
 def save_points_json(
     output_dir: Path,
-    camera_points: List[Tuple[int, int]],
-    floormap_points: List[Tuple[int, int]],
+    camera_points: list[tuple[int, int]],
+    floormap_points: list[tuple[int, int]],
     reference_image: Path,
     floormap_image: Path,
 ) -> Path:
@@ -338,9 +334,7 @@ def save_homography_yaml(
     return path
 
 
-def update_config_homography(
-    config_path: Path, matrix: np.ndarray, backup_dir: Path
-) -> None:
+def update_config_homography(config_path: Path, matrix: np.ndarray, backup_dir: Path) -> None:
     backup_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     backup_path = backup_dir / f"homography_{timestamp}.yaml"
@@ -365,9 +359,7 @@ def update_config_homography(
     insert_index = matrix_line_index + 1
     indent = ""
     if insert_index < len(original):
-        indent = original[insert_index][
-            : len(original[insert_index]) - len(original[insert_index].lstrip())
-        ]
+        indent = original[insert_index][: len(original[insert_index]) - len(original[insert_index].lstrip())]
     if not indent:
         indent = "    "
 
@@ -390,7 +382,7 @@ def update_config_homography(
 
 def load_points_from_json(
     path: Path,
-) -> Tuple[List[Tuple[int, int]], List[Tuple[int, int]]]:
+) -> tuple[list[tuple[int, int]], list[tuple[int, int]]]:
     with path.open("r", encoding="utf-8") as f:
         data = json.load(f)
 
@@ -410,11 +402,7 @@ def main() -> None:
     config = ConfigManager(args.config)
     output_dir = Path(args.output_dir)
     reference_path = Path(args.reference_image)
-    floormap_path = (
-        Path(args.floormap_image)
-        if args.floormap_image
-        else Path(config.get("floormap.image_path"))
-    )
+    floormap_path = Path(args.floormap_image) if args.floormap_image else Path(config.get("floormap.image_path"))
 
     if not reference_path.exists():
         raise FileNotFoundError(f"参照画像が存在しません: {reference_path}")
@@ -432,12 +420,8 @@ def main() -> None:
             args.min_points,
         )
 
-    points_json = save_points_json(
-        output_dir, camera_points, floormap_points, reference_path, floormap_path
-    )
-    H, mask, metrics = compute_homography(
-        camera_points, floormap_points, args.method, args.ransac_threshold
-    )
+    points_json = save_points_json(output_dir, camera_points, floormap_points, reference_path, floormap_path)
+    H, mask, metrics = compute_homography(camera_points, floormap_points, args.method, args.ransac_threshold)
     homography_yaml = save_homography_yaml(output_dir, H, metrics, points_json)
 
     if args.update_config:

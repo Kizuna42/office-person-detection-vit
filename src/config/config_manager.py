@@ -96,7 +96,7 @@ class ConfigManager:
         self.config_path = config_path
         self.config = self._load_config()
 
-    def _load_config(self) -> Dict[str, Any]:
+    def _load_config(self) -> dict[str, Any]:
         """設定ファイルを読み込む
 
         Returns:
@@ -111,7 +111,7 @@ class ConfigManager:
             return self.DEFAULT_CONFIG.copy()
 
         try:
-            with open(self.config_path, "r", encoding="utf-8") as f:
+            with open(self.config_path, encoding="utf-8") as f:
                 file_ext = Path(self.config_path).suffix.lower()
 
                 if file_ext in [".yaml", ".yml"]:
@@ -222,9 +222,7 @@ class ConfigManager:
         # confidence_threshold の検証
         confidence = detection_config.get("confidence_threshold")
         if not isinstance(confidence, (int, float)) or not (0.0 <= confidence <= 1.0):
-            raise ValueError(
-                "detection.confidence_threshold は 0.0 から 1.0 の範囲である必要があります。"
-            )
+            raise ValueError("detection.confidence_threshold は 0.0 から 1.0 の範囲である必要があります。")
 
         # nms_threshold の検証
         if "nms_threshold" in detection_config:
@@ -414,7 +412,7 @@ class ConfigManager:
 
         return value
 
-    def get_section(self, section: str) -> Dict[str, Any]:
+    def get_section(self, section: str) -> dict[str, Any]:
         """設定セクション全体を取得する
 
         Args:
@@ -455,9 +453,7 @@ class ConfigManager:
         try:
             with open(save_path, "w", encoding="utf-8") as f:
                 if file_ext in [".yaml", ".yml"]:
-                    yaml.dump(
-                        self.config, f, default_flow_style=False, allow_unicode=True
-                    )
+                    yaml.dump(self.config, f, default_flow_style=False, allow_unicode=True)
                 elif file_ext == ".json":
                     json.dump(self.config, f, indent=2, ensure_ascii=False)
                 else:

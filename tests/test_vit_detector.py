@@ -88,21 +88,13 @@ def test_detect_batch(mock_preprocess_batch, mock_postprocess_batch, sample_fram
     first_call_frames = mock_preprocess_batch.call_args_list[0].args[0]
     second_call_frames = mock_preprocess_batch.call_args_list[1].args[0]
 
-    assert all(
-        actual is expected for actual, expected in zip(first_call_frames, frames[:2])
-    )
-    assert all(
-        actual is expected for actual, expected in zip(second_call_frames, frames[2:])
-    )
+    assert all(actual is expected for actual, expected in zip(first_call_frames, frames[:2], strict=False))
+    assert all(actual is expected for actual, expected in zip(second_call_frames, frames[2:], strict=False))
 
     first_model_kwargs = detector.model.call_args_list[0].kwargs
     second_model_kwargs = detector.model.call_args_list[1].kwargs
-    assert np.array_equal(
-        first_model_kwargs["pixel_values"], first_batch_inputs["pixel_values"]
-    )
-    assert np.array_equal(
-        second_model_kwargs["pixel_values"], second_batch_inputs["pixel_values"]
-    )
+    assert np.array_equal(first_model_kwargs["pixel_values"], first_batch_inputs["pixel_values"])
+    assert np.array_equal(second_model_kwargs["pixel_values"], second_batch_inputs["pixel_values"])
     assert detector.model.call_count == 2
 
     first_post_call = mock_postprocess_batch.call_args_list[0].args
@@ -249,9 +241,7 @@ def test_detect_error_handling(mock_processor_cls, mock_model_cls, sample_frame)
 
 @patch("src.detection.vit_detector.DetrForObjectDetection")
 @patch("src.detection.vit_detector.DetrImageProcessor")
-def test_postprocess_with_person_detections(
-    mock_processor_cls, mock_model_cls, sample_frame
-):
+def test_postprocess_with_person_detections(mock_processor_cls, mock_model_cls, sample_frame):
     """人物検出結果の後処理"""
     import torch
 
@@ -352,9 +342,7 @@ def test_postprocess_batch(mock_processor_cls, mock_model_cls, sample_frame):
 
     mock_outputs = MagicMock()
     frames = [sample_frame.copy() for _ in range(2)]
-    batch_detections = detector._postprocess_batch(
-        mock_outputs, [frame.shape for frame in frames]
-    )
+    batch_detections = detector._postprocess_batch(mock_outputs, [frame.shape for frame in frames])
 
     assert len(batch_detections) == 2
     assert len(batch_detections[0]) == 1
@@ -417,9 +405,7 @@ def test_preprocess_batch(mock_processor_cls, mock_model_cls, sample_frame):
 
 @patch("src.detection.vit_detector.DetrForObjectDetection")
 @patch("src.detection.vit_detector.DetrImageProcessor")
-def test_confidence_threshold_filtering(
-    mock_processor_cls, mock_model_cls, sample_frame
-):
+def test_confidence_threshold_filtering(mock_processor_cls, mock_model_cls, sample_frame):
     """信頼度閾値によるフィルタリング"""
     import torch
 

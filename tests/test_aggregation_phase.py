@@ -13,7 +13,7 @@ from src.models import Detection, FrameResult
 from src.pipeline.aggregation_phase import AggregationPhase
 
 
-@pytest.fixture
+@pytest.fixture()
 def sample_config(tmp_path: Path) -> ConfigManager:
     """テスト用のConfigManager"""
     config = ConfigManager("nonexistent_config.yaml")
@@ -37,7 +37,7 @@ def sample_config(tmp_path: Path) -> ConfigManager:
     return config
 
 
-@pytest.fixture
+@pytest.fixture()
 def sample_logger():
     """テスト用のロガー"""
     logger = logging.getLogger("test_aggregation_phase")
@@ -45,7 +45,7 @@ def sample_logger():
     return logger
 
 
-@pytest.fixture
+@pytest.fixture()
 def sample_detections() -> list[Detection]:
     """テスト用の検出結果"""
     return [
@@ -70,7 +70,7 @@ def sample_detections() -> list[Detection]:
     ]
 
 
-@pytest.fixture
+@pytest.fixture()
 def sample_frame_results(sample_detections) -> list[FrameResult]:
     """テスト用のFrameResultリスト"""
     return [
@@ -127,9 +127,7 @@ def test_execute_empty_results(sample_config, sample_logger, tmp_path):
     assert (output_path / "zone_counts.csv").exists()
 
 
-def test_execute_with_no_zones(
-    sample_config, sample_logger, sample_frame_results, tmp_path
-):
+def test_execute_with_no_zones(sample_config, sample_logger, sample_frame_results, tmp_path):
     """ゾーン定義がない場合"""
     sample_config.set("zones", [])
 
@@ -144,9 +142,7 @@ def test_execute_with_no_zones(
     assert (output_path / "zone_counts.csv").exists()
 
 
-def test_execute_csv_output_format(
-    sample_config, sample_logger, sample_frame_results, tmp_path
-):
+def test_execute_csv_output_format(sample_config, sample_logger, sample_frame_results, tmp_path):
     """CSV出力フォーマットが正しい"""
     phase = AggregationPhase(sample_config, sample_logger)
 
@@ -160,22 +156,20 @@ def test_execute_csv_output_format(
 
     import csv
 
-    with open(csv_path, "r", encoding="utf-8") as f:
+    with open(csv_path, encoding="utf-8") as f:
         reader = csv.DictReader(f)
         rows = list(reader)
 
     assert len(rows) > 0
-    # CSVフォーマット: timestamp, zone_id, count
+    # CSVフォーマット: timestamp, zone_a, zone_b, unclassified
     assert "timestamp" in rows[0]
-    assert "zone_id" in rows[0]
-    assert "count" in rows[0]
+    assert "zone_a" in rows[0]
+    assert "zone_b" in rows[0]
     # zone_aのデータが存在することを確認
-    assert any(row["zone_id"] == "zone_a" for row in rows)
+    assert any(int(row["zone_a"]) > 0 for row in rows)
 
 
-def test_execute_statistics(
-    sample_config, sample_logger, sample_frame_results, tmp_path
-):
+def test_execute_statistics(sample_config, sample_logger, sample_frame_results, tmp_path):
     """統計情報が正しく計算される"""
     phase = AggregationPhase(sample_config, sample_logger)
 

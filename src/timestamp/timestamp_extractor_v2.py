@@ -23,7 +23,7 @@ class TimestampExtractorV2:
     def __init__(
         self,
         confidence_threshold: float = 0.7,
-        roi_config: Dict[str, float] = None,
+        roi_config: dict[str, float] = None,
         fps: float = 30.0,
         enabled_ocr_engines: list = None,
         use_improved_validator: bool = False,
@@ -63,9 +63,7 @@ class TimestampExtractorV2:
                 history_size=history_size,
                 z_score_threshold=z_score_threshold,
             )
-            logger.info(
-                "Using TemporalValidatorV2 (adaptive tolerance and outlier recovery)"
-            )
+            logger.info("Using TemporalValidatorV2 (adaptive tolerance and outlier recovery)")
         else:
             # デフォルトはV2を使用（旧版は削除）
             self.validator = TemporalValidatorV2(
@@ -78,9 +76,7 @@ class TimestampExtractorV2:
 
         self.confidence_threshold = confidence_threshold
 
-    def extract(
-        self, frame: np.ndarray, frame_idx: int, retry_count: int = 3
-    ) -> Optional[Dict[str, any]]:
+    def extract(self, frame: np.ndarray, frame_idx: int, retry_count: int = 3) -> Optional[dict[str, any]]:
         """フレームからタイムスタンプを抽出
 
         Args:
@@ -110,14 +106,10 @@ class TimestampExtractorV2:
                 preprocessed = self.roi_extractor.preprocess_roi(roi)
 
                 # OCR実行
-                ocr_text, ocr_confidence = self.ocr_engine.extract_with_consensus(
-                    preprocessed
-                )
+                ocr_text, ocr_confidence = self.ocr_engine.extract_with_consensus(preprocessed)
 
                 if ocr_text is None:
-                    logger.warning(
-                        f"Frame {frame_idx}: OCR failed (attempt {attempt+1}/{retry_count})"
-                    )
+                    logger.warning(f"Frame {frame_idx}: OCR failed (attempt {attempt+1}/{retry_count})")
                     continue
 
                 # パース
@@ -130,19 +122,13 @@ class TimestampExtractorV2:
                     continue
 
                 # 時系列検証
-                is_valid, temporal_confidence, reason = self.validator.validate(
-                    timestamp, frame_idx
-                )
+                is_valid, temporal_confidence, reason = self.validator.validate(timestamp, frame_idx)
 
                 # 総合信頼度
-                total_confidence = (
-                    ocr_confidence + parse_confidence + temporal_confidence
-                ) / 3
+                total_confidence = (ocr_confidence + parse_confidence + temporal_confidence) / 3
 
                 if total_confidence >= self.confidence_threshold and is_valid:
-                    logger.info(
-                        f"Frame {frame_idx}: {timestamp} (confidence={total_confidence:.2f})"
-                    )
+                    logger.info(f"Frame {frame_idx}: {timestamp} (confidence={total_confidence:.2f})")
                     return {
                         "timestamp": timestamp,
                         "frame_idx": frame_idx,
@@ -164,9 +150,7 @@ class TimestampExtractorV2:
                             f"valid={is_valid}, {reason}"
                         )
             except Exception as e:
-                logger.error(
-                    f"Frame {frame_idx}: Error during extraction (attempt {attempt+1}/{retry_count}): {e}"
-                )
+                logger.error(f"Frame {frame_idx}: Error during extraction (attempt {attempt+1}/{retry_count}): {e}")
 
         logger.error(f"Frame {frame_idx}: Failed after {retry_count} attempts")
         return None

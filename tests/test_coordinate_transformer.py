@@ -44,7 +44,7 @@ def test_transform_batch():
     results = transformer.transform_batch(points)
 
     assert len(results) == 3
-    for expected, actual in zip(points, results):
+    for expected, actual in zip(points, results, strict=False):
         assert actual == pytest.approx(expected)
 
 

@@ -14,7 +14,7 @@ from src.models import Detection, FrameResult
 from src.pipeline.transform_phase import TransformPhase
 
 
-@pytest.fixture
+@pytest.fixture()
 def sample_config(tmp_path: Path) -> ConfigManager:
     """テスト用のConfigManager"""
     config = ConfigManager("nonexistent_config.yaml")
@@ -44,7 +44,7 @@ def sample_config(tmp_path: Path) -> ConfigManager:
     return config
 
 
-@pytest.fixture
+@pytest.fixture()
 def sample_logger():
     """テスト用のロガー"""
     logger = logging.getLogger("test_transform_phase")
@@ -52,7 +52,7 @@ def sample_logger():
     return logger
 
 
-@pytest.fixture
+@pytest.fixture()
 def sample_detections() -> list[Detection]:
     """テスト用の検出結果"""
     return [
@@ -73,7 +73,7 @@ def sample_detections() -> list[Detection]:
     ]
 
 
-@pytest.fixture
+@pytest.fixture()
 def sample_detection_results(
     sample_detections,
 ) -> list[tuple[int, str, list[Detection]]]:
@@ -133,9 +133,7 @@ def test_execute_success(sample_config, sample_logger, sample_detection_results)
         assert isinstance(detection.zone_ids, list)
 
 
-def test_execute_without_initialize(
-    sample_config, sample_logger, sample_detection_results
-):
+def test_execute_without_initialize(sample_config, sample_logger, sample_detection_results):
     """初期化前にexecuteを呼ぶとエラー"""
     phase = TransformPhase(sample_config, sample_logger)
 
@@ -155,9 +153,7 @@ def test_execute_empty_detections(sample_config, sample_logger):
     assert len(results[0].detections) == 0
 
 
-def test_execute_coordinate_transform_error(
-    sample_config, sample_logger, sample_detection_results
-):
+def test_execute_coordinate_transform_error(sample_config, sample_logger, sample_detection_results):
     """座標変換でエラーが発生した場合"""
     phase = TransformPhase(sample_config, sample_logger)
     phase.initialize()
@@ -181,9 +177,7 @@ def test_execute_coordinate_transform_error(
     assert results[0].detections[0].zone_ids == []
 
 
-def test_export_results(
-    sample_config, sample_logger, sample_detection_results, tmp_path
-):
+def test_export_results(sample_config, sample_logger, sample_detection_results, tmp_path):
     """結果のエクスポートが正しく動作する"""
     phase = TransformPhase(sample_config, sample_logger)
     phase.initialize()
@@ -200,7 +194,7 @@ def test_export_results(
 
     import json
 
-    with open(json_path, "r", encoding="utf-8") as f:
+    with open(json_path, encoding="utf-8") as f:
         data = json.load(f)
 
     assert len(data) == 2
@@ -225,7 +219,7 @@ def test_export_results_empty(sample_config, sample_logger, tmp_path):
 
     import json
 
-    with open(json_path, "r", encoding="utf-8") as f:
+    with open(json_path, encoding="utf-8") as f:
         data = json.load(f)
 
     assert len(data) == 0
@@ -266,7 +260,7 @@ def test_export_results_with_missing_coords(sample_config, sample_logger, tmp_pa
 
     import json
 
-    with open(json_path, "r", encoding="utf-8") as f:
+    with open(json_path, encoding="utf-8") as f:
         data = json.load(f)
 
     assert len(data) == 1

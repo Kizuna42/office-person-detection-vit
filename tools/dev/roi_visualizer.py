@@ -7,8 +7,8 @@
 
 import argparse
 import logging
-import sys
 from pathlib import Path
+import sys
 from typing import List, Tuple
 
 import cv2
@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 def visualize_roi_on_frame(
     frame: np.ndarray,
-    roi_coords: Tuple[int, int, int, int],
+    roi_coords: tuple[int, int, int, int],
     frame_idx: int,
     timestamp_text: str = None,
 ) -> np.ndarray:
@@ -115,21 +115,14 @@ def visualize_roi_on_frame(
         zoom_w = int(w * zoom_scale)
         zoom_h = int(h * zoom_scale)
 
-        roi_zoomed = cv2.resize(
-            roi_region, (zoom_w, zoom_h), interpolation=cv2.INTER_CUBIC
-        )
+        roi_zoomed = cv2.resize(roi_region, (zoom_w, zoom_h), interpolation=cv2.INTER_CUBIC)
 
         # 右上に配置
         zoom_x = overlay.shape[1] - zoom_w - 20
         zoom_y = 20
 
         # 配置範囲のチェック
-        if (
-            zoom_x >= 0
-            and zoom_y >= 0
-            and zoom_x + zoom_w <= overlay.shape[1]
-            and zoom_y + zoom_h <= overlay.shape[0]
-        ):
+        if zoom_x >= 0 and zoom_y >= 0 and zoom_x + zoom_w <= overlay.shape[1] and zoom_y + zoom_h <= overlay.shape[0]:
             # 背景を白で塗りつぶし
             overlay[zoom_y : zoom_y + zoom_h, zoom_x : zoom_x + zoom_w] = (
                 255,
@@ -160,8 +153,8 @@ def visualize_roi_on_frame(
 def extract_sample_frames(
     video_path: str,
     num_frames: int = 10,
-    frame_indices: List[int] = None,
-) -> List[Tuple[int, np.ndarray]]:
+    frame_indices: list[int] = None,
+) -> list[tuple[int, np.ndarray]]:
     """動画からサンプルフレームを抽出
 
     Args:
@@ -203,7 +196,7 @@ def visualize_roi_on_multiple_frames(
     roi_config: dict,
     output_dir: Path,
     num_frames: int = 10,
-    frame_indices: List[int] = None,
+    frame_indices: list[int] = None,
 ):
     """複数フレームでROI位置を可視化
 
@@ -272,7 +265,7 @@ def visualize_roi_on_multiple_frames(
 
 
 def create_summary_image(
-    sample_frames: List[Tuple[int, np.ndarray]],
+    sample_frames: list[tuple[int, np.ndarray]],
     roi_extractor: TimestampROIExtractor,
     output_dir: Path,
 ):
@@ -378,15 +371,9 @@ def main():
     parser = argparse.ArgumentParser(description="ROI座標の可視化ツール")
     parser.add_argument("--video", type=str, help="動画ファイルのパス")
     parser.add_argument("--config", type=str, default="config.yaml", help="設定ファイルのパス")
-    parser.add_argument(
-        "--output-dir", type=str, help="出力ディレクトリ（デフォルト: output/roi_visualization）"
-    )
-    parser.add_argument(
-        "--num-frames", type=int, default=10, help="抽出するフレーム数（デフォルト: 10）"
-    )
-    parser.add_argument(
-        "--frame-indices", type=str, help="抽出するフレーム番号（カンマ区切り、例: 0,100,200）"
-    )
+    parser.add_argument("--output-dir", type=str, help="出力ディレクトリ（デフォルト: output/roi_visualization）")
+    parser.add_argument("--num-frames", type=int, default=10, help="抽出するフレーム数（デフォルト: 10）")
+    parser.add_argument("--frame-indices", type=str, help="抽出するフレーム番号（カンマ区切り、例: 0,100,200）")
     parser.add_argument("--debug", action="store_true", help="デバッグモード")
 
     args = parser.parse_args()
@@ -426,9 +413,7 @@ def main():
     if args.output_dir:
         output_dir = Path(args.output_dir)
     else:
-        output_dir = (
-            Path(config.get("output.directory", "output")) / "roi_visualization"
-        )
+        output_dir = Path(config.get("output.directory", "output")) / "roi_visualization"
 
     # フレーム番号のパース
     frame_indices = None

@@ -4,8 +4,8 @@ import logging
 from typing import List, Optional, Tuple
 
 import numpy as np
-import torch
 from PIL import Image
+import torch
 from transformers import DetrForObjectDetection, DetrImageProcessor
 
 from src.models.data_models import Detection
@@ -95,7 +95,7 @@ class ViTDetector:
             logger.error(f"Failed to load model: {e}")
             raise RuntimeError(f"Failed to load model {self.model_name}: {e}")
 
-    def detect(self, frame: np.ndarray) -> List[Detection]:
+    def detect(self, frame: np.ndarray) -> list[Detection]:
         """人物検出を実行
 
         Args:
@@ -151,9 +151,7 @@ class ViTDetector:
 
         return inputs
 
-    def _postprocess(
-        self, outputs, image_shape: Tuple[int, int, int]
-    ) -> List[Detection]:
+    def _postprocess(self, outputs, image_shape: tuple[int, int, int]) -> list[Detection]:
         """モデル出力を検出結果に変換
 
         Args:
@@ -177,9 +175,7 @@ class ViTDetector:
         # COCO datasetのpersonクラスID = 1
         person_class_id = 1
 
-        for score, label, box in zip(
-            results["scores"], results["labels"], results["boxes"]
-        ):
+        for score, label, box in zip(results["scores"], results["labels"], results["boxes"], strict=False):
             # personクラスのみをフィルタリング
             if label.item() != person_class_id:
                 continue
@@ -217,9 +213,7 @@ class ViTDetector:
 
         return detections
 
-    def _get_foot_position(
-        self, bbox: Tuple[float, float, float, float]
-    ) -> Tuple[float, float]:
+    def _get_foot_position(self, bbox: tuple[float, float, float, float]) -> tuple[float, float]:
         """バウンディングボックスから足元座標を計算
 
         Args:
@@ -233,9 +227,7 @@ class ViTDetector:
         foot_y = y + height
         return (foot_x, foot_y)
 
-    def get_attention_map(
-        self, frame: np.ndarray, layer_index: int = -1
-    ) -> Optional[np.ndarray]:
+    def get_attention_map(self, frame: np.ndarray, layer_index: int = -1) -> Optional[np.ndarray]:
         """Attention Mapを取得（可視化用）
 
         Args:
@@ -258,10 +250,7 @@ class ViTDetector:
                 outputs = self.model(**inputs, output_attentions=True)
 
             # Attention weightsを取得
-            if (
-                not hasattr(outputs, "encoder_attentions")
-                or outputs.encoder_attentions is None
-            ):
+            if not hasattr(outputs, "encoder_attentions") or outputs.encoder_attentions is None:
                 logger.warning("Model does not provide attention weights.")
                 return None
 
@@ -300,15 +289,11 @@ class ViTDetector:
         attention_map = cls_attention.cpu().numpy()
 
         # 正規化
-        attention_map = (attention_map - attention_map.min()) / (
-            attention_map.max() - attention_map.min() + 1e-8
-        )
+        attention_map = (attention_map - attention_map.min()) / (attention_map.max() - attention_map.min() + 1e-8)
 
         return attention_map
 
-    def save_attention_map(
-        self, frame: np.ndarray, output_path: str, layer_index: int = -1
-    ) -> bool:
+    def save_attention_map(self, frame: np.ndarray, output_path: str, layer_index: int = -1) -> bool:
         """Attention Mapを画像として保存
 
         Args:
@@ -337,9 +322,7 @@ class ViTDetector:
 
             # 元画像サイズにリサイズ
             height, width = frame.shape[:2]
-            attention_resized = cv2.resize(
-                attention_grid, (width, height), interpolation=cv2.INTER_LINEAR
-            )
+            attention_resized = cv2.resize(attention_grid, (width, height), interpolation=cv2.INTER_LINEAR)
 
             # ヒートマップに変換
             attention_heatmap = (attention_resized * 255).astype(np.uint8)
@@ -357,9 +340,7 @@ class ViTDetector:
             logger.error(f"Failed to save attention map: {e}")
             return False
 
-    def detect_batch(
-        self, frames: List[np.ndarray], batch_size: Optional[int] = None
-    ) -> List[List[Detection]]:
+    def detect_batch(self, frames: list[np.ndarray], batch_size: Optional[int] = None) -> list[list[Detection]]:
         """複数フレームのバッチ処理
 
         Args:
@@ -397,9 +378,7 @@ class ViTDetector:
                     outputs = self.model(**batch_inputs)
 
                 # バッチ後処理
-                batch_detections = self._postprocess_batch(
-                    outputs, [frame.shape for frame in batch_frames]
-                )
+                batch_detections = self._postprocess_batch(outputs, [frame.shape for frame in batch_frames])
 
                 all_detections.extend(batch_detections)
 
@@ -408,20 +387,16 @@ class ViTDetector:
                 if self.device == "mps" or self.device == "cuda":
                     torch.mps.empty_cache() if self.device == "mps" else torch.cuda.empty_cache()
 
-                logger.debug(
-                    f"Processed batch {i//batch_size + 1}/{(len(frames) + batch_size - 1)//batch_size}"
-                )
+                logger.debug(f"Processed batch {i//batch_size + 1}/{(len(frames) + batch_size - 1)//batch_size}")
 
             except Exception as e:
-                logger.error(
-                    f"Batch detection failed for batch starting at index {i}: {e}"
-                )
+                logger.error(f"Batch detection failed for batch starting at index {i}: {e}")
                 # エラーが発生した場合は空のリストを追加
                 all_detections.extend([[] for _ in batch_frames])
 
         return all_detections
 
-    def _preprocess_batch(self, frames: List[np.ndarray]) -> dict:
+    def _preprocess_batch(self, frames: list[np.ndarray]) -> dict:
         """複数画像の前処理
 
         Args:
@@ -445,9 +420,7 @@ class ViTDetector:
 
         return inputs
 
-    def _postprocess_batch(
-        self, outputs, image_shapes: List[Tuple[int, int, int]]
-    ) -> List[List[Detection]]:
+    def _postprocess_batch(self, outputs, image_shapes: list[tuple[int, int, int]]) -> list[list[Detection]]:
         """バッチモデル出力を検出結果に変換
 
         Args:
@@ -458,9 +431,7 @@ class ViTDetector:
             各フレームの検出結果のリスト
         """
         # 各画像のサイズを取得
-        target_sizes = torch.tensor(
-            [[shape[0], shape[1]] for shape in image_shapes]
-        ).to(self.device)
+        target_sizes = torch.tensor([[shape[0], shape[1]] for shape in image_shapes]).to(self.device)
 
         # 後処理（座標を元画像サイズにスケール）
         results = self.processor.post_process_object_detection(
@@ -474,9 +445,7 @@ class ViTDetector:
         for result in results:
             detections = []
 
-            for score, label, box in zip(
-                result["scores"], result["labels"], result["boxes"]
-            ):
+            for score, label, box in zip(result["scores"], result["labels"], result["boxes"], strict=False):
                 # personクラスのみをフィルタリング
                 if label.item() != person_class_id:
                     continue

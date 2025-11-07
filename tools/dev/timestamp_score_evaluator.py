@@ -6,10 +6,10 @@
 
 import argparse
 import csv
-import logging
-import sys
 from datetime import datetime, timedelta
+import logging
 from pathlib import Path
+import sys
 from typing import Dict, List, Tuple
 
 # プロジェクトルートをパスに追加（直接実行可能にする）
@@ -26,8 +26,8 @@ logger = logging.getLogger(__name__)
 
 
 def calculate_temporal_consistency_score(
-    results: List[Dict], expected_interval_seconds: float = 10.0, tolerance: float = 2.0
-) -> Tuple[float, Dict]:
+    results: list[dict], expected_interval_seconds: float = 10.0, tolerance: float = 2.0
+) -> tuple[float, dict]:
     """時系列整合性スコアを計算
 
     Args:
@@ -53,9 +53,7 @@ def calculate_temporal_consistency_score(
         next_result = sorted_results[i + 1]
 
         # 時間差を計算
-        time_diff = abs(
-            (next_result["timestamp"] - current["timestamp"]).total_seconds()
-        )
+        time_diff = abs((next_result["timestamp"] - current["timestamp"]).total_seconds())
         frame_diff = next_result["frame_idx"] - current["frame_idx"]
 
         # 期待される時間差を計算（フレーム差から）
@@ -87,7 +85,7 @@ def calculate_temporal_consistency_score(
     return score, stats
 
 
-def evaluate_extraction_results(csv_path: Path) -> Dict:
+def evaluate_extraction_results(csv_path: Path) -> dict:
     """抽出結果CSVを評価
 
     Args:
@@ -109,9 +107,7 @@ def evaluate_extraction_results(csv_path: Path) -> Dict:
         reader = csv.DictReader(f)
         for row in tqdm(reader, total=total_lines - 1, desc="CSV読み込み中"):  # -1はヘッダー行
             try:
-                extracted_ts = datetime.strptime(
-                    row["extracted_timestamp"], "%Y/%m/%d %H:%M:%S"
-                )
+                extracted_ts = datetime.strptime(row["extracted_timestamp"], "%Y/%m/%d %H:%M:%S")
                 frame_idx = int(row["frame_index"])
                 confidence = float(row["confidence"])
                 time_diff = float(row["time_diff_seconds"])
@@ -171,7 +167,7 @@ def evaluate_extraction_results(csv_path: Path) -> Dict:
     return evaluation
 
 
-def print_evaluation_report(evaluation: Dict):
+def print_evaluation_report(evaluation: dict):
     """評価レポートを出力
 
     Args:
@@ -192,9 +188,7 @@ def print_evaluation_report(evaluation: Dict):
     logger.info("\n時系列整合性:")
     temporal_stats = evaluation.get("temporal_stats", {})
     logger.info(f"  スコア: {evaluation.get('temporal_consistency_score', 0):.2f}%")
-    logger.info(
-        f"  有効ペア: {temporal_stats.get('valid_pairs', 0)}/{temporal_stats.get('total_pairs', 0)}"
-    )
+    logger.info(f"  有効ペア: {temporal_stats.get('valid_pairs', 0)}/{temporal_stats.get('total_pairs', 0)}")
     logger.info(f"  平均時間差: {temporal_stats.get('avg_time_diff', 0):.2f}秒")
     logger.info(f"  最小時間差: {temporal_stats.get('min_time_diff', 0):.2f}秒")
     logger.info(f"  最大時間差: {temporal_stats.get('max_time_diff', 0):.2f}秒")

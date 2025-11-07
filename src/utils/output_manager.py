@@ -1,10 +1,10 @@
 """Output file management with session-based organization."""
 
+from datetime import datetime, timedelta
 import json
 import logging
-import shutil
-from datetime import datetime, timedelta
 from pathlib import Path
+import shutil
 from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -62,9 +62,7 @@ class OutputManager:
         logger.info(f"セッションディレクトリを作成しました: {session_dir}")
         return session_dir
 
-    def save_metadata(
-        self, session_dir: Path, config: Dict, args: Optional[Dict] = None
-    ) -> None:
+    def save_metadata(self, session_dir: Path, config: dict, args: Optional[dict] = None) -> None:
         """セッションメタデータを保存
 
         Args:
@@ -85,7 +83,7 @@ class OutputManager:
 
         logger.debug(f"メタデータを保存しました: {metadata_path}")
 
-    def save_summary(self, session_dir: Path, summary: Dict) -> None:
+    def save_summary(self, session_dir: Path, summary: dict) -> None:
         """実行サマリーを保存
 
         Args:
@@ -148,7 +146,7 @@ class OutputManager:
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
         pattern: Optional[str] = None,
-    ) -> List[Path]:
+    ) -> list[Path]:
         """条件に一致するセッションを検索
 
         Args:
@@ -280,3 +278,15 @@ def format_file_size(size_bytes: int) -> str:
             return f"{size_bytes:.2f} {unit}"
         size_bytes /= 1024.0
     return f"{size_bytes:.2f} PB"
+
+
+def setup_output_directories(output_dir: Path) -> None:
+    """出力ディレクトリを作成（後方互換性のため保持）
+
+    セッション管理が無効な場合に使用される従来のディレクトリ構造を作成します。
+
+    Args:
+        output_dir: 出力ディレクトリのパス
+    """
+    for subdir in ["detections", "floormaps", "graphs", "labels"]:
+        (output_dir / subdir).mkdir(parents=True, exist_ok=True)

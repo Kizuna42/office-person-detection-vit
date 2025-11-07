@@ -14,7 +14,7 @@ from src.models import Detection, FrameResult
 from src.pipeline.visualization_phase import VisualizationPhase
 
 
-@pytest.fixture
+@pytest.fixture()
 def sample_config(tmp_path: Path) -> ConfigManager:
     """テスト用のConfigManager"""
     config = ConfigManager("nonexistent_config.yaml")
@@ -47,7 +47,7 @@ def sample_config(tmp_path: Path) -> ConfigManager:
     return config
 
 
-@pytest.fixture
+@pytest.fixture()
 def sample_logger():
     """テスト用のロガー"""
     logger = logging.getLogger("test_visualization_phase")
@@ -55,7 +55,7 @@ def sample_logger():
     return logger
 
 
-@pytest.fixture
+@pytest.fixture()
 def sample_detections() -> list[Detection]:
     """テスト用の検出結果"""
     return [
@@ -71,7 +71,7 @@ def sample_detections() -> list[Detection]:
     ]
 
 
-@pytest.fixture
+@pytest.fixture()
 def sample_frame_results(sample_detections) -> list[FrameResult]:
     """テスト用のFrameResultリスト"""
     return [
@@ -84,7 +84,7 @@ def sample_frame_results(sample_detections) -> list[FrameResult]:
     ]
 
 
-@pytest.fixture
+@pytest.fixture()
 def sample_aggregator() -> Aggregator:
     """テスト用のAggregator"""
     aggregator = Aggregator()
@@ -169,12 +169,8 @@ def test_execute_with_floormap(
     phase.execute(sample_aggregator, sample_frame_results, output_path)
 
     mock_floormap_visualizer_class.assert_called_once()
-    assert mock_floormap_visualizer.visualize_frame.call_count == len(
-        sample_frame_results
-    )
-    assert mock_floormap_visualizer.save_visualization.call_count == len(
-        sample_frame_results
-    )
+    assert mock_floormap_visualizer.visualize_frame.call_count == len(sample_frame_results)
+    assert mock_floormap_visualizer.save_visualization.call_count == len(sample_frame_results)
 
 
 @patch("src.pipeline.visualization_phase.Visualizer")

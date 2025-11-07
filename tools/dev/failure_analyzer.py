@@ -5,12 +5,12 @@
 """
 
 import argparse
-import csv
-import logging
-import sys
 from collections import defaultdict
+import csv
 from datetime import datetime
+import logging
 from pathlib import Path
+import sys
 from typing import Dict, List, Optional, Tuple
 
 # プロジェクトルートをパスに追加（直接実行可能にする）
@@ -27,7 +27,7 @@ from src.utils import setup_logging
 logger = logging.getLogger(__name__)
 
 
-def calculate_image_quality_metrics(image: np.ndarray) -> Dict[str, float]:
+def calculate_image_quality_metrics(image: np.ndarray) -> dict[str, float]:
     """画像品質メトリクスを計算
 
     Args:
@@ -71,8 +71,8 @@ def calculate_image_quality_metrics(image: np.ndarray) -> Dict[str, float]:
 
 
 def classify_failure_reason(
-    row: Dict, quality_metrics: Dict[str, float], log_messages: List[str]
-) -> Tuple[str, List[str]]:
+    row: dict, quality_metrics: dict[str, float], log_messages: list[str]
+) -> tuple[str, list[str]]:
     """失敗理由を分類し、改善策を提案
 
     Args:
@@ -152,9 +152,7 @@ def classify_failure_reason(
     return reason, recommendations
 
 
-def analyze_failures(
-    csv_path: Path, video_path: Path, output_dir: Path, log_path: Optional[Path] = None
-) -> Dict:
+def analyze_failures(csv_path: Path, video_path: Path, output_dir: Path, log_path: Optional[Path] = None) -> dict:
     """失敗ケースを分析
 
     Args:
@@ -219,9 +217,7 @@ def analyze_failures(
     analyzed_count = 0
 
     max_frames_to_analyze = min(len(failed_frame_indices), 50)
-    for frame_idx in tqdm(
-        failed_frame_indices[:max_frames_to_analyze], desc="失敗フレーム分析中"
-    ):
+    for frame_idx in tqdm(failed_frame_indices[:max_frames_to_analyze], desc="失敗フレーム分析中"):
         cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
         ret, frame = cap.read()
 
@@ -238,9 +234,7 @@ def analyze_failures(
 
         # 失敗理由分類
         log_messages = log_messages_by_frame.get(frame_idx, [])
-        reason, recommendations = classify_failure_reason(
-            {}, quality_metrics, log_messages
-        )
+        reason, recommendations = classify_failure_reason({}, quality_metrics, log_messages)
 
         failure_stats[reason] += 1
 
@@ -275,9 +269,7 @@ def analyze_failures(
         "analyzed": analyzed_count,
         "failure_stats": dict(failure_stats),
         "failure_details": failure_details[:20],  # 最初の20件だけ
-        "recommendations_summary": generate_summary_recommendations(
-            failure_stats, failure_details
-        ),
+        "recommendations_summary": generate_summary_recommendations(failure_stats, failure_details),
     }
 
     # 結果をJSONで保存
@@ -292,7 +284,7 @@ def analyze_failures(
     logger.info("=" * 80)
     logger.info(f"失敗フレーム数: {len(failed_frame_indices)}")
     logger.info(f"分析フレーム数: {analyzed_count}")
-    logger.info(f"失敗理由の内訳:")
+    logger.info("失敗理由の内訳:")
     for reason, count in sorted(failure_stats.items(), key=lambda x: -x[1]):
         logger.info(f"  {reason}: {count}件")
     logger.info(f"結果を保存: {result_path}")
@@ -301,9 +293,7 @@ def analyze_failures(
     return analysis_result
 
 
-def generate_summary_recommendations(
-    failure_stats: Dict[str, int], failure_details: List[Dict]
-) -> List[str]:
+def generate_summary_recommendations(failure_stats: dict[str, int], failure_details: list[dict]) -> list[str]:
     """総合的な改善策を生成
 
     Args:
@@ -326,7 +316,9 @@ def generate_summary_recommendations(
 
     if top_ratio > 0.5:
         if top_reason == "low_image_quality":
-            recommendations.append("【優先】画像品質が低いフレームが多数あります。前処理パラメータの最適化を強く推奨します")
+            recommendations.append(
+                "【優先】画像品質が低いフレームが多数あります。前処理パラメータの最適化を強く推奨します"
+            )
         elif top_reason == "ocr_failure":
             recommendations.append("【優先】OCR失敗が多数発生しています。OCRエンジンの設定見直しを強く推奨します")
         elif top_reason == "parse_failure":
@@ -356,15 +348,9 @@ def main():
         default="output/extracted_frames/extraction_results.csv",
         help="抽出結果CSVファイルのパス",
     )
-    parser.add_argument(
-        "--video", type=str, default="input/merged_moviefiles.mov", help="動画ファイルのパス"
-    )
-    parser.add_argument(
-        "--output", type=str, default="output/diagnostics", help="出力ディレクトリ"
-    )
-    parser.add_argument(
-        "--log", type=str, default="output/system.log", help="ログファイルのパス（オプション）"
-    )
+    parser.add_argument("--video", type=str, default="input/merged_moviefiles.mov", help="動画ファイルのパス")
+    parser.add_argument("--output", type=str, default="output/diagnostics", help="出力ディレクトリ")
+    parser.add_argument("--log", type=str, default="output/system.log", help="ログファイルのパス（オプション）")
     parser.add_argument("--debug", action="store_true", help="デバッグモード")
 
     args = parser.parse_args()
@@ -389,9 +375,7 @@ def main():
         print(f"失敗フレーム数: {result['total_failed']}")
         print(f"分析フレーム数: {result['analyzed']}")
         print("\n失敗理由の内訳:")
-        for reason, count in sorted(
-            result["failure_stats"].items(), key=lambda x: -x[1]
-        ):
+        for reason, count in sorted(result["failure_stats"].items(), key=lambda x: -x[1]):
             print(f"  {reason}: {count}件")
         print("\n推奨改善策:")
         for rec in result["recommendations_summary"]:

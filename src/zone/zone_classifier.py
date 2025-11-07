@@ -16,7 +16,7 @@ class ZoneClassifier:
         zones: ゾーン定義のリスト
     """
 
-    def __init__(self, zones: List[Dict], allow_overlap: bool = True):
+    def __init__(self, zones: list[dict], allow_overlap: bool = True):
         """ZoneClassifierを初期化する
 
         Args:
@@ -42,7 +42,7 @@ class ZoneClassifier:
             self.allow_overlap,
         )
 
-    def _validate_zones(self, zones: List[Dict]) -> List[Dict]:
+    def _validate_zones(self, zones: list[dict]) -> list[dict]:
         """ゾーン定義を検証する
 
         Args:
@@ -112,7 +112,7 @@ class ZoneClassifier:
 
         return validated_zones
 
-    def classify(self, floor_point: Tuple[float, float]) -> List[str]:
+    def classify(self, floor_point: tuple[float, float]) -> list[str]:
         """座標が属するゾーンIDのリストを返す
 
         複数のゾーンに重複する場合、すべての該当ゾーンIDを返す。
@@ -124,7 +124,7 @@ class ZoneClassifier:
         Returns:
             所属するゾーンIDのリスト
         """
-        matched_zones: List[Dict] = []
+        matched_zones: list[dict] = []
 
         for zone in self.zones:
             if self._point_in_polygon(floor_point, zone["polygon"]):
@@ -149,9 +149,7 @@ class ZoneClassifier:
         logger.debug(f"座標 {floor_point} はゾーン {zone_ids} に属します。")
         return zone_ids
 
-    def classify_batch(
-        self, floor_points: List[Tuple[float, float]]
-    ) -> List[List[str]]:
+    def classify_batch(self, floor_points: list[tuple[float, float]]) -> list[list[str]]:
         """複数の座標をバッチ分類する
 
         Args:
@@ -162,9 +160,7 @@ class ZoneClassifier:
         """
         return [self.classify(point) for point in floor_points]
 
-    def _point_in_polygon(
-        self, point: Tuple[float, float], polygon: List[Tuple[float, float]]
-    ) -> bool:
+    def _point_in_polygon(self, point: tuple[float, float], polygon: list[tuple[float, float]]) -> bool:
         """点が多角形内にあるか判定する（Ray Casting Algorithm）
 
         点から右方向に水平線を引き、多角形の辺との交点数を数える。
@@ -203,7 +199,7 @@ class ZoneClassifier:
 
         return inside
 
-    def get_zone_info(self, zone_id: str) -> Optional[Dict]:
+    def get_zone_info(self, zone_id: str) -> Optional[dict]:
         """ゾーンIDから詳細情報を取得する
 
         Args:
@@ -217,7 +213,7 @@ class ZoneClassifier:
                 return zone
         return None
 
-    def get_all_zone_ids(self) -> List[str]:
+    def get_all_zone_ids(self) -> list[str]:
         """すべてのゾーンIDを取得する
 
         Returns:
@@ -233,7 +229,7 @@ class ZoneClassifier:
         """
         return len(self.zones)
 
-    def classify_with_unclassified(self, floor_point: Tuple[float, float]) -> List[str]:
+    def classify_with_unclassified(self, floor_point: tuple[float, float]) -> list[str]:
         """座標を分類し、未分類の場合は"unclassified"を返す
 
         Args:

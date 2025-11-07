@@ -12,7 +12,7 @@ from src.models import Detection, FrameResult
 from src.visualization.floormap_visualizer import FloormapVisualizer
 
 
-@pytest.fixture
+@pytest.fixture()
 def sample_floormap_path(tmp_path: Path) -> Path:
     """テスト用のフロアマップ画像を作成"""
 
@@ -22,7 +22,7 @@ def sample_floormap_path(tmp_path: Path) -> Path:
     return floormap_path
 
 
-@pytest.fixture
+@pytest.fixture()
 def sample_floormap_config() -> dict:
     """テスト用のフロアマップ設定"""
 
@@ -36,7 +36,7 @@ def sample_floormap_config() -> dict:
     }
 
 
-@pytest.fixture
+@pytest.fixture()
 def sample_zones() -> list[dict]:
     """テスト用のゾーン定義"""
 
@@ -56,7 +56,7 @@ def sample_zones() -> list[dict]:
     ]
 
 
-@pytest.fixture
+@pytest.fixture()
 def sample_camera_config() -> dict:
     """テスト用のカメラ設定"""
 
@@ -70,32 +70,24 @@ def sample_camera_config() -> dict:
     }
 
 
-def test_init(
-    sample_floormap_path: Path, sample_floormap_config: dict, sample_zones: list[dict]
-):
+def test_init(sample_floormap_path: Path, sample_floormap_config: dict, sample_zones: list[dict]):
     """FloormapVisualizer が正しく初期化される。"""
 
-    visualizer = FloormapVisualizer(
-        str(sample_floormap_path), sample_floormap_config, sample_zones
-    )
+    visualizer = FloormapVisualizer(str(sample_floormap_path), sample_floormap_config, sample_zones)
 
     assert visualizer.floormap_image is not None
     assert visualizer.floormap_image.shape == (1369, 1878, 3)
     assert len(visualizer.zone_colors) == 3  # zone_a, zone_b, unclassified
 
 
-def test_init_file_not_found(
-    tmp_path: Path, sample_floormap_config: dict, sample_zones: list[dict]
-):
+def test_init_file_not_found(tmp_path: Path, sample_floormap_config: dict, sample_zones: list[dict]):
     """存在しないフロアマップ画像では FileNotFoundError が発生する。"""
 
     with pytest.raises(FileNotFoundError):
         FloormapVisualizer("nonexistent.png", sample_floormap_config, sample_zones)
 
 
-def test_init_invalid_image(
-    tmp_path: Path, sample_floormap_config: dict, sample_zones: list[dict]
-):
+def test_init_invalid_image(tmp_path: Path, sample_floormap_config: dict, sample_zones: list[dict]):
     """不正な画像ファイルでは ValueError が発生する。"""
 
     invalid_path = tmp_path / "invalid.png"
@@ -105,22 +97,15 @@ def test_init_invalid_image(
         FloormapVisualizer(str(invalid_path), sample_floormap_config, sample_zones)
 
 
-def test_generate_zone_colors(
-    sample_floormap_path: Path, sample_floormap_config: dict, sample_zones: list[dict]
-):
+def test_generate_zone_colors(sample_floormap_path: Path, sample_floormap_config: dict, sample_zones: list[dict]):
     """ゾーンごとの色が正しく生成される。"""
 
-    visualizer = FloormapVisualizer(
-        str(sample_floormap_path), sample_floormap_config, sample_zones
-    )
+    visualizer = FloormapVisualizer(str(sample_floormap_path), sample_floormap_config, sample_zones)
 
     assert "zone_a" in visualizer.zone_colors
     assert "zone_b" in visualizer.zone_colors
     assert "unclassified" in visualizer.zone_colors
-    assert all(
-        isinstance(color, tuple) and len(color) == 3
-        for color in visualizer.zone_colors.values()
-    )
+    assert all(isinstance(color, tuple) and len(color) == 3 for color in visualizer.zone_colors.values())
 
 
 def test_draw_camera_position(
@@ -164,14 +149,10 @@ def test_draw_camera_position_hidden(
     # 画像が変更されていないことを確認（厳密には難しいが、エラーなく処理されることを確認）
 
 
-def test_draw_zones(
-    sample_floormap_path: Path, sample_floormap_config: dict, sample_zones: list[dict]
-):
+def test_draw_zones(sample_floormap_path: Path, sample_floormap_config: dict, sample_zones: list[dict]):
     """ゾーンを正しく描画できる。"""
 
-    visualizer = FloormapVisualizer(
-        str(sample_floormap_path), sample_floormap_config, sample_zones
-    )
+    visualizer = FloormapVisualizer(str(sample_floormap_path), sample_floormap_config, sample_zones)
 
     image = visualizer.floormap_image.copy()
     result = visualizer.draw_zones(image)
@@ -179,14 +160,10 @@ def test_draw_zones(
     assert result.shape == image.shape
 
 
-def test_draw_zones_with_alpha(
-    sample_floormap_path: Path, sample_floormap_config: dict, sample_zones: list[dict]
-):
+def test_draw_zones_with_alpha(sample_floormap_path: Path, sample_floormap_config: dict, sample_zones: list[dict]):
     """透明度を指定してゾーンを描画できる。"""
 
-    visualizer = FloormapVisualizer(
-        str(sample_floormap_path), sample_floormap_config, sample_zones
-    )
+    visualizer = FloormapVisualizer(str(sample_floormap_path), sample_floormap_config, sample_zones)
 
     image = visualizer.floormap_image.copy()
     result = visualizer.draw_zones(image, alpha=0.5)
@@ -194,14 +171,10 @@ def test_draw_zones_with_alpha(
     assert result.shape == image.shape
 
 
-def test_draw_detections(
-    sample_floormap_path: Path, sample_floormap_config: dict, sample_zones: list[dict]
-):
+def test_draw_detections(sample_floormap_path: Path, sample_floormap_config: dict, sample_zones: list[dict]):
     """検出結果を正しく描画できる。"""
 
-    visualizer = FloormapVisualizer(
-        str(sample_floormap_path), sample_floormap_config, sample_zones
-    )
+    visualizer = FloormapVisualizer(str(sample_floormap_path), sample_floormap_config, sample_zones)
 
     detections = [
         Detection(
@@ -235,9 +208,7 @@ def test_draw_detections_without_labels(
 ):
     """ラベルなしで検出結果を描画できる。"""
 
-    visualizer = FloormapVisualizer(
-        str(sample_floormap_path), sample_floormap_config, sample_zones
-    )
+    visualizer = FloormapVisualizer(str(sample_floormap_path), sample_floormap_config, sample_zones)
 
     detections = [
         Detection(
@@ -262,9 +233,7 @@ def test_draw_detections_out_of_bounds(
 ):
     """範囲外の座標はスキップされる。"""
 
-    visualizer = FloormapVisualizer(
-        str(sample_floormap_path), sample_floormap_config, sample_zones
-    )
+    visualizer = FloormapVisualizer(str(sample_floormap_path), sample_floormap_config, sample_zones)
 
     detections = [
         Detection(
@@ -289,9 +258,7 @@ def test_draw_detections_no_floor_coords(
 ):
     """floor_coords が None の場合はスキップされる。"""
 
-    visualizer = FloormapVisualizer(
-        str(sample_floormap_path), sample_floormap_config, sample_zones
-    )
+    visualizer = FloormapVisualizer(str(sample_floormap_path), sample_floormap_config, sample_zones)
 
     detections = [
         Detection(
@@ -311,14 +278,10 @@ def test_draw_detections_no_floor_coords(
     assert result.shape == image.shape
 
 
-def test_visualize_frame(
-    sample_floormap_path: Path, sample_floormap_config: dict, sample_zones: list[dict]
-):
+def test_visualize_frame(sample_floormap_path: Path, sample_floormap_config: dict, sample_zones: list[dict]):
     """フレーム結果を可視化できる。"""
 
-    visualizer = FloormapVisualizer(
-        str(sample_floormap_path), sample_floormap_config, sample_zones
-    )
+    visualizer = FloormapVisualizer(str(sample_floormap_path), sample_floormap_config, sample_zones)
 
     detections = [
         Detection(
@@ -349,9 +312,7 @@ def test_visualize_frame_without_zones(
 ):
     """ゾーンを描画せずに可視化できる。"""
 
-    visualizer = FloormapVisualizer(
-        str(sample_floormap_path), sample_floormap_config, sample_zones
-    )
+    visualizer = FloormapVisualizer(str(sample_floormap_path), sample_floormap_config, sample_zones)
 
     detections = [
         Detection(
@@ -385,9 +346,7 @@ def test_save_visualization(
 ):
     """可視化画像を保存できる。"""
 
-    visualizer = FloormapVisualizer(
-        str(sample_floormap_path), sample_floormap_config, sample_zones
-    )
+    visualizer = FloormapVisualizer(str(sample_floormap_path), sample_floormap_config, sample_zones)
 
     image = visualizer.floormap_image.copy()
     output_path = tmp_path / "visualization.png"
@@ -397,14 +356,10 @@ def test_save_visualization(
     assert output_path.exists()
 
 
-def test_create_legend(
-    sample_floormap_path: Path, sample_floormap_config: dict, sample_zones: list[dict]
-):
+def test_create_legend(sample_floormap_path: Path, sample_floormap_config: dict, sample_zones: list[dict]):
     """凡例を作成できる。"""
 
-    visualizer = FloormapVisualizer(
-        str(sample_floormap_path), sample_floormap_config, sample_zones
-    )
+    visualizer = FloormapVisualizer(str(sample_floormap_path), sample_floormap_config, sample_zones)
 
     legend = visualizer.create_legend()
 
@@ -413,14 +368,10 @@ def test_create_legend(
     assert legend.shape[2] == 3
 
 
-def test_create_legend_custom_size(
-    sample_floormap_path: Path, sample_floormap_config: dict, sample_zones: list[dict]
-):
+def test_create_legend_custom_size(sample_floormap_path: Path, sample_floormap_config: dict, sample_zones: list[dict]):
     """カスタムサイズの凡例を作成できる。"""
 
-    visualizer = FloormapVisualizer(
-        str(sample_floormap_path), sample_floormap_config, sample_zones
-    )
+    visualizer = FloormapVisualizer(str(sample_floormap_path), sample_floormap_config, sample_zones)
 
     legend = visualizer.create_legend(width=400, height=300)
 

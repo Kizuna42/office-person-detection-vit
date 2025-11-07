@@ -7,13 +7,13 @@
 import argparse
 import json
 import logging
-import sys
 from pathlib import Path
+import sys
 from typing import Dict
 
 # プロジェクトルートをパスに追加（直接実行可能にする）
 project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))  # noqa: E402
+sys.path.insert(0, str(project_root))
 
 from tqdm import tqdm  # noqa: E402
 
@@ -29,7 +29,7 @@ def run_benchmark(
     start_time: str,
     end_time: str,
     config_path: str = "config.yaml",
-) -> Dict:
+) -> dict:
     """精度ベンチマークを実行
 
     Args:
@@ -101,11 +101,7 @@ def run_benchmark(
     # 結果を分析
     total_expected = len(extraction_results)
     extracted_count = len([r for r in extraction_results if r.get("timestamp")])
-    confidences = [
-        r.get("confidence", 0.0)
-        for r in extraction_results
-        if r.get("confidence", 0.0) > 0
-    ]
+    confidences = [r.get("confidence", 0.0) for r in extraction_results if r.get("confidence", 0.0) > 0]
     avg_confidence = sum(confidences) / len(confidences) if confidences else 0.0
 
     # 有効なタイムスタンプをカウント（形式チェック）
@@ -125,9 +121,7 @@ def run_benchmark(
         else:
             invalid_count += 1
 
-    success_rate = (
-        (extracted_count / total_expected * 100) if total_expected > 0 else 0.0
-    )
+    success_rate = (extracted_count / total_expected * 100) if total_expected > 0 else 0.0
 
     result = {
         "success": True,
@@ -143,7 +137,7 @@ def run_benchmark(
     return result
 
 
-def compare_results(baseline: Dict, improved: Dict) -> Dict:
+def compare_results(baseline: dict, improved: dict) -> dict:
     """ベースラインと改善後の結果を比較
 
     Args:
@@ -157,26 +151,20 @@ def compare_results(baseline: Dict, improved: Dict) -> Dict:
         "success_rate": {
             "baseline": baseline.get("success_rate", 0.0),
             "improved": improved.get("success_rate", 0.0),
-            "delta": improved.get("success_rate", 0.0)
-            - baseline.get("success_rate", 0.0),
-            "is_improved": improved.get("success_rate", 0.0)
-            > baseline.get("success_rate", 0.0),
+            "delta": improved.get("success_rate", 0.0) - baseline.get("success_rate", 0.0),
+            "is_improved": improved.get("success_rate", 0.0) > baseline.get("success_rate", 0.0),
         },
         "avg_confidence": {
             "baseline": baseline.get("avg_confidence", 0.0),
             "improved": improved.get("avg_confidence", 0.0),
-            "delta": improved.get("avg_confidence", 0.0)
-            - baseline.get("avg_confidence", 0.0),
-            "is_improved": improved.get("avg_confidence", 0.0)
-            > baseline.get("avg_confidence", 0.0),
+            "delta": improved.get("avg_confidence", 0.0) - baseline.get("avg_confidence", 0.0),
+            "is_improved": improved.get("avg_confidence", 0.0) > baseline.get("avg_confidence", 0.0),
         },
         "valid_timestamps": {
             "baseline": baseline.get("valid_timestamps", 0),
             "improved": improved.get("valid_timestamps", 0),
-            "delta": improved.get("valid_timestamps", 0)
-            - baseline.get("valid_timestamps", 0),
-            "is_improved": improved.get("valid_timestamps", 0)
-            > baseline.get("valid_timestamps", 0),
+            "delta": improved.get("valid_timestamps", 0) - baseline.get("valid_timestamps", 0),
+            "is_improved": improved.get("valid_timestamps", 0) > baseline.get("valid_timestamps", 0),
         },
     }
 
@@ -225,10 +213,10 @@ def main():
         logger.info("ベンチマーク結果の比較")
         logger.info("=" * 80)
 
-        with open(args.baseline, "r", encoding="utf-8") as f:
+        with open(args.baseline, encoding="utf-8") as f:
             baseline = json.load(f)
 
-        with open(args.compare, "r", encoding="utf-8") as f:
+        with open(args.compare, encoding="utf-8") as f:
             improved = json.load(f)
 
         comparison = compare_results(baseline, improved)
@@ -237,23 +225,16 @@ def main():
         success_rate_improved = improved.get("success_rate", 0.0)
         success_rate_delta = comparison["success_rate"]["delta"]
         logger.info(
-            f"抽出成功率: {success_rate_baseline:.2f}% → "
-            f"{success_rate_improved:.2f}% (Δ{success_rate_delta:+.2f}%)"
+            f"抽出成功率: {success_rate_baseline:.2f}% → " f"{success_rate_improved:.2f}% (Δ{success_rate_delta:+.2f}%)"
         )
         avg_conf_baseline = baseline.get("avg_confidence", 0.0)
         avg_conf_improved = improved.get("avg_confidence", 0.0)
         avg_conf_delta = comparison["avg_confidence"]["delta"]
-        logger.info(
-            f"平均信頼度: {avg_conf_baseline:.4f} → "
-            f"{avg_conf_improved:.4f} (Δ{avg_conf_delta:+.4f})"
-        )
+        logger.info(f"平均信頼度: {avg_conf_baseline:.4f} → " f"{avg_conf_improved:.4f} (Δ{avg_conf_delta:+.4f})")
         valid_ts_baseline = baseline.get("valid_timestamps", 0)
         valid_ts_improved = improved.get("valid_timestamps", 0)
         valid_ts_delta = comparison["valid_timestamps"]["delta"]
-        logger.info(
-            f"有効タイムスタンプ: {valid_ts_baseline} → "
-            f"{valid_ts_improved} (Δ{valid_ts_delta:+d})"
-        )
+        logger.info(f"有効タイムスタンプ: {valid_ts_baseline} → " f"{valid_ts_improved} (Δ{valid_ts_delta:+d})")
         logger.info("")
 
         if comparison["overall_improved"]:

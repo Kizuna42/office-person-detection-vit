@@ -1,8 +1,8 @@
 """Timestamp parsing from OCR text results."""
 
+from datetime import datetime
 import logging
 import re
-from datetime import datetime
 from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
@@ -25,7 +25,7 @@ class TimestampParser:
             r"(\d{4})年(\d{2})月(\d{2})日\s+(\d{2}):(\d{2}):(\d{2})",  # 日本語: 2025年08月26日 16:07:45
         ]
 
-    def parse(self, ocr_text: str) -> Tuple[Optional[datetime], float]:
+    def parse(self, ocr_text: str) -> tuple[Optional[datetime], float]:
         """OCR結果をdatetimeに変換
 
         Args:
@@ -57,7 +57,7 @@ class TimestampParser:
 
         return None, 0.0
 
-    def fuzzy_parse(self, ocr_text: str) -> Tuple[Optional[datetime], float]:
+    def fuzzy_parse(self, ocr_text: str) -> tuple[Optional[datetime], float]:
         """OCR誤認識を考慮した柔軟なパース
 
         OCRエンジンがよく誤認識する文字を修正してからパースを試みます。
@@ -104,9 +104,7 @@ class TimestampParser:
         # スラッシュの前に6桁以上の数字、スラッシュの後に2桁の数字がある場合
         # 注意: スラッシュの前の数字を年(4桁) + 月(2桁)として解釈
         # パターン: 6桁以上の数字 + スラッシュ + 2桁の数字 + スペース/時刻
-        first_slash_missing_with_time1 = re.compile(
-            r"^(\d{6,})/(\d{2})\s+(\d{2}:\d{2}:\d{2})"
-        )
+        first_slash_missing_with_time1 = re.compile(r"^(\d{6,})/(\d{2})\s+(\d{2}:\d{2}:\d{2})")
 
         def replace_first_slash1(m):
             year_month_str = m.group(1)  # 6桁以上の数字
@@ -121,9 +119,7 @@ class TimestampParser:
 
         corrected = first_slash_missing_with_time1.sub(replace_first_slash1, corrected)
 
-        first_slash_missing_with_time2 = re.compile(
-            r"^(\d{6,})/(\d{2})(\d{2}:\d{2}:\d{2})"
-        )
+        first_slash_missing_with_time2 = re.compile(r"^(\d{6,})/(\d{2})(\d{2}:\d{2}:\d{2})")
 
         def replace_first_slash2(m):
             year_month_str = m.group(1)  # 6桁以上の数字
@@ -141,13 +137,9 @@ class TimestampParser:
         # パターン3: 2番目のスラッシュ欠落の補正（時刻付き、スラッシュが1つ存在）
         # 例: "2025/0826 16:04:16" -> "2025/08/26 16:04:16"
         # または: "2025/082616:04:16" -> "2025/08/26 16:04:16"
-        second_slash_missing_with_time1 = re.compile(
-            r"(\d{4}/\d{2})(\d{2})\s+(\d{2}:\d{2}:\d{2})"
-        )
+        second_slash_missing_with_time1 = re.compile(r"(\d{4}/\d{2})(\d{2})\s+(\d{2}:\d{2}:\d{2})")
         corrected = second_slash_missing_with_time1.sub(r"\1/\2 \3", corrected)
-        second_slash_missing_with_time2 = re.compile(
-            r"(\d{4}/\d{2})(\d{2})(\d{2}:\d{2}:\d{2})"
-        )
+        second_slash_missing_with_time2 = re.compile(r"(\d{4}/\d{2})(\d{2})(\d{2}:\d{2}:\d{2})")
         corrected = second_slash_missing_with_time2.sub(r"\1/\2 \3", corrected)
 
         # パターン4: 日付部分のスラッシュが全て欠落している場合（時刻付き、スラッシュなし）
@@ -155,20 +147,14 @@ class TimestampParser:
         # または: "2025082616:04:16" -> "2025/08/26 16:04:16"
         # スラッシュが存在しない場合のみマッチ（より一般的なパターンなので最後に処理）
         if "/" not in corrected[:10]:  # 最初の10文字にスラッシュがない場合
-            all_slashes_missing_with_time1 = re.compile(
-                r"(\d{4})(\d{2})(\d{2})\s+(\d{2}:\d{2}:\d{2})"
-            )
+            all_slashes_missing_with_time1 = re.compile(r"(\d{4})(\d{2})(\d{2})\s+(\d{2}:\d{2}:\d{2})")
             corrected = all_slashes_missing_with_time1.sub(r"\1/\2/\3 \4", corrected)
-            all_slashes_missing_with_time2 = re.compile(
-                r"(\d{4})(\d{2})(\d{2})(\d{2}:\d{2}:\d{2})"
-            )
+            all_slashes_missing_with_time2 = re.compile(r"(\d{4})(\d{2})(\d{2})(\d{2}:\d{2}:\d{2})")
             corrected = all_slashes_missing_with_time2.sub(r"\1/\2/\3 \4", corrected)
 
         # パターン5: 日付と時刻の間のスペースが複数ある場合の正規化
         # 例: "2025/08/26  16:04:16" -> "2025/08/26 16:04:16"
-        corrected = re.sub(
-            r"(\d{4}/\d{2}/\d{2})\s+(\d{2}:\d{2}:\d{2})", r"\1 \2", corrected
-        )
+        corrected = re.sub(r"(\d{4}/\d{2}/\d{2})\s+(\d{2}:\d{2}:\d{2})", r"\1 \2", corrected)
 
         # まず補正後のテキストでパースを試みる
         result, confidence = self.parse(corrected)

@@ -30,9 +30,7 @@ class DetectionPhase(BasePhase):
 
     def initialize(self) -> None:
         """検出器を初期化"""
-        self.logger.info("=" * 80)
-        self.logger.info("フェーズ2: ViT人物検出")
-        self.logger.info("=" * 80)
+        self.log_phase_start("フェーズ2: ViT人物検出")
 
         model_name = self.config.get("detection.model_name")
         confidence_threshold = self.config.get("detection.confidence_threshold")
@@ -45,9 +43,7 @@ class DetectionPhase(BasePhase):
         self.detector = ViTDetector(model_name, confidence_threshold, device)
         self.detector.load_model()
 
-    def execute(
-        self, sample_frames: List[Tuple[int, str, np.ndarray]]
-    ) -> List[Tuple[int, str, List[Detection]]]:
+    def execute(self, sample_frames: list[tuple[int, str, np.ndarray]]) -> list[tuple[int, str, list[Detection]]]:
         """人物検出処理を実行
 
         Args:
@@ -66,9 +62,7 @@ class DetectionPhase(BasePhase):
         if self.output_path:
             detection_images_dir = self.output_path / "images"
         else:
-            detection_images_dir = (
-                Path(self.config.get("output.directory", "output")) / "detections"
-            )
+            detection_images_dir = Path(self.config.get("output.directory", "output")) / "detections"
 
         # ディレクトリを確実に作成
         detection_images_dir.mkdir(parents=True, exist_ok=True)
@@ -84,18 +78,14 @@ class DetectionPhase(BasePhase):
 
             try:
                 # バッチ検出
-                batch_detections = self.detector.detect_batch(
-                    batch_frames, batch_size=len(batch_frames)
-                )
+                batch_detections = self.detector.detect_batch(batch_frames, batch_size=len(batch_frames))
 
                 # 結果を保存
                 for j, (frame_num, timestamp, frame) in enumerate(batch):
                     detections = batch_detections[j]
                     results.append((frame_num, timestamp, detections))
 
-                    self.logger.info(
-                        f"フレーム #{frame_num} ({timestamp}): {len(detections)}人検出"
-                    )
+                    self.logger.info(f"フレーム #{frame_num} ({timestamp}): {len(detections)}人検出")
 
                     # 検出画像を保存（オプション）
                     if save_detection_images:
@@ -125,9 +115,7 @@ class DetectionPhase(BasePhase):
                     gc.collect()
 
             except Exception as e:
-                self.logger.error(
-                    f"バッチ {i//batch_size + 1} の検出処理に失敗しました: {e}", exc_info=True
-                )
+                self.logger.error(f"バッチ {i//batch_size + 1} の検出処理に失敗しました: {e}", exc_info=True)
                 # エラーが発生した場合は空の結果を追加
                 for frame_num, timestamp, _ in batch:
                     results.append((frame_num, timestamp, []))
@@ -140,7 +128,7 @@ class DetectionPhase(BasePhase):
 
     def log_statistics(
         self,
-        detection_results: List[Tuple[int, str, List[Detection]]],
+        detection_results: list[tuple[int, str, list[Detection]]],
         output_path: Path,
     ) -> None:
         """統計情報を計算・出力
