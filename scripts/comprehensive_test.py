@@ -711,9 +711,9 @@ def main():
         print("  2. Streamlitアプリ: streamlit run tools/interactive_visualizer.py")
         print("  3. 目視確認ツール: python tools/visual_inspection.py --mode tracking --session <session_id>")
         return 0
-    else:
-        ColorPrint.error(f"\n✗ {total_count - success_count}個のテストが失敗しました")
-        return 1
+
+    ColorPrint.error(f"\n✗ {total_count - success_count}個のテストが失敗しました")
+    return 1
 
 
 if __name__ == "__main__":
