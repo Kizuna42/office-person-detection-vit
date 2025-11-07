@@ -8,6 +8,7 @@ from src.utils.output_manager import (
     format_file_size,
     setup_output_directories,
 )
+from src.utils.performance_monitor import PerformanceMonitor
 from src.utils.stats_utils import DetectionStatistics, calculate_detection_statistics
 from src.utils.torch_utils import setup_mps_compatibility
 
@@ -21,4 +22,5 @@ __all__ = [
     "cleanup_resources",
     "save_detection_image",
     "setup_mps_compatibility",
+    "PerformanceMonitor",
 ]

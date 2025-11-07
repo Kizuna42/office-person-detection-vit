@@ -11,7 +11,7 @@ from tqdm import tqdm
 from src.detection import ViTDetector
 from src.models import Detection
 from src.pipeline.base_phase import BasePhase
-from src.utils import calculate_detection_statistics, save_detection_image
+from src.utils import PerformanceMonitor, calculate_detection_statistics, save_detection_image
 
 
 class DetectionPhase(BasePhase):
@@ -27,6 +27,7 @@ class DetectionPhase(BasePhase):
         super().__init__(config, logger)
         self.detector: Optional[ViTDetector] = None
         self.output_path: Optional[Path] = None  # 検出画像の保存先
+        self.performance_monitor = PerformanceMonitor()
 
     def initialize(self) -> None:
         """検出器を初期化"""
@@ -77,8 +78,9 @@ class DetectionPhase(BasePhase):
             batch_frames = [frame for _, _, frame in batch]
 
             try:
-                # バッチ検出
-                batch_detections = self.detector.detect_batch(batch_frames, batch_size=len(batch_frames))
+                # バッチ検出（パフォーマンス計測）
+                with self.performance_monitor.measure("detection_batch"):
+                    batch_detections = self.detector.detect_batch(batch_frames, batch_size=len(batch_frames))
 
                 # 結果を保存
                 for j, (frame_num, timestamp, frame) in enumerate(batch):
@@ -143,6 +145,12 @@ class DetectionPhase(BasePhase):
         save_detection_images = self.config.get("output.save_detection_images", True)
         if save_detection_images:
             _ = output_path / "images"  # 将来の拡張用
+
+        # パフォーマンス統計を表示
+        perf_stats = self.performance_monitor.get_metrics("detection_batch")
+        if perf_stats and perf_stats.get("count", 0) > 0:
+            avg_batch_time = perf_stats["total_time"] / perf_stats["count"]
+            self.logger.info(f"バッチ検出平均処理時間: {avg_batch_time:.3f}秒/バッチ")
 
         # 統計情報を表示
         self.logger.info("=" * 80)

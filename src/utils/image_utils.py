@@ -64,11 +64,17 @@ def save_detection_image(
             # / と : と スペースを _ に置換し、Pathオブジェクトで安全に処理
             timestamp_clean = timestamp.replace("/", "_").replace(":", "").replace(" ", "_")
             # 念のため、残っている可能性のある特殊文字も除去
+            # Windows/Mac/Linuxで無効な文字: / \ : * ? " < > |
             timestamp_clean = "".join(c for c in timestamp_clean if c.isalnum() or c in "_-.")
             filename = f"detection_{timestamp_clean}.jpg"
 
             # Pathオブジェクトで安全に結合（ファイル名に/が含まれていても正しく処理）
+            # Pathオブジェクトは自動的にパスセパレータを処理するため、安全
             output_path = output_dir / filename
+
+            # さらに安全のため、親ディレクトリがoutput_dirであることを確認
+            if not str(output_path.resolve()).startswith(str(output_dir.resolve())):
+                raise ValueError(f"安全上の理由により、出力パスが出力ディレクトリ外を指しています: {output_path}")
 
             logger.debug(f"保存先パス: {output_path}, ファイル名: {filename}, 元のタイムスタンプ: {timestamp}")
 

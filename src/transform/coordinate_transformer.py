@@ -76,8 +76,21 @@ class CoordinateTransformer:
         det = np.linalg.det(H)
         if abs(det) < 1e-10:
             logger.warning(f"ホモグラフィ行列の行列式が0に近い値です: {det}")
+            raise ValueError(f"ホモグラフィ行列が特異行列です（行列式={det}）。変換が正しく動作しません。")
+
+        # 条件数をチェック（数値安定性の指標）
+        cond = np.linalg.cond(H)
+        if cond > 1e12:
+            logger.warning(f"ホモグラフィ行列の条件数が大きすぎます: {cond}。数値誤差が大きくなる可能性があります。")
+
+        # 最後の行が[0, 0, 1]に近いかチェック（射影変換の標準形式）
+        last_row = H[2, :]
+        expected_last_row = np.array([0, 0, 1])
+        if np.linalg.norm(last_row - expected_last_row) > 1e-6:
+            logger.debug(f"ホモグラフィ行列の最後の行が標準形式ではありません: {last_row}")
 
         logger.debug(f"ホモグラフィ行列:\n{H}")
+        logger.debug(f"行列式: {det}, 条件数: {cond}")
         return H
 
     def transform(self, camera_point: tuple[float, float], apply_origin_offset: bool = True) -> tuple[float, float]:
@@ -96,29 +109,56 @@ class CoordinateTransformer:
             ValueError: 変換に失敗した場合
         """
         try:
+            # 入力値の検証
+            if not isinstance(camera_point, (tuple, list)) or len(camera_point) != 2:
+                raise ValueError(f"カメラ座標は2要素のタプルまたはリストである必要があります: {camera_point}")
+
+            camera_x, camera_y = float(camera_point[0]), float(camera_point[1])
+
             # 同次座標に変換 [x, y, 1]
-            point_homogeneous = np.array([camera_point[0], camera_point[1], 1.0])
+            point_homogeneous = np.array([camera_x, camera_y, 1.0])
 
             # ホモグラフィ変換を適用
             transformed = self.H @ point_homogeneous
 
             # w成分で正規化
-            if abs(transformed[2]) < 1e-10:
-                raise ValueError(f"変換後のw成分が0に近い値です: {transformed[2]}")
+            w = transformed[2]
+            if abs(w) < 1e-10:
+                error_msg = (
+                    f"変換後のw成分が0に近い値です: {w}. "
+                    f"カメラ座標: ({camera_x}, {camera_y}), "
+                    f"変換後: {transformed}"
+                )
+                logger.error(error_msg)
+                raise ValueError(error_msg)
 
-            floor_x = transformed[0] / transformed[2]
-            floor_y = transformed[1] / transformed[2]
+            floor_x = transformed[0] / w
+            floor_y = transformed[1] / w
 
             # 原点オフセットを適用
             if apply_origin_offset:
                 floor_x += self.origin_x
                 floor_y += self.origin_y
 
-            return (float(floor_x), float(floor_y))
+            # 変換後の座標が範囲外の場合の警告
+            floor_point = (float(floor_x), float(floor_y))
+            if not self.is_within_bounds(floor_point):
+                logger.warning(
+                    f"変換後の座標がフロアマップ範囲外です: "
+                    f"カメラ座標=({camera_x:.2f}, {camera_y:.2f}), "
+                    f"フロアマップ座標=({floor_x:.2f}, {floor_y:.2f}), "
+                    f"範囲=[0, {self.image_width}) x [0, {self.image_height})"
+                )
 
+            return floor_point
+
+        except ValueError:
+            # ValueErrorはそのまま再スロー
+            raise
         except Exception as e:
-            logger.error(f"座標変換に失敗しました: camera_point={camera_point}, error={e}")
-            raise ValueError(f"座標変換エラー: {e}")
+            error_msg = f"座標変換に失敗しました: camera_point={camera_point}, " f"error={type(e).__name__}: {e}"
+            logger.error(error_msg, exc_info=True)
+            raise ValueError(f"座標変換エラー: {e}") from e
 
     def transform_batch(
         self, camera_points: list[tuple[float, float]], apply_origin_offset: bool = True

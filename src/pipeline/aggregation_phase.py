@@ -52,7 +52,32 @@ class AggregationPhase(BasePhase):
             self.logger.info(f"    平均: {stats['average']:.2f}人")
             self.logger.info(f"    最大: {stats['max']}人")
             self.logger.info(f"    最小: {stats['min']}人")
+            self.logger.info(f"    標準偏差: {stats['std']:.2f}人")
+            self.logger.info(f"    中央値: {stats['median']:.2f}人")
+            self.logger.info(f"    第1四分位数: {stats['q1']:.2f}人")
+            self.logger.info(f"    第3四分位数: {stats['q3']:.2f}人")
         self.logger.info("=" * 80)
+
+        # トレンド分析を表示
+        trends = aggregator.get_trend_analysis()
+        self.logger.info("時系列トレンド分析:")
+        for zone_id, trend_info in trends.items():
+            zone_name = next((z["name"] for z in zones if z["id"] == zone_id), zone_id)
+            trend_str = {"increasing": "増加傾向", "decreasing": "減少傾向", "stable": "安定"}.get(
+                trend_info["trend"], trend_info["trend"]
+            )
+            self.logger.info(
+                f"  {zone_name}: {trend_str} " f"(傾き={trend_info['slope']:.3f}, R²={trend_info['r_squared']:.3f})"
+            )
+
+        # ピーク時間帯を表示
+        peaks = aggregator.get_peak_times(top_n=3)
+        self.logger.info("ピーク時間帯（上位3位）:")
+        for zone_id, peak_list in peaks.items():
+            zone_name = next((z["name"] for z in zones if z["id"] == zone_id), zone_id)
+            self.logger.info(f"  {zone_name}:")
+            for i, (timestamp, count) in enumerate(peak_list, 1):
+                self.logger.info(f"    {i}. {timestamp}: {count}人")
 
         # CSV出力
         csv_path = output_path / "zone_counts.csv"

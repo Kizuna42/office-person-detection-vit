@@ -1,0 +1,25 @@
+{
+  "session_id": "20251107_153145",
+  "timestamp": "2025-11-07T15:32:19.295763",
+  "status": "completed",
+  "phases": {
+    "extraction": {
+      "frames_extracted": 4,
+      "success_rate": 1.0
+    },
+    "detection": {
+      "total_detections": 85,
+      "avg_per_frame": 21.25
+    },
+    "transform": {
+      "frames_processed": 4
+    },
+    "aggregation": {
+      "zones_count": 4
+    },
+    "visualization": {
+      "graphs_generated": 2,
+      "floormaps_generated": 4
+    }
+  }
+}

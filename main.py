@@ -100,6 +100,9 @@ def main():
         # セッションサマリーの保存
         orchestrator.save_session_summary(extraction_results, detection_results, frame_results, aggregator)
 
+        # パフォーマンスサマリーをログ出力
+        orchestrator.performance_monitor.log_summary(logger)
+
         logger.info("=" * 80)
         logger.info("処理が正常に完了しました")
         if orchestrator.session_dir:

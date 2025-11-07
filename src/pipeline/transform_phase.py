@@ -66,6 +66,11 @@ class TransformPhase(BasePhase):
 
         frame_results: list[FrameResult] = []
 
+        # 統計情報の収集
+        transform_errors = 0
+        out_of_bounds_count = 0
+        zone_classification_count = 0
+
         for frame_num, timestamp, detections in tqdm(detection_results, desc="座標変換・ゾーン判定中"):
             # 各検出結果に対して座標変換とゾーン判定を適用
             for detection in detections:
@@ -80,14 +85,39 @@ class TransformPhase(BasePhase):
 
                     # 座標がフロアマップ範囲内かチェック
                     if not self.coordinate_transformer.is_within_bounds(floor_coords):
-                        self.logger.debug(f"座標が範囲外: {floor_coords}")
+                        out_of_bounds_count += 1
+                        self.logger.debug(
+                            f"フレーム #{frame_num}: 座標が範囲外: "
+                            f"カメラ座標={detection.camera_coords}, "
+                            f"フロアマップ座標={floor_coords}"
+                        )
 
                     # ゾーン判定
                     zone_ids = self.zone_classifier.classify(floor_coords)
                     detection.zone_ids = zone_ids
+                    if zone_ids:
+                        zone_classification_count += 1
 
+                except ValueError as e:
+                    # 座標変換エラー（詳細ログはCoordinateTransformerで出力済み）
+                    transform_errors += 1
+                    self.logger.warning(
+                        f"フレーム #{frame_num}: 座標変換エラー - "
+                        f"カメラ座標={detection.camera_coords}, "
+                        f"エラー={e}"
+                    )
+                    detection.floor_coords = None
+                    detection.floor_coords_mm = None
+                    detection.zone_ids = []
                 except Exception as e:
-                    self.logger.error(f"座標変換/ゾーン判定エラー: {e}")
+                    # その他の予期しないエラー
+                    transform_errors += 1
+                    self.logger.error(
+                        f"フレーム #{frame_num}: 予期しないエラー - "
+                        f"カメラ座標={detection.camera_coords}, "
+                        f"エラー={type(e).__name__}: {e}",
+                        exc_info=True,
+                    )
                     detection.floor_coords = None
                     detection.floor_coords_mm = None
                     detection.zone_ids = []
@@ -100,6 +130,19 @@ class TransformPhase(BasePhase):
                 zone_counts={},  # 後で集計
             )
             frame_results.append(frame_result)
+
+        # 統計情報をログ出力
+        total_detections = sum(len(detections) for _, _, detections in detection_results)
+        if total_detections > 0:
+            self.logger.info("=" * 80)
+            self.logger.info("座標変換・ゾーン判定統計:")
+            self.logger.info(f"  総検出数: {total_detections}")
+            self.logger.info(f"  変換エラー数: {transform_errors} ({transform_errors/total_detections*100:.1f}%)")
+            self.logger.info(f"  範囲外座標数: {out_of_bounds_count} ({out_of_bounds_count/total_detections*100:.1f}%)")
+            self.logger.info(
+                f"  ゾーン分類成功数: {zone_classification_count} ({zone_classification_count/total_detections*100:.1f}%)"
+            )
+            self.logger.info("=" * 80)
 
         self.logger.info(f"座標変換とゾーン判定が完了: {len(frame_results)}フレーム")
 
