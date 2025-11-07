@@ -71,8 +71,8 @@ def main():
     # Pythonバージョン確認
     python_version = sys.version.split()[0]
     print(f"Python バージョン: {python_version}")
-    if sys.version_info < (3, 10):
-        print("⚠️  警告: Python 3.10以上を推奨します")
+    if sys.version_info < (3, 11):
+        print("⚠️  警告: Python 3.11以上を推奨します")
     print()
 
     # 必須パッケージの確認
