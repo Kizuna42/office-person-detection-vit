@@ -113,10 +113,10 @@ def main():
     if all_required_ok and tesseract_ok:
         print("✅ すべての必須依存関係がインストールされています")
         return 0
-    else:
-        print("❌ 一部の依存関係が不足しています")
-        print("   pip install -r requirements.txt を実行してください")
-        return 1
+
+    print("❌ 一部の依存関係が不足しています")
+    print("   pip install -r requirements.txt を実行してください")
+    return 1
 
 
 if __name__ == "__main__":
