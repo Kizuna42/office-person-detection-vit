@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from src.calibration.reprojection_error import ReprojectionErrorEvaluator
+from src.calibration import ReprojectionErrorEvaluator
 
 
 class TestReprojectionErrorEvaluator:
