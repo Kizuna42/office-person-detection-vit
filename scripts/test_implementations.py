@@ -104,8 +104,6 @@ def test_export():
     print("エクスポート機能のテスト")
     print("=" * 60)
 
-    import numpy as np
-
     from src.models.data_models import Detection
     from src.tracking.kalman_filter import KalmanFilter
     from src.tracking.track import Track
