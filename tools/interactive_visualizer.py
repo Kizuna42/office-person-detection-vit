@@ -9,7 +9,6 @@ import numpy as np
 import streamlit as st
 
 from src.config.config_manager import ConfigManager
-from src.evaluation.mot_metrics import MOTMetrics
 from src.models.data_models import Detection
 from src.tracking.kalman_filter import KalmanFilter
 from src.tracking.track import Track

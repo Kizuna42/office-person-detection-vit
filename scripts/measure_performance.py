@@ -14,8 +14,6 @@ try:
 except ImportError:
     psutil = None
 
-from tqdm import tqdm
-
 from src.config import ConfigManager
 from src.pipeline.orchestrator import PipelineOrchestrator
 from src.utils.logging_utils import setup_logging

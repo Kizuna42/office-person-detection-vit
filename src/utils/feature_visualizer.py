@@ -203,7 +203,7 @@ class FeatureVisualizer:
         total_pairs = 0
 
         for track_id in set(track_ids):
-            track_indices = [i for i, tid in enumerate(track_ids) if tid == track_id]
+            track_indices = [idx for idx, tid in enumerate(track_ids) if tid == track_id]
             if len(track_indices) < 2:
                 continue
 
