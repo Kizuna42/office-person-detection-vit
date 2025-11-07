@@ -45,7 +45,7 @@ def test_calibration():
 
     from src.calibration import CameraCalibrator
 
-    calibrator = CameraCalibrator(chessboard_size=(9, 6))
+    _ = CameraCalibrator(chessboard_size=(9, 6))
     print("✓ キャリブレーター初期化成功")
     print("  注意: 実際のキャリブレーションにはチェスボード画像が必要です")
     print("  使用方法:")

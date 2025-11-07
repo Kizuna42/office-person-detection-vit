@@ -428,7 +428,7 @@ def test_export():
             lines = f.readlines()
             ColorPrint.info(f"  CSVファイル: {len(lines)}行（ヘッダー含む）")
             ColorPrint.info("  最初の3行:")
-            for i, line in enumerate(lines[:3]):
+            for _, line in enumerate(lines[:3]):
                 print(f"    {line.strip()}")
 
         ColorPrint.section("テスト4: JSON形式でエクスポート")
