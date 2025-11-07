@@ -340,7 +340,7 @@ class SideBySideVideoExporter:
         # タイムスタンプからファイル名を生成
         # timestamp: "2025/08/26 16:04:56" -> "2025/08/26 160456"
         timestamp_no_colon = timestamp.replace(":", "")
-        
+
         # パターン1: floormap_2025/08/26 160456.png（階層構造）
         pattern1 = f"floormap_{timestamp_no_colon}.png"
         floormap_path1 = floormap_images_dir / pattern1
@@ -357,9 +357,7 @@ class SideBySideVideoExporter:
 
         return None
 
-    def add_track_ids_to_detection_image(
-        self, detection_image: np.ndarray, detections: list[Detection]
-    ) -> np.ndarray:
+    def add_track_ids_to_detection_image(self, detection_image: np.ndarray, detections: list[Detection]) -> np.ndarray:
         """検出画像にtrack_idを描画
 
         Args:
