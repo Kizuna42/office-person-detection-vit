@@ -158,6 +158,7 @@ markers = [
 # カバレッジ設定
 [tool.coverage.run]
 source = ["src"]
+relative_files = true  # CIで相対パスを使用するため必須
 omit = [
     "*/tests/*",
     "*/test_*.py",
