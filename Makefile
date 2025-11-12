@@ -16,6 +16,12 @@ PYTHON := $(shell if command -v python3 >/dev/null 2>&1; then \
 		fi; \
 	fi)
 
+# 仮想環境 / 実行モード
+VENV_DIR := venv
+VENV_BIN := $(VENV_DIR)/bin
+VENV_PY = $(if $(wildcard $(VENV_BIN)/python),$(VENV_BIN)/python,$(PYTHON))
+TEST_MODE ?= default
+
 # 設定ファイル（デフォルト）
 CONFIG := config.yaml
 
@@ -33,36 +39,12 @@ run: ## 通常実行（メインパイプライン）
 	@echo "=========================================="
 	$(PYTHON) main.py --config $(CONFIG)
 
-.PHONY: run-debug
-run-debug: ## デバッグモードで実行（詳細ログ、中間結果出力）
-	@echo "=========================================="
-	@echo "ワークフロー実行: デバッグモード"
-	@echo "=========================================="
-	$(PYTHON) main.py --config $(CONFIG) --debug
-
 .PHONY: run-eval
 run-eval: ## 評価モードで実行（Ground Truthとの比較）
 	@echo "=========================================="
 	@echo "ワークフロー実行: 評価モード"
 	@echo "=========================================="
 	$(PYTHON) main.py --config $(CONFIG) --evaluate
-
-.PHONY: run-time
-run-time: ## 時刻指定で実行（例: make run-time START_TIME="2025/08/26 16:05:00" END_TIME="2025/08/26 16:15:00"）
-	@# 注意: 日付/時刻のパースは main.py 側で堅牢に処理されることを想定
-	@# シェル依存の処理を避けるため、引数はそのまま main.py に渡す
-	@if [ -z "$(START_TIME)" ] || [ -z "$(END_TIME)" ]; then \
-		echo "エラー: START_TIMEとEND_TIMEを指定してください"; \
-		echo "例: make run-time START_TIME=\"2025/08/26 16:05:00\" END_TIME=\"2025/08/26 16:15:00\""; \
-		echo "または: make run-time START_TIME=\"16:05:00\" END_TIME=\"16:15:00\""; \
-		exit 1; \
-	fi
-	@echo "=========================================="
-	@echo "ワークフロー実行: 時刻指定モード"
-	@echo "開始時刻: $(START_TIME)"
-	@echo "終了時刻: $(END_TIME)"
-	@echo "=========================================="
-	$(PYTHON) main.py --config $(CONFIG) --start-time "$(START_TIME)" --end-time "$(END_TIME)"
 
 .PHONY: run-timestamps
 run-timestamps: ## タイムスタンプOCRのみ実行（5分刻みフレーム抽出+OCR、CSV+オーバーレイ画像出力）
@@ -115,112 +97,86 @@ clean-cache: ## Pythonキャッシュ（__pycache__、*.pyc）を削除（注意
 # ========================================
 
 .PHONY: test
-test: ## 全テストを実行
-	@echo "=========================================="
-	@echo "テスト実行中..."
-	@echo "=========================================="
-	$(PYTHON) -m pytest tests/ -v
-
-.PHONY: test-cov
-test-cov: ## カバレッジ付きでテスト実行
-	@echo "=========================================="
-	@echo "カバレッジ付きテスト実行中..."
-	@echo "=========================================="
-	$(PYTHON) -m pytest tests/ --cov=src --cov-report=html --cov-report=term -v
-	@echo ""
-	@echo "カバレッジレポート: htmlcov/index.html を開いてください"
-
-.PHONY: test-verbose
-test-verbose: ## 詳細出力付きでテスト実行
-	@echo "=========================================="
-	@echo "詳細出力付きテスト実行中..."
-	@echo "=========================================="
-	$(PYTHON) -m pytest tests/ -vv -s
+test: ## テストを実行（TEST_MODE=coverage または verbose を指定可能）
+	@set -e; \
+	case "$(TEST_MODE)" in \
+		coverage) \
+			echo "=========================================="; \
+			echo "カバレッジ付きテストを実行中..."; \
+			echo "=========================================="; \
+			$(VENV_PY) -m pytest tests/ --cov=src --cov-report=term --cov-report=html -v; \
+			echo ""; \
+			echo "カバレッジレポート: htmlcov/index.html を開いてください"; \
+			;; \
+		verbose) \
+			echo "=========================================="; \
+			echo "詳細出力付きテストを実行中..."; \
+			echo "=========================================="; \
+			$(VENV_PY) -m pytest tests/ -vv -s; \
+			;; \
+		*) \
+			echo "=========================================="; \
+			echo "テストを実行中..."; \
+			echo "=========================================="; \
+			$(VENV_PY) -m pytest tests/ -v; \
+			;; \
+	esac
 
 # ========================================
 # セットアップコマンド
 # ========================================
 
 .PHONY: setup
-setup: setup-venv setup-deps setup-check ## 一括セットアップ（仮想環境作成 + 依存関係インストール + 確認）
-	@echo "=========================================="
-	@echo "✓ セットアップが完了しました！"
-	@echo "=========================================="
-	@echo ""
-	@echo "次のステップ:"
-	@echo "  1. 仮想環境を有効化: source venv/bin/activate"
-	@echo "  2. システム依存関係をインストール: make setup-system"
-	@echo "  3. 実行: make run"
-	@echo ""
-
-.PHONY: setup-venv
-setup-venv: ## 仮想環境を作成（既に存在する場合はスキップ）
-	@echo "=========================================="
-	@echo "仮想環境を作成中..."
-	@echo "=========================================="
-	@if [ -d venv ]; then \
-		echo "✓ 仮想環境は既に存在します（スキップ）"; \
-	else \
+setup: ## 開発環境を一括初期化（仮想環境 + 依存関係 + 動作確認）
+	@set -e; \
+	echo "=========================================="; \
+	echo "開発環境セットアップを開始します"; \
+	echo "=========================================="; \
+	if [ ! -d $(VENV_DIR) ]; then \
 		echo "仮想環境を作成中..."; \
-		$(PYTHON) -m venv venv; \
+		$(PYTHON) -m venv $(VENV_DIR); \
 		echo "✓ 仮想環境を作成しました"; \
-	fi
-	@echo ""
-	@echo "仮想環境を有効化するには:"
-	@echo "  source venv/bin/activate  # macOS/Linux"
-	@echo "  venv\\Scripts\\activate     # Windows"
-
-.PHONY: setup-deps
-setup-deps: ## Python依存関係をインストール（pip upgrade + requirements.txt）
-	@echo "=========================================="
-	@echo "Python依存関係をインストール中..."
-	@echo "=========================================="
-	@echo "pipをアップグレード中..."
-	@$(PYTHON) -m pip install --upgrade pip
-	@echo "依存関係をインストール中..."
-	@echo "（初回インストールには時間がかかります。特にPaddleOCR、EasyOCRはモデルをダウンロードします）"
-	@$(PYTHON) -m pip install -r requirements.txt
-	@echo "✓ Python依存関係のインストールが完了しました"
-
-.PHONY: setup-system
-setup-system: ## システム依存関係のインストール確認とガイド表示
-	@echo "=========================================="
-	@echo "システム依存関係の確認"
-	@echo "=========================================="
-	@echo ""
-	@echo "【Tesseract OCR】"
-	@if command -v tesseract >/dev/null 2>&1; then \
-		echo "✓ Tesseract OCR がインストールされています"; \
-		tesseract --version | head -1; \
 	else \
-		echo "❌ Tesseract OCR がインストールされていません"; \
-		echo ""; \
-		echo "インストール方法:"; \
-		echo "  macOS:    brew install tesseract tesseract-lang"; \
-		echo "  Ubuntu:   sudo apt-get update && sudo apt-get install tesseract-ocr tesseract-ocr-jpn"; \
-		echo "  Debian:   sudo apt-get update && sudo apt-get install tesseract-ocr tesseract-ocr-jpn"; \
-	fi
-	@echo ""
-	@echo "【PaddleOCR / EasyOCR】"
-	@echo "  Pythonパッケージとしてインストール済み（requirements.txtに含まれています）"
-	@echo "  初回実行時にモデルを自動ダウンロードします"
-	@echo ""
-
-.PHONY: setup-check
-setup-check: ## インストール状況を確認（依存関係確認スクリプト実行）
-	@echo "=========================================="
-	@echo "インストール状況を確認中..."
-	@echo "=========================================="
-	@if [ -f scripts/check_dependencies.py ]; then \
-		$(PYTHON) scripts/check_dependencies.py; \
+		echo "✓ 仮想環境は既に存在します"; \
+	fi; \
+	echo ""; \
+	SETUP_PY="$(VENV_BIN)/python"; \
+	if [ ! -x "$$SETUP_PY" ]; then \
+		echo "⚠ 仮想環境が見つからないためホストPythonを使用します: $(PYTHON)"; \
+		SETUP_PY="$(PYTHON)"; \
+	fi; \
+	echo "pipをアップグレード中..."; \
+	"$$SETUP_PY" -m pip install --upgrade pip; \
+	echo "依存関係をインストール中..."; \
+	echo "（初回はモデルダウンロードのため時間がかかる場合があります）"; \
+	"$$SETUP_PY" -m pip install -r requirements.txt; \
+	echo ""; \
+	echo "システム依存関係を確認しています..."; \
+	if command -v tesseract >/dev/null 2>&1; then \
+		echo "✓ Tesseract OCR が利用可能です: $$(tesseract --version | head -1)"; \
 	else \
-		echo "⚠ 依存関係確認スクリプトが見つかりません"; \
-		echo "手動で確認してください: python -c \"import torch; print('PyTorch:', torch.__version__)\""; \
-	fi
+		echo "❌ Tesseract OCR が見つかりません"; \
+		echo "   例: brew install tesseract tesseract-lang"; \
+	fi; \
+	echo ""; \
+	if [ -f scripts/check_dependencies.py ]; then \
+		echo "Python依存関係を検証しています..."; \
+		"$$SETUP_PY" scripts/check_dependencies.py; \
+	else \
+		echo "⚠ scripts/check_dependencies.py が見つからないためスキップしました"; \
+	fi; \
+	echo ""; \
+	echo "=========================================="; \
+	echo "✓ セットアップが完了しました！"; \
+	echo "=========================================="; \
+	echo ""; \
+	echo "次のステップ:"; \
+	echo "  1. 仮想環境を有効化: source venv/bin/activate"; \
+	echo "  2. 実行: make run"; \
+	echo ""
 
 .PHONY: install
-install: setup-deps ## 依存関係をインストール（setup-depsのエイリアス）
-	@echo "✓ 依存関係のインストールが完了しました"
+install: setup
 
 .PHONY: help
 help: ## 利用可能なコマンド一覧を表示
@@ -239,19 +195,12 @@ help: ## 利用可能なコマンド一覧を表示
 	}' $(MAKEFILE_LIST)
 	@echo ""
 	@echo "例:"
-	@echo "  make setup                  # 一括セットアップ（推奨）"
-	@echo "  make setup-venv             # 仮想環境作成"
-	@echo "  make setup-deps             # 依存関係インストール"
-	@echo "  make setup-system           # システム依存関係確認"
-	@echo "  make setup-check            # インストール確認"
+	@echo "  make setup                  # 開発環境の初期化（万能コマンド）"
+	@echo "  make test                   # テスト実行（TEST_MODE=coverage などで切り替え）"
 	@echo ""
 	@echo "  make run                    # 通常実行"
-	@echo "  make run-debug              # デバッグモード"
 	@echo "  make run-timestamps         # タイムスタンプOCRのみ実行"
-	@echo "  make run-time START_TIME=\"2025/08/26 16:05:00\" END_TIME=\"2025/08/26 16:15:00\"  # 時刻指定（日時形式）"
-	@echo "  make run-time START_TIME=\"16:05:00\" END_TIME=\"16:15:00\"  # 時刻指定（時刻のみ）"
 	@echo "  make clean                  # outputクリーンアップ"
-	@echo "  make test                   # テスト実行"
 	@echo "  make lint                   # Lintチェック（ruff + mypy）"
 	@echo "  make format                 # コードフォーマット（ruff）"
 	@echo "  make format-check           # フォーマットチェック（変更なし）"

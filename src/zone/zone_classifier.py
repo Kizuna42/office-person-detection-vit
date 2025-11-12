@@ -1,7 +1,6 @@
 """Zone classification module for the office person detection system."""
 
 import logging
-from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -83,14 +82,14 @@ class ZoneClassifier:
             # 頂点座標の検証
             validated_polygon = []
             for j, point in enumerate(polygon):
-                if not isinstance(point, (list, tuple)) or len(point) != 2:
+                if not isinstance(point, list | tuple) or len(point) != 2:
                     raise ValueError(f"zones[{i}].polygon[{j}]は[x, y]形式である必要があります。")
 
                 try:
                     x, y = float(point[0]), float(point[1])
                     validated_polygon.append((x, y))
-                except (ValueError, TypeError):
-                    raise ValueError(f"zones[{i}].polygon[{j}]の座標は数値である必要があります。")
+                except (ValueError, TypeError) as e:
+                    raise ValueError(f"zones[{i}].polygon[{j}]の座標は数値である必要があります。") from e
 
             validated_zone = {
                 "id": zone_id,
@@ -103,8 +102,8 @@ class ZoneClassifier:
             if "priority" in zone and zone["priority"] is not None:
                 try:
                     priority_value = float(zone["priority"])
-                except (TypeError, ValueError):
-                    raise ValueError(f"zones[{i}].priority は数値である必要があります。")
+                except (TypeError, ValueError) as e:
+                    raise ValueError(f"zones[{i}].priority は数値である必要があります。") from e
                 validated_zone["priority"] = priority_value
             validated_zones.append(validated_zone)
 
@@ -183,23 +182,21 @@ class ZoneClassifier:
             p2x, p2y = polygon[i % n]
 
             # 点のy座標が辺のy座標範囲内にあるかチェック
-            if y > min(p1y, p2y):
-                if y <= max(p1y, p2y):
-                    if x <= max(p1x, p2x):
-                        # 辺が垂直でない場合
-                        if p1y != p2y:
-                            # 交点のx座標を計算
-                            xinters = (y - p1y) * (p2x - p1x) / (p2y - p1y) + p1x
+            if y > min(p1y, p2y) and y <= max(p1y, p2y) and x <= max(p1x, p2x):
+                # 辺が垂直でない場合
+                if p1y != p2y:
+                    # 交点のx座標を計算
+                    xinters = (y - p1y) * (p2x - p1x) / (p2y - p1y) + p1x
 
-                        # 辺が垂直、または点が交点より左側にある場合
-                        if p1x == p2x or x <= xinters:
-                            inside = not inside
+                # 辺が垂直、または点が交点より左側にある場合
+                if p1x == p2x or x <= xinters:
+                    inside = not inside
 
             p1x, p1y = p2x, p2y
 
         return inside
 
-    def get_zone_info(self, zone_id: str) -> Optional[dict]:
+    def get_zone_info(self, zone_id: str) -> dict | None:
         """ゾーンIDから詳細情報を取得する
 
         Args:

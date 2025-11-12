@@ -10,12 +10,15 @@ from tqdm import tqdm
 from src.aggregation import Aggregator
 from src.config import ConfigManager
 from src.models import Detection, FrameResult
-from src.pipeline.aggregation_phase import AggregationPhase
-from src.pipeline.detection_phase import DetectionPhase
 from src.pipeline.frame_extraction_pipeline import FrameExtractionPipeline
-from src.pipeline.transform_phase import TransformPhase
-from src.pipeline.visualization_phase import VisualizationPhase
-from src.utils import OutputManager, cleanup_resources, setup_output_directories
+from src.pipeline.phases import (
+    AggregationPhase,
+    DetectionPhase,
+    TrackingPhase,
+    TransformPhase,
+    VisualizationPhase,
+)
+from src.utils import OutputManager, PerformanceMonitor, cleanup_resources, setup_output_directories
 from src.video import VideoProcessor
 
 
@@ -34,6 +37,7 @@ class PipelineOrchestrator:
         self.output_manager: OutputManager | None = None
         self.session_dir: Path | None = None
         self.output_path: Path = Path(config.get("output.directory", "output"))
+        self.performance_monitor = PerformanceMonitor()
 
     def setup_output_directories(self, use_session_management: bool, args: dict | None = None) -> None:
         """出力ディレクトリをセットアップ
@@ -83,53 +87,68 @@ class PipelineOrchestrator:
         Returns:
             抽出結果のリスト
         """
-        # 設定からパラメータを取得
-        timestamp_config = self.config.get("timestamp", {})
-        extraction_config = timestamp_config.get("extraction", {})
-        sampling_config = timestamp_config.get("sampling", {})
-        target_config = timestamp_config.get("target", {})
-        ocr_config = self.config.get("ocr", {})
+        with self.performance_monitor.measure("phase1_extraction"):
+            # 設定からパラメータを取得
+            timestamp_config = self.config.get("timestamp", {})
+            extraction_config = timestamp_config.get("extraction", {})
+            sampling_config = timestamp_config.get("sampling", {})
+            target_config = timestamp_config.get("target", {})
+            ocr_config = self.config.get("ocr", {})
 
-        # 開始・終了日時の取得
-        start_datetime, end_datetime = self._parse_datetime_range(target_config, start_time, end_time)
+            # 開始・終了日時の取得
+            start_datetime, end_datetime = self._parse_datetime_range(target_config, start_time, end_time)
 
-        # 出力ディレクトリの決定
-        extraction_output_dir = self.get_phase_output_dir("phase1_extraction")
+            # 出力ディレクトリの決定
+            extraction_output_dir = self.get_phase_output_dir("phase1_extraction")
 
-        # パイプライン初期化
-        pipeline = FrameExtractionPipeline(
-            video_path=video_path,
-            output_dir=str(extraction_output_dir),
-            start_datetime=start_datetime,
-            end_datetime=end_datetime,
-            interval_minutes=self.config.get("video.frame_interval_minutes", 5),
-            tolerance_seconds=self.config.get("video.tolerance_seconds", 10.0),
-            confidence_threshold=extraction_config.get("confidence_threshold", 0.7),
-            coarse_interval_seconds=sampling_config.get("coarse_interval_seconds", 2.0),
-            fine_search_window_seconds=sampling_config.get("search_window_seconds", 60.0),
-            fine_interval_seconds=sampling_config.get("fine_interval_seconds", 0.1),
-            fps=self.config.get("video.fps", 30.0),
-            roi_config=extraction_config.get("roi"),
-            enabled_ocr_engines=ocr_config.get("engines"),
-            use_improved_validator=extraction_config.get("use_improved_validator", False),
-            base_tolerance_seconds=extraction_config.get("validator", {}).get("base_tolerance_seconds", 10.0),
-            history_size=extraction_config.get("validator", {}).get("history_size", 10),
-            z_score_threshold=extraction_config.get("validator", {}).get("z_score_threshold", 2.0),
-            use_weighted_consensus=extraction_config.get("use_weighted_consensus", False),
-            use_voting_consensus=extraction_config.get("use_voting_consensus", False),
-        )
-
-        # フレーム抽出モードに応じて実行
-        extraction_mode = timestamp_config.get("extraction_mode", "manual_targets")
-        if extraction_mode == "auto_targets":
-            auto_targets_config = timestamp_config.get("auto_targets", {})
-            self.logger.info("自動目標タイムスタンプ生成モードでフレーム抽出を実行します")
-            return pipeline.run_with_auto_targets(
-                max_frames=auto_targets_config.get("max_frames"),
-                disable_validation=auto_targets_config.get("disable_validation", False),
+            # パイプライン初期化
+            pipeline = FrameExtractionPipeline(
+                video_path=video_path,
+                output_dir=str(extraction_output_dir),
+                start_datetime=start_datetime,
+                end_datetime=end_datetime,
+                interval_minutes=self.config.get("video.frame_interval_minutes", 5),
+                tolerance_seconds=self.config.get("video.tolerance_seconds", 10.0),
+                confidence_threshold=extraction_config.get("confidence_threshold", 0.7),
+                coarse_interval_seconds=sampling_config.get("coarse_interval_seconds", 2.0),
+                fine_search_window_seconds=sampling_config.get("search_window_seconds", 60.0),
+                fine_interval_seconds=sampling_config.get("fine_interval_seconds", 0.1),
+                fps=self.config.get("video.fps", 30.0),
+                roi_config=extraction_config.get("roi"),
+                enabled_ocr_engines=ocr_config.get("engines"),
+                use_improved_validator=extraction_config.get("use_improved_validator", False),
+                base_tolerance_seconds=extraction_config.get("validator", {}).get("base_tolerance_seconds", 10.0),
+                history_size=extraction_config.get("validator", {}).get("history_size", 10),
+                z_score_threshold=extraction_config.get("validator", {}).get("z_score_threshold", 2.0),
+                use_weighted_consensus=extraction_config.get("use_weighted_consensus", False),
+                use_voting_consensus=extraction_config.get("use_voting_consensus", False),
             )
-        self.logger.info("手動目標タイムスタンプ指定モードでフレーム抽出を実行します")
-        return pipeline.run()
+
+            # フレーム抽出モードに応じて実行
+            extraction_mode = timestamp_config.get("extraction_mode", "manual_targets")
+            if extraction_mode == "auto_targets":
+                auto_targets_config = timestamp_config.get("auto_targets", {})
+                self.logger.info("自動目標タイムスタンプ生成モードでフレーム抽出を実行します")
+                results = pipeline.run_with_auto_targets(
+                    max_frames=auto_targets_config.get("max_frames"),
+                    disable_validation=auto_targets_config.get("disable_validation", False),
+                )
+            else:
+                self.logger.info("手動目標タイムスタンプ指定モードでフレーム抽出を実行します")
+                results = pipeline.run()
+
+            # OCRキャッシュ統計をログ出力
+            cache_stats = pipeline.extractor.get_cache_stats()
+            if cache_stats["cache_hits"] + cache_stats["cache_misses"] > 0:
+                self.logger.info("=" * 80)
+                self.logger.info("OCRキャッシュ統計:")
+                self.logger.info(f"  キャッシュサイズ: {cache_stats['cache_size']}エントリ")
+                self.logger.info(f"  キャッシュヒット: {cache_stats['cache_hits']}回")
+                self.logger.info(f"  キャッシュミス: {cache_stats['cache_misses']}回")
+                self.logger.info(f"  ヒット率: {cache_stats['hit_rate']:.1f}%")
+                self.logger.info("=" * 80)
+
+            return results
 
     def prepare_frames_for_detection(
         self, extraction_results: list[dict], video_path: str
@@ -181,16 +200,53 @@ class PipelineOrchestrator:
         Returns:
             (検出結果のリスト, DetectionPhaseインスタンス)
         """
-        detection_phase = DetectionPhase(self.config, self.logger)
-        detection_phase.initialize()
+        with self.performance_monitor.measure("phase2_detection"):
+            detection_phase = DetectionPhase(self.config, self.logger)
+            detection_phase.initialize()
 
-        output_dir = self.get_phase_output_dir("phase2_detection")
-        detection_phase.output_path = output_dir
+            output_dir = self.get_phase_output_dir("phase2_detection")
+            detection_phase.output_path = output_dir
 
-        detection_results = detection_phase.execute(sample_frames)
-        detection_phase.log_statistics(detection_results, output_dir)
+            detection_results = detection_phase.execute(sample_frames)
+            detection_phase.log_statistics(detection_results, output_dir)
 
-        return detection_results, detection_phase
+            return detection_results, detection_phase
+
+    def run_tracking(
+        self,
+        detection_results: list[tuple[int, str, list[Detection]]],
+        sample_frames: list[tuple[int, str, np.ndarray]],
+    ) -> tuple[list[tuple[int, str, list[Detection]]], TrackingPhase]:
+        """追跡処理を実行
+
+        Args:
+            detection_results: 検出結果のリスト
+            sample_frames: サンプルフレームのリスト [(frame_num, timestamp, frame), ...]
+
+        Returns:
+            (track_idが割り当てられた検出結果のリスト, TrackingPhaseインスタンス)
+        """
+        # 追跡が無効な場合は検出結果をそのまま返す
+        if not self.config.get("tracking.enabled", False):
+            self.logger.info("追跡機能が無効です（tracking.enabled=false）")
+            tracking_phase = TrackingPhase(self.config, self.logger)
+            tracking_phase.initialize()  # 初期化のみ（実行はスキップ）
+            return detection_results, tracking_phase
+
+        with self.performance_monitor.measure("phase2.5_tracking"):
+            tracking_phase = TrackingPhase(self.config, self.logger)
+            tracking_phase.initialize()
+
+            output_dir = self.get_phase_output_dir("phase2.5_tracking")
+            output_dir.mkdir(parents=True, exist_ok=True)
+
+            # 追跡実行（sample_framesをそのまま渡す）
+            tracked_results = tracking_phase.execute(detection_results, sample_frames)
+
+            # 結果をエクスポート
+            tracking_phase.export_results(output_dir)
+
+            return tracked_results, tracking_phase
 
     def run_transform(
         self, detection_results: list[tuple[int, str, list[Detection]]]
@@ -203,14 +259,15 @@ class PipelineOrchestrator:
         Returns:
             (FrameResultのリスト, TransformPhaseインスタンス)
         """
-        transform_phase = TransformPhase(self.config, self.logger)
-        transform_phase.initialize()
+        with self.performance_monitor.measure("phase3_transform"):
+            transform_phase = TransformPhase(self.config, self.logger)
+            transform_phase.initialize()
 
-        output_dir = self.get_phase_output_dir("phase3_transform")
-        frame_results = transform_phase.execute(detection_results)
-        transform_phase.export_results(frame_results, output_dir)
+            output_dir = self.get_phase_output_dir("phase3_transform")
+            frame_results = transform_phase.execute(detection_results)
+            transform_phase.export_results(frame_results, output_dir)
 
-        return frame_results, transform_phase
+            return frame_results, transform_phase
 
     def run_aggregation(self, frame_results: list[FrameResult]) -> tuple[AggregationPhase, Aggregator]:
         """集計処理を実行
@@ -221,11 +278,12 @@ class PipelineOrchestrator:
         Returns:
             (AggregationPhaseインスタンス, Aggregatorインスタンス)
         """
-        aggregation_phase = AggregationPhase(self.config, self.logger)
-        output_dir = self.get_phase_output_dir("phase4_aggregation")
-        aggregator = aggregation_phase.execute(frame_results, output_dir)
+        with self.performance_monitor.measure("phase4_aggregation"):
+            aggregation_phase = AggregationPhase(self.config, self.logger)
+            output_dir = self.get_phase_output_dir("phase4_aggregation")
+            aggregator = aggregation_phase.execute(frame_results, output_dir)
 
-        return aggregation_phase, aggregator
+            return aggregation_phase, aggregator
 
     def run_visualization(self, aggregator: Aggregator, frame_results: list[FrameResult]) -> None:
         """可視化を実行
@@ -234,9 +292,10 @@ class PipelineOrchestrator:
             aggregator: Aggregatorインスタンス
             frame_results: FrameResultのリスト
         """
-        visualization_phase = VisualizationPhase(self.config, self.logger)
-        output_dir = self.get_phase_output_dir("phase5_visualization")
-        visualization_phase.execute(aggregator, frame_results, output_dir)
+        with self.performance_monitor.measure("phase5_visualization"):
+            visualization_phase = VisualizationPhase(self.config, self.logger)
+            output_dir = self.get_phase_output_dir("phase5_visualization")
+            visualization_phase.execute(aggregator, frame_results, output_dir)
 
     def save_session_summary(
         self,
@@ -255,6 +314,9 @@ class PipelineOrchestrator:
         """
         if not self.session_dir or not self.output_manager:
             return
+
+        # パフォーマンスメトリクスを取得
+        performance_summary = self.performance_monitor.get_summary()
 
         summary = {
             "status": "completed",
@@ -276,6 +338,7 @@ class PipelineOrchestrator:
                     "floormaps_generated": len(frame_results),
                 },
             },
+            "performance": performance_summary,
         }
         self.output_manager.save_summary(self.session_dir, summary)
         self.output_manager.update_latest_link(self.session_dir)

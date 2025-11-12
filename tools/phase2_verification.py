@@ -15,11 +15,11 @@ import time
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-import psutil  # noqa: E402
+import psutil
 
-from src.config import ConfigManager  # noqa: E402
-from src.pipeline import FrameExtractionPipeline  # noqa: E402
-from src.utils import setup_logging, setup_output_directories  # noqa: E402
+from src.config import ConfigManager
+from src.pipeline import FrameExtractionPipeline
+from src.utils import setup_logging, setup_output_directories
 
 logger = logging.getLogger(__name__)
 
@@ -204,7 +204,7 @@ def verify_production_video(video_path: str, duration_seconds: int = 3600, confi
         logger.info("=" * 80)
         logger.info("試験実行結果")
         logger.info("=" * 80)
-        logger.info(f"✓ 処理時間: {elapsed_time:.2f}秒 ({elapsed_time/60:.2f}分)")
+        logger.info(f"✓ 処理時間: {elapsed_time:.2f}秒 ({elapsed_time / 60:.2f}分)")
         logger.info(
             f"✓ メモリ使用量: {memory_before:.1f}MB → {memory_after:.1f}MB (増加: {memory_after - memory_before:.1f}MB)"
         )

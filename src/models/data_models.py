@@ -3,6 +3,8 @@
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
+import numpy as np
+
 
 @dataclass
 class Detection:
@@ -17,6 +19,9 @@ class Detection:
         floor_coords: フロアマップ座標系での変換後座標 (x, y) ピクセル単位
         floor_coords_mm: フロアマップ座標系での変換後座標 (x, y) mm単位
         zone_ids: 所属するゾーンIDのリスト
+        track_id: 追跡ID（オプション）
+        features: 外観特徴量（オプション、256次元）
+        appearance_score: 外観マッチングスコア（オプション）
     """
 
     bbox: Tuple[float, float, float, float]
@@ -27,6 +32,9 @@ class Detection:
     floor_coords: Optional[Tuple[float, float]] = None
     floor_coords_mm: Optional[Tuple[float, float]] = None
     zone_ids: List[str] = field(default_factory=list)
+    track_id: Optional[int] = None
+    features: Optional[np.ndarray] = None
+    appearance_score: Optional[float] = None
 
 
 @dataclass

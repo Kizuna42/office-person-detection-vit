@@ -10,7 +10,7 @@ import pytest
 from src.utils.memory_utils import cleanup_resources
 
 
-@pytest.fixture()
+@pytest.fixture
 def sample_logger() -> logging.Logger:
     """テスト用のロガー"""
     logger = logging.getLogger("test_memory_utils")

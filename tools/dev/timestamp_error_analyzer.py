@@ -10,7 +10,6 @@ from datetime import datetime
 import logging
 from pathlib import Path
 import sys
-from typing import Dict, List
 
 # プロジェクトルートをパスに追加（直接実行可能にする）
 project_root = Path(__file__).parent.parent
@@ -133,7 +132,7 @@ def visualize_error_distribution(results: list[dict], output_path: Path, toleran
     time_diffs = [r["time_diff_seconds"] for r in results]
 
     # 図の作成
-    fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+    _fig, axes = plt.subplots(2, 2, figsize=(15, 12))
 
     # 1. 誤差のヒストグラム
     ax1 = axes[0, 0]

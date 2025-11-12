@@ -1,11 +1,10 @@
 """Output file management with session-based organization."""
 
-from datetime import datetime, timedelta
+from contextlib import suppress
+from datetime import datetime
 import json
 import logging
 from pathlib import Path
-import shutil
-from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -22,8 +21,6 @@ class OutputManager:
         self.output_base = Path(output_base)
         self.sessions_dir = self.output_base / "sessions"
         self.latest_link = self.output_base / "latest"
-        self.archive_dir = self.output_base / "archive"
-        self.shared_dir = self.output_base / "shared"
 
         # ディレクトリを作成
         self._setup_directories()
@@ -32,10 +29,6 @@ class OutputManager:
         """必要なディレクトリを作成（最小限のみ）"""
         # セッション管理に必要なディレクトリのみ作成
         self.sessions_dir.mkdir(parents=True, exist_ok=True)
-        self.archive_dir.mkdir(parents=True, exist_ok=True)
-        self.shared_dir.mkdir(parents=True, exist_ok=True)
-        # Ground Truthデータ用（既存のlabelsディレクトリをsharedに移動する場合は使用）
-        (self.shared_dir / "labels").mkdir(exist_ok=True)
 
     def create_session(self) -> Path:
         """新しい実行セッション用のディレクトリを作成
@@ -62,7 +55,7 @@ class OutputManager:
         logger.info(f"セッションディレクトリを作成しました: {session_dir}")
         return session_dir
 
-    def save_metadata(self, session_dir: Path, config: dict, args: Optional[dict] = None) -> None:
+    def save_metadata(self, session_dir: Path, config: dict, args: dict | None = None) -> None:
         """セッションメタデータを保存
 
         Args:
@@ -126,7 +119,7 @@ class OutputManager:
             # Windowsなど、シンボリックリンクが使えない環境ではスキップ
             logger.warning(f"シンボリックリンクの作成に失敗しました: {e}")
 
-    def get_latest_session(self) -> Optional[Path]:
+    def get_latest_session(self) -> Path | None:
         """最新のセッションを取得
 
         Returns:
@@ -143,9 +136,9 @@ class OutputManager:
 
     def find_sessions(
         self,
-        start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None,
-        pattern: Optional[str] = None,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+        pattern: str | None = None,
     ) -> list[Path]:
         """条件に一致するセッションを検索
 
@@ -157,7 +150,7 @@ class OutputManager:
         Returns:
             セッションディレクトリのリスト（新しい順）
         """
-        sessions = []
+        sessions: list[Path] = []
 
         if not self.sessions_dir.exists():
             return sessions
@@ -187,33 +180,6 @@ class OutputManager:
         # 新しい順にソート
         return sorted(sessions, key=lambda p: p.name, reverse=True)
 
-    def archive_old_sessions(self, days: int = 30) -> int:
-        """古いセッションをアーカイブ
-
-        Args:
-            days: アーカイブ対象の日数（この日数以上古いセッション）
-
-        Returns:
-            アーカイブしたセッション数
-        """
-        cutoff_date = datetime.now() - timedelta(days=days)
-        archived_count = 0
-
-        for session_dir in self.find_sessions(end_date=cutoff_date):
-            try:
-                archive_path = self.archive_dir / session_dir.name
-                if archive_path.exists():
-                    # 既にアーカイブされている場合はスキップ
-                    continue
-
-                shutil.move(str(session_dir), str(archive_path))
-                archived_count += 1
-                logger.info(f"セッションをアーカイブしました: {session_dir.name}")
-            except Exception as e:
-                logger.error(f"アーカイブに失敗しました ({session_dir.name}): {e}")
-
-        return archived_count
-
     def get_session_size(self, session_dir: Path) -> int:
         """セッションのディスク使用量を取得（バイト）
 
@@ -226,42 +192,9 @@ class OutputManager:
         total = 0
         for file_path in session_dir.rglob("*"):
             if file_path.is_file():
-                try:
+                with suppress(OSError):
                     total += file_path.stat().st_size
-                except OSError:
-                    # ファイルアクセスエラーは無視
-                    pass
         return total
-
-    def cleanup_old_archives(self, days: int = 90) -> int:
-        """古いアーカイブを削除
-
-        Args:
-            days: 削除対象の日数（この日数以上古いアーカイブ）
-
-        Returns:
-            削除したアーカイブ数
-        """
-        cutoff_date = datetime.now() - timedelta(days=days)
-        deleted_count = 0
-
-        if not self.archive_dir.exists():
-            return 0
-
-        for archive_dir in self.archive_dir.iterdir():
-            if not archive_dir.is_dir():
-                continue
-
-            try:
-                archive_date = datetime.strptime(archive_dir.name, "%Y%m%d_%H%M%S")
-                if archive_date < cutoff_date:
-                    shutil.rmtree(archive_dir)
-                    deleted_count += 1
-                    logger.info(f"アーカイブを削除しました: {archive_dir.name}")
-            except (ValueError, OSError) as e:
-                logger.warning(f"アーカイブの削除に失敗しました ({archive_dir.name}): {e}")
-
-        return deleted_count
 
 
 def format_file_size(size_bytes: int) -> str:
@@ -273,11 +206,12 @@ def format_file_size(size_bytes: int) -> str:
     Returns:
         フォーマットされた文字列（例: "1.5 MB"）
     """
+    size: float = float(size_bytes)
     for unit in ["B", "KB", "MB", "GB", "TB"]:
-        if size_bytes < 1024.0:
-            return f"{size_bytes:.2f} {unit}"
-        size_bytes /= 1024.0
-    return f"{size_bytes:.2f} PB"
+        if size < 1024.0:
+            return f"{size:.2f} {unit}"
+        size = size / 1024.0
+    return f"{size:.2f} PB"
 
 
 def setup_output_directories(output_dir: Path) -> None:

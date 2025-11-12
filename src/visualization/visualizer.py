@@ -11,7 +11,6 @@ if os.environ.get("MPLBACKEND") is None:
     matplotlib.use("Agg")
 
 from pathlib import Path
-from typing import Dict, List, Optional
 
 import matplotlib.pyplot as plt
 
@@ -208,7 +207,7 @@ class Visualizer:
             logger.error(f"Failed to draw attention map: {e}")
             return image
 
-    def _add_colorbar(self, image: np.ndarray, attention_normalized: np.ndarray) -> np.ndarray:
+    def _add_colorbar(self, image: np.ndarray, _attention_normalized: np.ndarray) -> np.ndarray:
         """カラーバーを画像に追加
 
         Args:
@@ -218,7 +217,7 @@ class Visualizer:
         Returns:
             カラーバー付き画像
         """
-        height, width = image.shape[:2]
+        _height, width = image.shape[:2]
         colorbar_width = 30
         colorbar_height = 200
 
@@ -269,7 +268,7 @@ class Visualizer:
         self,
         frame: np.ndarray,
         detections: list[Detection],
-        attention_map: Optional[np.ndarray] = None,
+        attention_map: np.ndarray | None = None,
         alpha: float = 0.4,
     ) -> np.ndarray:
         """検出結果とAttention Mapを同時に可視化
@@ -284,10 +283,7 @@ class Visualizer:
             可視化画像
         """
         # まずAttention Mapをオーバーレイ
-        if attention_map is not None:
-            image = self.draw_attention_map(frame, attention_map, alpha)
-        else:
-            image = frame.copy()
+        image = self.draw_attention_map(frame, attention_map, alpha) if attention_map is not None else frame.copy()
 
         # 検出結果を描画
         image = self.draw_detections(image, detections, show_coords=self.debug_mode)
@@ -308,7 +304,7 @@ class Visualizer:
             output_dir = Path(output_path).parent
             output_dir.mkdir(parents=True, exist_ok=True)
 
-            success = cv2.imwrite(output_path, image)
+            success = bool(cv2.imwrite(output_path, image))
             if success:
                 logger.info(f"Image saved: {output_path}")
             else:
@@ -324,7 +320,7 @@ class Visualizer:
         self,
         original: np.ndarray,
         with_detections: np.ndarray,
-        with_attention: Optional[np.ndarray] = None,
+        with_attention: np.ndarray | None = None,
     ) -> np.ndarray:
         """比較ビューを作成（デバッグモード用）
 
@@ -386,7 +382,7 @@ class Visualizer:
             zone_data: dict[str, list[int]] = {}
 
             # ユニークなタイムスタンプを取得
-            unique_timestamps = sorted(set(r.timestamp for r in aggregator.results))
+            unique_timestamps = sorted({r.timestamp for r in aggregator.results})
 
             # 各ゾーンのデータを整理
             for timestamp in unique_timestamps:
@@ -475,7 +471,7 @@ class Visualizer:
             mins = [statistics[z]["min"] for z in zone_ids]
 
             # グラフを作成
-            fig, ax = plt.subplots(figsize=figsize)
+            _fig, ax = plt.subplots(figsize=figsize)
 
             x = np.arange(len(zone_ids))
             width = 0.25
@@ -529,8 +525,8 @@ class Visualizer:
                 return False
 
             # タイムスタンプとゾーンIDを取得
-            unique_timestamps = sorted(set(r.timestamp for r in aggregator.results))
-            unique_zones = sorted(set(r.zone_id for r in aggregator.results))
+            unique_timestamps = sorted({r.timestamp for r in aggregator.results})
+            unique_zones = sorted({r.zone_id for r in aggregator.results})
 
             # ヒートマップ用のマトリックスを作成
             heatmap_data = np.zeros((len(unique_zones), len(unique_timestamps)))
@@ -545,7 +541,7 @@ class Visualizer:
                         heatmap_data[i, j] = matching_results[0].count
 
             # ヒートマップを作成
-            fig, ax = plt.subplots(figsize=figsize)
+            _fig, ax = plt.subplots(figsize=figsize)
 
             im = ax.imshow(heatmap_data, cmap="YlOrRd", aspect="auto")
 

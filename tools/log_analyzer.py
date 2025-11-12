@@ -10,16 +10,17 @@ import logging
 from pathlib import Path
 import re
 import sys
-from typing import Dict
 
 # プロジェクトルートをパスに追加（直接実行可能にする）
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from tqdm import tqdm  # noqa: E402
+import contextlib
 
-from src.config import ConfigManager  # noqa: E402
-from src.utils import setup_logging  # noqa: E402
+from tqdm import tqdm
+
+from src.config import ConfigManager
+from src.utils import setup_logging
 
 logger = logging.getLogger(__name__)
 
@@ -121,10 +122,8 @@ def analyze_performance_bottlenecks(log_path: Path) -> dict:
                 matches = time_pattern.findall(line)
                 for match in matches:
                     time_str = match[0] if match[0] else match[1]
-                    try:
+                    with contextlib.suppress(ValueError):
                         processing_times.append(float(time_str))
-                    except ValueError:
-                        pass
 
     if not processing_times:
         return {}

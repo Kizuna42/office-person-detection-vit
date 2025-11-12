@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import cv2
 import numpy as np
@@ -11,8 +11,11 @@ import pytest
 from src.models import Detection, FrameResult
 from src.visualization.floormap_visualizer import FloormapVisualizer
 
+if TYPE_CHECKING:
+    from pathlib import Path
 
-@pytest.fixture()
+
+@pytest.fixture
 def sample_floormap_path(tmp_path: Path) -> Path:
     """テスト用のフロアマップ画像を作成"""
 
@@ -22,7 +25,7 @@ def sample_floormap_path(tmp_path: Path) -> Path:
     return floormap_path
 
 
-@pytest.fixture()
+@pytest.fixture
 def sample_floormap_config() -> dict:
     """テスト用のフロアマップ設定"""
 
@@ -36,7 +39,7 @@ def sample_floormap_config() -> dict:
     }
 
 
-@pytest.fixture()
+@pytest.fixture
 def sample_zones() -> list[dict]:
     """テスト用のゾーン定義"""
 
@@ -56,7 +59,7 @@ def sample_zones() -> list[dict]:
     ]
 
 
-@pytest.fixture()
+@pytest.fixture
 def sample_camera_config() -> dict:
     """テスト用のカメラ設定"""
 
@@ -93,7 +96,7 @@ def test_init_invalid_image(tmp_path: Path, sample_floormap_config: dict, sample
     invalid_path = tmp_path / "invalid.png"
     invalid_path.write_bytes(b"invalid image data")
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r".*画像.*"):
         FloormapVisualizer(str(invalid_path), sample_floormap_config, sample_zones)
 
 

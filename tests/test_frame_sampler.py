@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
 import cv2
@@ -11,14 +11,17 @@ import pytest
 
 from src.video.frame_sampler import AdaptiveSampler, CoarseSampler, FineSampler
 
+if TYPE_CHECKING:
+    from pathlib import Path
 
-@pytest.fixture()
+
+@pytest.fixture
 def mock_video_path(tmp_path: Path) -> Path:
     """モック動画ファイルパス"""
     return tmp_path / "test_video.mov"
 
 
-@pytest.fixture()
+@pytest.fixture
 def mock_video_capture():
     """モックVideoCapture"""
     mock_cap = MagicMock()

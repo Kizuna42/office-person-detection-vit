@@ -50,6 +50,7 @@ venv.bak/
 # Testing
 .pytest_cache/
 .coverage
+.coverage*
 htmlcov/
 .tox/
 
@@ -109,4 +110,4 @@ models/*.bin
 
 # Thumbnails
 ._*
-
+output/sessions/

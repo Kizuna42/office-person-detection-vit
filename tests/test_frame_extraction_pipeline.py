@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -11,14 +11,17 @@ import pytest
 
 from src.pipeline.frame_extraction_pipeline import FrameExtractionPipeline
 
+if TYPE_CHECKING:
+    from pathlib import Path
 
-@pytest.fixture()
+
+@pytest.fixture
 def mock_video_path(tmp_path: Path) -> Path:
     """モック動画ファイルパス"""
     return tmp_path / "test_video.mov"
 
 
-@pytest.fixture()
+@pytest.fixture
 def sample_output_dir(tmp_path: Path) -> Path:
     """サンプル出力ディレクトリ"""
     output_dir = tmp_path / "output"
@@ -26,7 +29,7 @@ def sample_output_dir(tmp_path: Path) -> Path:
     return output_dir
 
 
-@pytest.fixture()
+@pytest.fixture
 def target_timestamps() -> list[datetime]:
     """テスト用の目標タイムスタンプリスト"""
     return [
@@ -279,7 +282,7 @@ def test_missing_data_handling(
         tolerance_seconds=10.0,
     )
 
-    results = pipeline.run()
+    pipeline.run()
 
     # 失敗した場合は空のリストまたは警告が出力される
     # 実装に応じて調整が必要
@@ -290,9 +293,12 @@ def test_target_timestamps_generation(sample_output_dir: Path):
     start = datetime(2025, 8, 26, 16, 5, 0)
     end = datetime(2025, 8, 26, 16, 20, 0)
 
-    with patch("src.pipeline.frame_extraction_pipeline.CoarseSampler"), patch(
-        "src.pipeline.frame_extraction_pipeline.FineSampler"
-    ), patch("src.pipeline.frame_extraction_pipeline.TimestampExtractorV2"), patch("cv2.VideoCapture"):
+    with (
+        patch("src.pipeline.frame_extraction_pipeline.CoarseSampler"),
+        patch("src.pipeline.frame_extraction_pipeline.FineSampler"),
+        patch("src.pipeline.frame_extraction_pipeline.TimestampExtractorV2"),
+        patch("cv2.VideoCapture"),
+    ):
         pipeline = FrameExtractionPipeline(
             video_path="dummy.mov",
             output_dir=str(sample_output_dir),
@@ -804,7 +810,7 @@ def test_run_with_auto_targets_max_frames(
     )
 
     # 最大50フレームに制限
-    results = pipeline.run_with_auto_targets(max_frames=50)
+    pipeline.run_with_auto_targets(max_frames=50)
 
     # 最大フレーム数が適用されることを確認
     mock_video_processor.get_frame.assert_called()

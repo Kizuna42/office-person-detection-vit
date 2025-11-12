@@ -209,4 +209,3 @@ python tools/cleanup_old_outputs.py --execute
 - **実装コード**: `src/utils/output_manager.py`
 - **クリーンアップツール**: `tools/cleanup_output.py`, `tools/cleanup_old_outputs.py`
 - **設定**: `config.yaml` の `output.use_session_management`
-

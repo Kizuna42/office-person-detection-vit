@@ -1,12 +1,22 @@
 """Multi-engine OCR wrapper for timestamp extraction."""
 
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
 import re
-from typing import Dict, List, Optional, Tuple
+from typing import Any
+import warnings
 
 import numpy as np
 
 logger = logging.getLogger(__name__)
+
+# EasyOCR内部でtorch.ao.quantizationを呼び出す際の非推奨警告を抑制
+warnings.filterwarnings(
+    "ignore",
+    message=r"torch\.ao\.quantization is deprecated and will be removed in 2\.10\.",
+    category=DeprecationWarning,
+)
 
 # OCRエンジンの利用可能性をチェック
 TESSERACT_AVAILABLE = False
@@ -44,7 +54,7 @@ class MultiEngineOCR:
 
     def __init__(
         self,
-        enabled_engines: list[str] = None,
+        enabled_engines: list[str] | None = None,
         use_weighted_consensus: bool = False,
         use_voting_consensus: bool = False,
     ):
@@ -56,7 +66,7 @@ class MultiEngineOCR:
             use_weighted_consensus: 重み付けスキームを使用するか（デフォルト: False）
             use_voting_consensus: 投票ロジックを使用するか（デフォルト: False）
         """
-        self.engines: dict[str, callable] = {}
+        self.engines: dict[str, Callable[[np.ndarray], str]] = {}
         self.enabled_engines = enabled_engines or []
         self.use_weighted_consensus = use_weighted_consensus
         self.use_voting_consensus = use_voting_consensus
@@ -74,23 +84,25 @@ class MultiEngineOCR:
         if not self.engines:
             logger.warning("No OCR engines available. Please install at least one OCR engine.")
 
-    def _init_tesseract(self) -> callable:
+    def _init_tesseract(self) -> Callable[[np.ndarray], str]:
         """Tesseract: 高速、数字に強い"""
-        import pytesseract
+        pytesseract_module = globals().get("pytesseract")
+        if pytesseract_module is None:
+            raise RuntimeError("pytesseract module is not available")
 
         # PSM 8: 単一の単語（最適化テストの結果、PSM 8が最も正確）
         config = r"--psm 8 --oem 3 -c tessedit_char_whitelist=0123456789/: "
 
         def tesseract_func(img: np.ndarray) -> str:
-            return pytesseract.image_to_string(img, config=config)
+            return str(pytesseract_module.image_to_string(img, config=config))
 
         return tesseract_func
 
-    def _init_easyocr(self) -> callable:
+    def _init_easyocr(self) -> Callable[[np.ndarray], str]:
         """EasyOCR: 高精度、やや遅い"""
         import easyocr
 
-        reader = easyocr.Reader(["en"], gpu=False)  # GPU利用は環境に応じて調整
+        reader = easyocr.Reader(["en"], gpu=False, quantize=False)  # GPU利用は環境に応じて調整
 
         def easyocr_func(img: np.ndarray) -> str:
             results = reader.readtext(img)
@@ -98,20 +110,24 @@ class MultiEngineOCR:
 
         return easyocr_func
 
-    def _init_paddleocr(self) -> callable:
+    def _init_paddleocr(self) -> Callable[[np.ndarray], str]:
         """PaddleOCR: 中国語カメラでも対応"""
         from paddleocr import PaddleOCR
 
-        # 新しいバージョンではuse_gpuの代わりにdeviceを使用
+        # 新しいバージョンではuse_textline_orientationを使用（use_angle_clsは非推奨）
         try:
-            ocr = PaddleOCR(use_angle_cls=True, lang="japan", device="cpu")
+            ocr = PaddleOCR(use_textline_orientation=True, lang="japan", device="cpu")
         except (ValueError, TypeError):
-            # 古いバージョンとの互換性
+            # 古いバージョンとの互換性（use_angle_clsを使用）
             try:
-                ocr = PaddleOCR(use_angle_cls=True, lang="japan", use_gpu=False)
-            except Exception:
-                # パラメータなしで初期化を試みる
-                ocr = PaddleOCR(lang="japan")
+                ocr = PaddleOCR(use_angle_cls=True, lang="japan", device="cpu")
+            except (ValueError, TypeError):
+                # さらに古いバージョンとの互換性
+                try:
+                    ocr = PaddleOCR(use_angle_cls=True, lang="japan", use_gpu=False)
+                except Exception:
+                    # パラメータなしで初期化を試みる
+                    ocr = PaddleOCR(lang="japan")
 
         def paddleocr_func(img: np.ndarray) -> str:
             result = ocr.ocr(img, cls=True)
@@ -121,7 +137,7 @@ class MultiEngineOCR:
 
         return paddleocr_func
 
-    def extract_with_consensus(self, roi: np.ndarray) -> tuple[Optional[str], float]:
+    def extract_with_consensus(self, roi: np.ndarray) -> tuple[str | None, float]:
         """複数エンジンの結果を統合（コンセンサスアルゴリズム）
 
         改善されたアルゴリズム（重み付けスキーム、投票ロジック）をサポート
@@ -148,8 +164,8 @@ class MultiEngineOCR:
         # デフォルトのコンセンサスアルゴリズム
         return self._extract_with_baseline_consensus(roi)
 
-    def _extract_with_baseline_consensus(self, roi: np.ndarray) -> tuple[Optional[str], float]:
-        """ベースラインのコンセンサスアルゴリズム（既存実装）
+    def _extract_with_baseline_consensus(self, roi: np.ndarray) -> tuple[str | None, float]:
+        """ベースラインのコンセンサスアルゴリズム（並列実行対応）
 
         Args:
             roi: 前処理済みROI画像
@@ -157,21 +173,34 @@ class MultiEngineOCR:
         Returns:
             (抽出テキスト, 信頼度) のタプル
         """
-        results: list[dict[str, any]] = []
+        results: list[dict[str, Any]] = []
 
-        for engine_name, engine_func in self.engines.items():
+        # 並列実行でOCR処理を高速化
+        def run_ocr(engine_name: str, engine_func: Callable[[np.ndarray], str]) -> dict[str, Any] | None:
+            """単一のOCRエンジンを実行"""
             try:
                 text = engine_func(roi)
                 confidence = self._calculate_confidence(text)
-                results.append(
-                    {
-                        "engine": engine_name,
-                        "text": text.strip(),
-                        "confidence": confidence,
-                    }
-                )
+                return {
+                    "engine": engine_name,
+                    "text": text.strip(),
+                    "confidence": confidence,
+                }
             except Exception as e:
                 logger.error(f"{engine_name} failed: {e}")
+                return None
+
+        # ThreadPoolExecutorで並列実行（I/Oバウンドな処理のため）
+        with ThreadPoolExecutor(max_workers=len(self.engines)) as executor:
+            futures = {
+                executor.submit(run_ocr, engine_name, engine_func): engine_name
+                for engine_name, engine_func in self.engines.items()
+            }
+
+            for future in as_completed(futures):
+                result = future.result()
+                if result:
+                    results.append(result)
 
         if not results:
             return None, 0.0
@@ -194,8 +223,8 @@ class MultiEngineOCR:
         logger.debug(f"Best result from {best['engine']}: {best['text']} (confidence={best['confidence']:.2f})")
         return best["text"], best["confidence"]
 
-    def _extract_with_weighted_consensus(self, roi: np.ndarray) -> tuple[Optional[str], float]:
-        """重み付けスキームによるコンセンサス
+    def _extract_with_weighted_consensus(self, roi: np.ndarray) -> tuple[str | None, float]:
+        """重み付けスキームによるコンセンサス（並列実行対応）
 
         Args:
             roi: 前処理済みROI画像
@@ -203,9 +232,11 @@ class MultiEngineOCR:
         Returns:
             (抽出テキスト, 信頼度) のタプル
         """
-        results: list[dict[str, any]] = []
+        results: list[dict[str, Any]] = []
 
-        for engine_name, engine_func in self.engines.items():
+        # 並列実行でOCR処理を高速化
+        def run_ocr_weighted(engine_name: str, engine_func: Callable[[np.ndarray], str]) -> dict[str, Any] | None:
+            """単一のOCRエンジンを実行（重み付け版）"""
             try:
                 text = engine_func(roi)
                 confidence = self._calculate_confidence(text)
@@ -214,16 +245,27 @@ class MultiEngineOCR:
                 weight = 1.0 if engine_name == "tesseract" else 0.8
                 weighted_confidence = confidence * weight
 
-                results.append(
-                    {
-                        "engine": engine_name,
-                        "text": text.strip(),
-                        "confidence": confidence,
-                        "weighted_confidence": weighted_confidence,
-                    }
-                )
+                return {
+                    "engine": engine_name,
+                    "text": text.strip(),
+                    "confidence": confidence,
+                    "weighted_confidence": weighted_confidence,
+                }
             except Exception as e:
                 logger.debug(f"{engine_name} failed: {e}")
+                return None
+
+        # ThreadPoolExecutorで並列実行
+        with ThreadPoolExecutor(max_workers=len(self.engines)) as executor:
+            futures = {
+                executor.submit(run_ocr_weighted, engine_name, engine_func): engine_name
+                for engine_name, engine_func in self.engines.items()
+            }
+
+            for future in as_completed(futures):
+                result = future.result()
+                if result:
+                    results.append(result)
 
         if not results:
             return None, 0.0
@@ -253,8 +295,8 @@ class MultiEngineOCR:
         )
         return best["text"], best["weighted_confidence"]
 
-    def _extract_with_voting(self, roi: np.ndarray) -> tuple[Optional[str], float]:
-        """投票ロジックによるコンセンサス
+    def _extract_with_voting(self, roi: np.ndarray) -> tuple[str | None, float]:
+        """投票ロジックによるコンセンサス（並列実行対応）
 
         Args:
             roi: 前処理済みROI画像
@@ -262,21 +304,34 @@ class MultiEngineOCR:
         Returns:
             (抽出テキスト, 信頼度) のタプル
         """
-        results: list[dict[str, any]] = []
+        results: list[dict[str, Any]] = []
 
-        for engine_name, engine_func in self.engines.items():
+        # 並列実行でOCR処理を高速化
+        def run_ocr_voting(engine_name: str, engine_func: Callable[[np.ndarray], str]) -> dict[str, Any] | None:
+            """単一のOCRエンジンを実行（投票版）"""
             try:
                 text = engine_func(roi)
                 confidence = self._calculate_confidence(text)
-                results.append(
-                    {
-                        "engine": engine_name,
-                        "text": text.strip(),
-                        "confidence": confidence,
-                    }
-                )
+                return {
+                    "engine": engine_name,
+                    "text": text.strip(),
+                    "confidence": confidence,
+                }
             except Exception as e:
                 logger.debug(f"{engine_name} failed: {e}")
+                return None
+
+        # ThreadPoolExecutorで並列実行
+        with ThreadPoolExecutor(max_workers=len(self.engines)) as executor:
+            futures = {
+                executor.submit(run_ocr_voting, engine_name, engine_func): engine_name
+                for engine_name, engine_func in self.engines.items()
+            }
+
+            for future in as_completed(futures):
+                result = future.result()
+                if result:
+                    results.append(result)
 
         if not results:
             return None, 0.0

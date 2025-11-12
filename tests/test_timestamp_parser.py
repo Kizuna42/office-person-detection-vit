@@ -9,7 +9,7 @@ import pytest
 from src.timestamp.timestamp_parser import TimestampParser
 
 
-@pytest.fixture()
+@pytest.fixture
 def parser() -> TimestampParser:
     """TimestampParserインスタンス"""
     return TimestampParser()
@@ -70,7 +70,7 @@ def test_fuzzy_parse_ocr_errors(parser: TimestampParser):
 def test_fuzzy_parse_lowercase_o(parser: TimestampParser):
     """小文字oの誤認識補正テスト"""
     text = "2025/08/26 16:o7:45"
-    dt, confidence = parser.fuzzy_parse(text)
+    dt, _confidence = parser.fuzzy_parse(text)
 
     assert dt is not None
     assert dt == datetime(2025, 8, 26, 16, 7, 45)
@@ -79,7 +79,7 @@ def test_fuzzy_parse_lowercase_o(parser: TimestampParser):
 def test_fuzzy_parse_letter_l(parser: TimestampParser):
     """l -> 1 の誤認識補正テスト"""
     text = "2025/08/26 l6:07:45"
-    dt, confidence = parser.fuzzy_parse(text)
+    dt, _confidence = parser.fuzzy_parse(text)
 
     assert dt is not None
     assert dt == datetime(2025, 8, 26, 16, 7, 45)
@@ -88,7 +88,7 @@ def test_fuzzy_parse_letter_l(parser: TimestampParser):
 def test_fuzzy_parse_letter_s(parser: TimestampParser):
     """S -> 5 の誤認識補正テスト"""
     text = "2025/08/26 16:07:4S"
-    dt, confidence = parser.fuzzy_parse(text)
+    dt, _confidence = parser.fuzzy_parse(text)
 
     assert dt is not None
     assert dt == datetime(2025, 8, 26, 16, 7, 45)
@@ -97,7 +97,7 @@ def test_fuzzy_parse_letter_s(parser: TimestampParser):
 def test_fuzzy_parse_letter_b(parser: TimestampParser):
     """B -> 8 の誤認識補正テスト"""
     text = "2025/0B/26 16:07:45"
-    dt, confidence = parser.fuzzy_parse(text)
+    dt, _confidence = parser.fuzzy_parse(text)
 
     assert dt is not None
     assert dt == datetime(2025, 8, 26, 16, 7, 45)
@@ -149,14 +149,14 @@ def test_parse_year_boundary(parser: TimestampParser):
     """境界値テスト（年の境界）"""
     # 年始
     text = "2025/01/01 00:00:00"
-    dt, confidence = parser.parse(text)
+    dt, _confidence = parser.parse(text)
 
     assert dt is not None
     assert dt == datetime(2025, 1, 1, 0, 0, 0)
 
     # 年末
     text = "2025/12/31 23:59:59"
-    dt, confidence = parser.parse(text)
+    dt, _confidence = parser.parse(text)
 
     assert dt is not None
     assert dt == datetime(2025, 12, 31, 23, 59, 59)
@@ -166,14 +166,14 @@ def test_parse_time_boundary(parser: TimestampParser):
     """境界値テスト（時刻の境界）"""
     # 00:00:00
     text = "2025/08/26 00:00:00"
-    dt, confidence = parser.parse(text)
+    dt, _confidence = parser.parse(text)
 
     assert dt is not None
     assert dt == datetime(2025, 8, 26, 0, 0, 0)
 
     # 23:59:59
     text = "2025/08/26 23:59:59"
-    dt, confidence = parser.parse(text)
+    dt, _confidence = parser.parse(text)
 
     assert dt is not None
     assert dt == datetime(2025, 8, 26, 23, 59, 59)
@@ -183,7 +183,7 @@ def test_parse_multiple_matches(parser: TimestampParser):
     """複数のマッチがある場合のテスト"""
     # 最初のマッチが採用される
     text = "2025/08/26 16:07:45 and 2025/08/27 17:08:46"
-    dt, confidence = parser.parse(text)
+    dt, _confidence = parser.parse(text)
 
     assert dt is not None
     # 最初のタイムスタンプが採用される
@@ -193,7 +193,7 @@ def test_parse_multiple_matches(parser: TimestampParser):
 def test_fuzzy_parse_multiple_corrections(parser: TimestampParser):
     """複数の誤認識が含まれる場合のテスト"""
     text = "2O25/O8/26 l6:O7:4S"
-    dt, confidence = parser.fuzzy_parse(text)
+    dt, _confidence = parser.fuzzy_parse(text)
 
     assert dt is not None
     assert dt == datetime(2025, 8, 26, 16, 7, 45)

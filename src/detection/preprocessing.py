@@ -4,7 +4,6 @@ OCR精度向上のための画像前処理をパラメタ化して提供。
 """
 
 import logging
-from typing import Dict, Optional, Tuple
 
 import cv2
 import numpy as np
@@ -54,7 +53,7 @@ def apply_clahe(
 def apply_resize(
     image: np.ndarray,
     fx: float = 1.0,
-    fy: Optional[float] = None,
+    fy: float | None = None,
     interpolation: int = cv2.INTER_CUBIC,
     enabled: bool = True,
 ) -> np.ndarray:
@@ -116,15 +115,14 @@ def apply_threshold(
     if method == "otsu":
         _, binary = cv2.threshold(image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         return binary
-    elif method == "adaptive":
+    if method == "adaptive":
         if block_size % 2 == 0:
             block_size += 1  # 奇数に調整
         binary = cv2.adaptiveThreshold(image, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, block_size, C)
         return binary
-    else:
-        logger.warning(f"未知の二値化方法: {method}。Otsuを使用します。")
-        _, binary = cv2.threshold(image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        return binary
+    logger.warning(f"未知の二値化方法: {method}。Otsuを使用します。")
+    _, binary = cv2.threshold(image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    return binary
 
 
 def apply_blur(image: np.ndarray, kernel_size: int = 3, sigma: float = 0.0, enabled: bool = True) -> np.ndarray:
@@ -213,11 +211,10 @@ def apply_morphology(
 
     if operation == "open":
         return cv2.morphologyEx(image, cv2.MORPH_OPEN, kernel, iterations=iterations)
-    elif operation == "close":
+    if operation == "close":
         return cv2.morphologyEx(image, cv2.MORPH_CLOSE, kernel, iterations=iterations)
-    else:
-        logger.warning(f"未知のモルフォロジー操作: {operation}。closeを使用します。")
-        return cv2.morphologyEx(image, cv2.MORPH_CLOSE, kernel, iterations=iterations)
+    logger.warning(f"未知のモルフォロジー操作: {operation}。closeを使用します。")
+    return cv2.morphologyEx(image, cv2.MORPH_CLOSE, kernel, iterations=iterations)
 
 
 def apply_deskew(image: np.ndarray, max_angle: float = 5.0, enabled: bool = True) -> tuple[np.ndarray, float]:
@@ -246,10 +243,10 @@ def apply_deskew(image: np.ndarray, max_angle: float = 5.0, enabled: bool = True
     # 角度を計算
     angles = []
     for line in lines[:20]:  # 最初の20本のみ使用
-        if isinstance(line, (list, tuple)) and len(line) >= 2 and not isinstance(line[0], (list, np.ndarray)):
-            rho, theta = line[0], line[1]
+        if isinstance(line, list | tuple) and len(line) >= 2 and not isinstance(line[0], list | np.ndarray):
+            _rho, theta = line[0], line[1]
         else:
-            rho, theta = line[0]
+            _rho, theta = line[0]
         angle = np.degrees(theta) - 90
         if -max_angle <= angle <= max_angle:
             angles.append(angle)
@@ -292,10 +289,7 @@ def apply_pipeline(image: np.ndarray, params: dict) -> np.ndarray:
         前処理後の画像（グレースケール）
     """
     # グレースケール変換
-    if len(image.shape) == 3:
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    else:
-        gray = image.copy()
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if len(image.shape) == 3 else image.copy()
 
     result = gray
 
@@ -327,9 +321,12 @@ def apply_pipeline(image: np.ndarray, params: dict) -> np.ndarray:
         result = apply_threshold(result, **params["threshold"])
 
     # invert（二値化後に適用する場合）
-    if "invert_after_threshold" in params and params["invert_after_threshold"].get("enabled", False):
-        if np.mean(result) < 127:
-            result = apply_invert(result, enabled=True)
+    if (
+        "invert_after_threshold" in params
+        and params["invert_after_threshold"].get("enabled", False)
+        and np.mean(result) < 127
+    ):
+        result = apply_invert(result, enabled=True)
 
     # morphology
     if "morphology" in params and params["morphology"].get("enabled", False):

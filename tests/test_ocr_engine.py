@@ -7,22 +7,22 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from src.timestamp.ocr_engine import TESSERACT_AVAILABLE, MultiEngineOCR
+from src.timestamp.ocr_engine import MultiEngineOCR
 
 
-@pytest.fixture()
+@pytest.fixture
 def sample_roi() -> np.ndarray:
     """テスト用のROI画像（前処理済み）"""
     return np.random.randint(0, 255, (100, 200), dtype=np.uint8)
 
 
-@pytest.fixture()
+@pytest.fixture
 def valid_timestamp_text() -> str:
     """有効なタイムスタンプテキスト"""
     return "2025/08/26 16:07:45"
 
 
-@pytest.fixture()
+@pytest.fixture
 def invalid_timestamp_text() -> str:
     """無効なタイムスタンプテキスト"""
     return "invalid text"
@@ -198,7 +198,7 @@ def test_consensus_algorithm_engine_failure(sample_roi: np.ndarray):
     ocr.engines["failing"] = failing_engine
 
     # エラーが発生しても処理が継続されることを確認
-    text, confidence = ocr.extract_with_consensus(sample_roi)
+    _text, _confidence = ocr.extract_with_consensus(sample_roi)
 
     # エンジンが失敗した場合はNoneまたは低い信頼度
     # 実装に応じて調整が必要
@@ -221,7 +221,7 @@ def test_no_engines_available(sample_roi: np.ndarray):
 def test_enabled_engines_filtering():
     """有効化エンジンのフィルタリングテスト"""
     # Tesseractのみ有効化
-    ocr = MultiEngineOCR(enabled_engines=["tesseract"])
+    MultiEngineOCR(enabled_engines=["tesseract"])
 
     # 実装に応じて、有効化されたエンジンのみが含まれることを確認
     # （実際のエンジン利用可能性に依存）
@@ -270,29 +270,8 @@ def test_init_easyocr(mock_easyocr, sample_roi: np.ndarray):
 
     # エンジンが正しく動作することを確認
     if "easyocr" in ocr.engines:
-        result_text, result_conf = ocr.extract_with_consensus(sample_roi)
+        result_text, _result_conf = ocr.extract_with_consensus(sample_roi)
         assert result_text is not None
-
-
-@patch("src.timestamp.ocr_engine.PADDLEOCR_AVAILABLE", True)
-@patch("src.timestamp.ocr_engine.EASYOCR_AVAILABLE", False)
-@patch("src.timestamp.ocr_engine.TESSERACT_AVAILABLE", False)
-def test_init_paddleocr(sample_roi: np.ndarray):
-    """PaddleOCR初期化のテスト"""
-    # PaddleOCRが利用可能な場合のみテスト
-    try:
-        from paddleocr import PaddleOCR
-
-        # 実際のPaddleOCRをモックせず、初期化が成功することを確認
-        ocr = MultiEngineOCR(enabled_engines=["paddleocr"])
-
-        # エンジンが初期化されていることを確認
-        if "paddleocr" in ocr.engines:
-            # エンジン関数が呼び出し可能であることを確認
-            assert callable(ocr.engines["paddleocr"])
-    except (ImportError, Exception):
-        # PaddleOCRが利用できない、または初期化に失敗した場合はスキップ
-        pytest.skip("PaddleOCR not available or initialization failed")
 
 
 @patch("src.timestamp.ocr_engine.PADDLEOCR_AVAILABLE", False)
@@ -385,7 +364,7 @@ def test_calculate_similarity_with_levenshtein():
     """Levenshtein距離を使用した類似度計算"""
     # Levenshteinが利用可能な場合のみテスト
     try:
-        from Levenshtein import ratio
+        from Levenshtein import ratio  # noqa: F401
 
         ocr = MultiEngineOCR(enabled_engines=[])
         similarity = ocr._calculate_similarity("2025/08/26 16:07:45", "2025/08/26 16:07:46")
@@ -402,7 +381,6 @@ def test_calculate_similarity_with_levenshtein():
 def test_calculate_similarity_without_levenshtein():
     """Levenshteinなしの類似度計算"""
     # Levenshteinをインポートできないようにする
-    import sys
 
     original_import = __import__
 

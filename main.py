@@ -86,10 +86,14 @@ def main():
             logger.info("=" * 80)
             return 0
 
-        # フェーズ2-5: 検出→変換→集計→可視化
+        # フェーズ2-5: 検出→追跡→変換→集計→可視化
         sample_frames = orchestrator.prepare_frames_for_detection(extraction_results, video_path)
         detection_results, detector_phase = orchestrator.run_detection(sample_frames)
-        frame_results, _ = orchestrator.run_transform(detection_results)
+
+        # 追跡フェーズ（オプション）
+        tracked_results, tracking_phase = orchestrator.run_tracking(detection_results, sample_frames)
+
+        frame_results, _ = orchestrator.run_transform(tracked_results)
         _, aggregator = orchestrator.run_aggregation(frame_results)
         orchestrator.run_visualization(aggregator, frame_results)
 
@@ -99,6 +103,9 @@ def main():
 
         # セッションサマリーの保存
         orchestrator.save_session_summary(extraction_results, detection_results, frame_results, aggregator)
+
+        # パフォーマンスサマリーをログ出力
+        orchestrator.performance_monitor.log_summary(logger)
 
         logger.info("=" * 80)
         logger.info("処理が正常に完了しました")

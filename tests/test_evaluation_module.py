@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -12,19 +11,19 @@ from src.evaluation.evaluation_module import EvaluationModule, run_evaluation
 from src.models import Detection, EvaluationMetrics
 
 
-@pytest.fixture()
+@pytest.fixture
 def fixtures_dir() -> Path:
     """Return the directory containing static test fixtures."""
     return Path(__file__).parent / "fixtures"
 
 
-@pytest.fixture()
+@pytest.fixture
 def ground_truth_path(fixtures_dir: Path) -> Path:
     """Return the path to the sample COCO ground truth file."""
     return fixtures_dir / "sample_ground_truth.json"
 
 
-@pytest.fixture()
+@pytest.fixture
 def sample_detections() -> list[Detection]:
     """サンプル検出結果"""
     return [

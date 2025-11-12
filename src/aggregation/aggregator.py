@@ -3,7 +3,8 @@
 from collections import defaultdict
 import csv
 import logging
-from typing import Dict, List
+
+import numpy as np
 
 from src.models.data_models import AggregationResult, Detection
 
@@ -73,7 +74,7 @@ class Aggregator:
 
         return dict(zone_counts)
 
-    def export_csv(self, output_path: str, zone_ids: list[str] = None) -> None:
+    def export_csv(self, output_path: str, zone_ids: list[str] | None = None) -> None:
         """CSV形式でエクスポート
 
         集計結果をCSVファイルに出力する。
@@ -107,19 +108,19 @@ class Aggregator:
             else:
                 # 指定された順序を使用（unclassifiedが含まれていない場合は追加）
                 if "unclassified" not in zone_ids:
-                    zone_ids = list(zone_ids) + ["unclassified"]
+                    zone_ids = [*list(zone_ids), "unclassified"]
 
             # CSV出力
             with open(output_path, "w", newline="", encoding="utf-8") as csvfile:
                 writer = csv.writer(csvfile)
 
                 # ヘッダー行: timestamp, zone_1, zone_2, ..., unclassified
-                header = ["timestamp"] + zone_ids
+                header = ["timestamp", *zone_ids]
                 writer.writerow(header)
 
                 # データ行: タイムスタンプごとに1行
                 for timestamp in sorted(timestamp_data.keys()):
-                    row = [timestamp]
+                    row: list[str | int] = [timestamp]
                     for zone_id in zone_ids:
                         count = timestamp_data[timestamp].get(zone_id, 0)
                         row.append(count)
@@ -132,7 +133,7 @@ class Aggregator:
             raise
 
     def get_statistics(self) -> dict[str, dict]:
-        """各ゾーンの統計情報（平均、最大、最小）を計算
+        """各ゾーンの統計情報（平均、最大、最小、標準偏差、中央値、四分位数）を計算
 
         Returns:
             ゾーン別統計情報
@@ -141,6 +142,10 @@ class Aggregator:
                     'average': float,
                     'max': int,
                     'min': int,
+                    'std': float,
+                    'median': float,
+                    'q1': float,
+                    'q3': float,
                     'total_frames': int
                 }
             }
@@ -149,10 +154,15 @@ class Aggregator:
 
         for zone_id, counts in self._zone_data.items():
             if counts:
+                counts_array = np.array(counts)
                 statistics[zone_id] = {
-                    "average": sum(counts) / len(counts),
-                    "max": max(counts),
-                    "min": min(counts),
+                    "average": float(np.mean(counts_array)),
+                    "max": int(np.max(counts_array)),
+                    "min": int(np.min(counts_array)),
+                    "std": float(np.std(counts_array)),
+                    "median": float(np.median(counts_array)),
+                    "q1": float(np.percentile(counts_array, 25)),
+                    "q3": float(np.percentile(counts_array, 75)),
                     "total_frames": len(counts),
                 }
             else:
@@ -160,11 +170,101 @@ class Aggregator:
                     "average": 0.0,
                     "max": 0,
                     "min": 0,
+                    "std": 0.0,
+                    "median": 0.0,
+                    "q1": 0.0,
+                    "q3": 0.0,
                     "total_frames": 0,
                 }
 
         logger.info(f"Statistics calculated for {len(statistics)} zones")
         return statistics
+
+    def get_trend_analysis(self) -> dict[str, dict]:
+        """時系列トレンド分析を実行
+
+        Returns:
+            ゾーン別トレンド情報
+            {
+                zone_id: {
+                    'trend': str,  # 'increasing', 'decreasing', 'stable'
+                    'slope': float,  # 線形回帰の傾き
+                    'r_squared': float,  # 決定係数
+                }
+            }
+        """
+        trends: dict[str, dict] = {}
+
+        for zone_id, counts in self._zone_data.items():
+            if len(counts) < 2:
+                trends[zone_id] = {
+                    "trend": "stable",
+                    "slope": 0.0,
+                    "r_squared": 0.0,
+                }
+                continue
+
+            # 線形回帰でトレンドを計算
+            x = np.arange(len(counts))
+            y = np.array(counts)
+
+            # 最小二乗法で線形回帰
+            coeffs = np.polyfit(x, y, 1)
+            slope = coeffs[0]
+
+            # 決定係数を計算
+            y_pred = np.polyval(coeffs, x)
+            ss_res = np.sum((y - y_pred) ** 2)
+            ss_tot = np.sum((y - np.mean(y)) ** 2)
+            r_squared = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0.0
+
+            # トレンドを判定（傾きの閾値は0.01）
+            if slope > 0.01:
+                trend = "increasing"
+            elif slope < -0.01:
+                trend = "decreasing"
+            else:
+                trend = "stable"
+
+            trends[zone_id] = {
+                "trend": trend,
+                "slope": float(slope),
+                "r_squared": float(r_squared),
+            }
+
+        return trends
+
+    def get_peak_times(self, top_n: int = 3) -> dict[str, list[tuple[str, int]]]:
+        """ピーク時間帯を特定
+
+        Args:
+            top_n: 上位N個のピーク時間帯を返す
+
+        Returns:
+            ゾーン別ピーク時間帯のリスト
+            {
+                zone_id: [(timestamp, count), ...]
+            }
+        """
+        peaks: dict[str, list[tuple[str, int]]] = {}
+
+        # タイムスタンプごとの集計
+        timestamp_data: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        for result in self.results:
+            timestamp_data[result.timestamp][result.zone_id] = result.count
+
+        # 各ゾーンのピーク時間帯を計算
+        for zone_id in self._zone_data:
+            zone_peaks = []
+            for timestamp, zone_counts in timestamp_data.items():
+                count = zone_counts.get(zone_id, 0)
+                zone_peaks.append((timestamp, count))
+
+            # カウントでソートして上位N個を取得
+            zone_peaks.sort(key=lambda x: x[1], reverse=True)
+            peaks[zone_id] = zone_peaks[:top_n]
+
+        return peaks
 
     def get_total_detections(self) -> int:
         """全フレームの総検出数を取得

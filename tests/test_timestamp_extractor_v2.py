@@ -11,17 +11,18 @@ import pytest
 from src.timestamp.timestamp_extractor_v2 import TimestampExtractorV2
 
 
-@pytest.fixture()
+@pytest.fixture
 def sample_frame() -> np.ndarray:
     """テスト用のフレーム画像"""
     return np.random.randint(0, 255, (720, 1280, 3), dtype=np.uint8)
 
 
-@pytest.fixture()
+@pytest.fixture
 def extractor() -> TimestampExtractorV2:
     """TimestampExtractorV2インスタンス"""
-    with patch("src.timestamp.ocr_engine.PADDLEOCR_AVAILABLE", False), patch(
-        "src.timestamp.ocr_engine.EASYOCR_AVAILABLE", False
+    with (
+        patch("src.timestamp.ocr_engine.PADDLEOCR_AVAILABLE", False),
+        patch("src.timestamp.ocr_engine.EASYOCR_AVAILABLE", False),
     ):
         return TimestampExtractorV2(
             confidence_threshold=0.7,
@@ -137,11 +138,11 @@ def test_confidence_threshold_behavior(
 
     # 高い信頼度閾値で抽出
     extractor_high = TimestampExtractorV2(confidence_threshold=0.9, fps=30.0, enabled_ocr_engines=[])
-    result_high = extractor_high.extract(sample_frame, frame_idx=0)
+    extractor_high.extract(sample_frame, frame_idx=0)
 
     # 低い信頼度閾値で抽出
     extractor_low = TimestampExtractorV2(confidence_threshold=0.5, fps=30.0, enabled_ocr_engines=[])
-    result_low = extractor_low.extract(sample_frame, frame_idx=0)
+    extractor_low.extract(sample_frame, frame_idx=0)
 
     # 高い閾値では失敗、低い閾値では成功する可能性がある
     # （時系列検証の結果にも依存）

@@ -4,8 +4,12 @@ import csv
 import json
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, cast
 
+import numpy as np
+
+from src.calibration.reprojection_error import ReprojectionErrorEvaluator
+from src.evaluation.mot_metrics import MOTMetrics
 from src.models.data_models import Detection, EvaluationMetrics
 
 logger = logging.getLogger(__name__)
@@ -32,7 +36,7 @@ class EvaluationModule:
         self.iou_threshold = iou_threshold
         self.ground_truth = self._load_ground_truth()
 
-    def _load_ground_truth(self) -> dict:
+    def _load_ground_truth(self) -> dict[str, Any]:
         """Ground Truthデータを読み込む
 
         Returns:
@@ -44,12 +48,10 @@ class EvaluationModule:
         """
         try:
             with open(self.ground_truth_path, encoding="utf-8") as f:
-                data = json.load(f)
+                data = cast("dict[str, Any]", json.load(f))
 
             logger.info(f"Ground Truthデータを読み込みました: {self.ground_truth_path}")
-            logger.info(
-                f"画像数: {len(data.get('images', []))}, " f"アノテーション数: {len(data.get('annotations', []))}"
-            )
+            logger.info(f"画像数: {len(data.get('images', []))}, アノテーション数: {len(data.get('annotations', []))}")
 
             return data
 
@@ -60,7 +62,7 @@ class EvaluationModule:
             logger.error(f"Ground TruthファイルのJSON形式が不正です: {e}")
             raise
 
-    def _get_annotations_by_image(self, image_id: int) -> list[dict]:
+    def _get_annotations_by_image(self, image_id: int) -> list[dict[str, Any]]:
         """指定された画像IDのアノテーションを取得
 
         Args:
@@ -69,13 +71,13 @@ class EvaluationModule:
         Returns:
             アノテーションのリスト
         """
-        annotations = []
+        annotations: list[dict[str, Any]] = []
         for ann in self.ground_truth.get("annotations", []):
             if ann["image_id"] == image_id:
-                annotations.append(ann)
+                annotations.append(cast("dict[str, Any]", ann))
         return annotations
 
-    def _get_image_by_filename(self, filename: str) -> Optional[dict]:
+    def _get_image_by_filename(self, filename: str) -> dict[str, Any] | None:
         """ファイル名から画像情報を取得
 
         Args:
@@ -86,7 +88,7 @@ class EvaluationModule:
         """
         for img in self.ground_truth.get("images", []):
             if img["file_name"] == filename:
-                return img
+                return cast("dict[str, Any]", img)
         return None
 
     def calculate_iou(
@@ -197,7 +199,7 @@ class EvaluationModule:
 
         logger.info(f"評価完了 - TP: {true_positives}, FP: {false_positives}, FN: {false_negatives}")
         logger.info(
-            f"Precision: {metrics.precision:.4f}, Recall: {metrics.recall:.4f}, " f"F1-score: {metrics.f1_score:.4f}"
+            f"Precision: {metrics.precision:.4f}, Recall: {metrics.recall:.4f}, F1-score: {metrics.f1_score:.4f}"
         )
 
         return metrics
@@ -298,6 +300,44 @@ class EvaluationModule:
 
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(report, f, indent=2, ensure_ascii=False)
+
+    def evaluate_tracking(
+        self,
+        ground_truth_tracks: list[dict[str, Any]],
+        predicted_tracks: list[Any],
+        frame_count: int,
+    ) -> dict[str, float]:
+        """追跡精度を評価（MOTメトリクス）
+
+        Args:
+            ground_truth_tracks: Ground Truthトラックのリスト
+            predicted_tracks: 予測トラックのリスト（Trackオブジェクトまたは辞書）
+            frame_count: 総フレーム数
+
+        Returns:
+            MOTメトリクスの辞書
+        """
+        mot_metrics = MOTMetrics()
+        return mot_metrics.calculate_tracking_metrics(ground_truth_tracks, predicted_tracks, frame_count)
+
+    def evaluate_reprojection_error(
+        self,
+        src_points: list[tuple[float, float]],
+        dst_points: list[tuple[float, float]],
+        homography_matrix: np.ndarray,
+    ) -> dict[str, float | list[float]]:
+        """再投影誤差を評価
+
+        Args:
+            src_points: 変換元の点のリスト（カメラ座標）
+            dst_points: 変換先の点のリスト（フロアマップ座標）
+            homography_matrix: ホモグラフィ変換行列
+
+        Returns:
+            再投影誤差評価結果の辞書
+        """
+        evaluator = ReprojectionErrorEvaluator()
+        return evaluator.evaluate_homography(src_points, dst_points, homography_matrix)
 
 
 def run_evaluation(

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pytest
@@ -11,8 +11,11 @@ from src.aggregation import Aggregator
 from src.models import Detection
 from src.visualization import Visualizer
 
+if TYPE_CHECKING:
+    from pathlib import Path
 
-@pytest.fixture()
+
+@pytest.fixture
 def sample_detections() -> list[Detection]:
     """テスト用の検出結果リスト"""
 

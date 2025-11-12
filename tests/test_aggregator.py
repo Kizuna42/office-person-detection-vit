@@ -2,17 +2,19 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING
 
 import pytest
 
 from src.aggregation import Aggregator
 from src.models import Detection
 
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from pathlib import Path
 
-def _make_detection(zone_ids: Optional[Sequence[str]] = None) -> Detection:
+
+def _make_detection(zone_ids: Sequence[str] | None = None) -> Detection:
     return Detection(
         bbox=(0.0, 0.0, 10.0, 10.0),
         confidence=0.9,

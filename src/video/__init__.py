@@ -4,8 +4,8 @@ from src.video.frame_sampler import AdaptiveSampler, CoarseSampler, FineSampler
 from src.video.video_processor import VideoProcessor
 
 __all__ = [
-    "VideoProcessor",
+    "AdaptiveSampler",
     "CoarseSampler",
     "FineSampler",
-    "AdaptiveSampler",
+    "VideoProcessor",
 ]

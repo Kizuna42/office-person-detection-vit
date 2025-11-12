@@ -1,23 +1,29 @@
 # ドキュメントインデックス
 
+## 概要
+
+- [システム全体概要](overview/system_overview.md)
+- [クイックスタート](QUICK_START.md)
+
 ## アーキテクチャ
 
-- [出力ディレクトリ構造](architecture/output_structure.md) - セッション管理と出力構造の設計
-- [フロアマップ統合](architecture/floormap_integration.md) - フロアマップ画像の統合方法
+- [出力ディレクトリ構造](architecture/output_structure.md)
+- [フロアマップ統合](architecture/floormap_integration.md)
+
+## 運用
+
+- [CI/CD と運用サマリー](operations/ci_cd.md)
 
 ## ガイド
 
-- [出力整理ガイド](guides/output_cleanup.md) - 出力ディレクトリの整理方法
-- [OCRエンジン説明](guides/ocr_engines.md) - OCRエンジンの選択と使用方法
+- [出力整理ガイド](guides/output_cleanup.md)
+- [OCR エンジンの選択と使用方法](guides/ocr_engines.md)
 
-## レポート
+## リファレンス
 
-- [Phase 1-3 実装完了レポート](reports/phase1-3_complete.md) - Phase 1-3の実装と検証結果
+- [フレームサンプリング最適化ガイド](references/frame_sampling.md)
+- [タイムラプス処理パラメータガイド](references/timelapse_pipeline.md)
 
-## その他のドキュメント
+## アーカイブ
 
-- [サンプリング最適化](sampling_optimization_summary.md)
-- [タイムラプス最適化](timelapse_optimization.md)
-- [テスト評価レポート](test_evaluation_report.md)
-- [OCR改善レポート](ocr_improvement/ocr_accuracy_evaluation_report.md)
-
+- 詳細レポート・履歴資料: `docs/archive/`

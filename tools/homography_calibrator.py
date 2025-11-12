@@ -15,7 +15,6 @@ import json
 import logging
 from pathlib import Path
 import sys
-from typing import List, Tuple
 
 import cv2
 import numpy as np
@@ -25,8 +24,8 @@ import yaml
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.config import ConfigManager  # noqa: E402
-from src.utils import setup_logging  # noqa: E402
+from src.config import ConfigManager
+from src.utils import setup_logging
 
 LOGGER = logging.getLogger(__name__)
 
@@ -266,7 +265,7 @@ def compute_homography(
         "rmse": rmse,
         "max_error": max_error,
         "inliers": inliers,
-        "total_points": int(len(camera_points)),
+        "total_points": len(camera_points),
     }
     LOGGER.info(
         "再投影RMSE=%.3f px, 最大誤差=%.3f px, インライア=%d/%d",
@@ -421,7 +420,7 @@ def main() -> None:
         )
 
     points_json = save_points_json(output_dir, camera_points, floormap_points, reference_path, floormap_path)
-    H, mask, metrics = compute_homography(camera_points, floormap_points, args.method, args.ransac_threshold)
+    H, _mask, metrics = compute_homography(camera_points, floormap_points, args.method, args.ransac_threshold)
     homography_yaml = save_homography_yaml(output_dir, H, metrics, points_json)
 
     if args.update_config:

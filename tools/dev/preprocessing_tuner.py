@@ -9,7 +9,6 @@ import argparse
 import logging
 from pathlib import Path
 import sys
-from typing import Dict, List, Tuple
 
 import cv2
 import numpy as np
@@ -52,10 +51,7 @@ def preprocess_roi_with_params(
         前処理済み画像
     """
     # グレースケール化
-    if len(roi.shape) == 3:
-        gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-    else:
-        gray = roi.copy()
+    gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY) if len(roi.shape) == 3 else roi.copy()
 
     # コントラスト強調（CLAHE）
     clahe = cv2.createCLAHE(clipLimit=clahe_clip_limit, tileGridSize=clahe_tile_size)
@@ -131,9 +127,9 @@ def test_preprocessing_parameters(
 
         param_results = []
 
-        for frame_idx, frame in tqdm(frames, desc=f"  セット{param_idx+1}処理中", leave=False):
+        for frame_idx, frame in tqdm(frames, desc=f"  セット{param_idx + 1}処理中", leave=False):
             # ROI抽出
-            roi, roi_coords = roi_extractor.extract_roi(frame)
+            roi, _roi_coords = roi_extractor.extract_roi(frame)
 
             # 前処理
             preprocessed = preprocess_roi_with_params(roi, **params)
@@ -150,7 +146,7 @@ def test_preprocessing_parameters(
             )
 
             # 前処理済み画像を保存
-            param_name = f"param_{param_idx+1}"
+            param_name = f"param_{param_idx + 1}"
             preprocessed_path = output_dir / f"{param_name}_frame_{frame_idx:06d}.jpg"
             cv2.imwrite(str(preprocessed_path), preprocessed)
 
@@ -173,7 +169,7 @@ def test_preprocessing_parameters(
     logger.info("=" * 80)
 
     for i, result in enumerate(results):
-        logger.info(f"パラメータセット {i+1}:")
+        logger.info(f"パラメータセット {i + 1}:")
         logger.info(f"  パラメータ: {result['params']}")
         logger.info(f"  平均信頼度: {result['avg_confidence']:.4f}")
         logger.info("")
@@ -221,10 +217,7 @@ def main():
     config = ConfigManager(args.config)
 
     # 動画パスの取得
-    if args.video:
-        video_path = args.video
-    else:
-        video_path = config.get("video.input_path")
+    video_path = args.video if args.video else config.get("video.input_path")
 
     if not Path(video_path).exists():
         logger.error(f"動画ファイルが見つかりません: {video_path}")

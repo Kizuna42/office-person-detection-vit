@@ -7,12 +7,12 @@ from src.timestamp.timestamp_parser import TimestampParser
 from src.timestamp.timestamp_validator_v2 import TemporalValidatorV2
 
 __all__ = [
-    "TimestampExtractorV2",
-    "TimestampROIExtractor",
-    "TimestampParser",
-    "TemporalValidatorV2",
-    "MultiEngineOCR",
-    "TESSERACT_AVAILABLE",
     "EASYOCR_AVAILABLE",
     "PADDLEOCR_AVAILABLE",
+    "TESSERACT_AVAILABLE",
+    "MultiEngineOCR",
+    "TemporalValidatorV2",
+    "TimestampExtractorV2",
+    "TimestampParser",
+    "TimestampROIExtractor",
 ]

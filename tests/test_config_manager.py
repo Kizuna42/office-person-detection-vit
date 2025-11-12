@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
 from src.config import ConfigManager
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def test_init_with_default_config():
@@ -178,7 +181,7 @@ output:
     config_path.write_text(yaml_content, encoding="utf-8")
 
     config = ConfigManager(str(config_path))
-    with pytest.raises(ValueError, match="必須項目.*confidence_threshold"):
+    with pytest.raises(ValueError, match=r"必須項目.*confidence_threshold"):
         config.validate()
 
 
@@ -274,7 +277,7 @@ output:
     config_path.write_text(yaml_content, encoding="utf-8")
 
     config = ConfigManager(str(config_path))
-    with pytest.raises(ValueError, match="homography.matrix"):
+    with pytest.raises(ValueError, match=r"homography\.matrix"):
         config.validate()
 
 
@@ -489,7 +492,7 @@ output:
     config_path.write_text(yaml_content, encoding="utf-8")
 
     config = ConfigManager(str(config_path))
-    with pytest.raises(ValueError, match="video.input_path は文字列"):
+    with pytest.raises(ValueError, match=r"video\.input_path は文字列"):
         config.validate()
 
     # 無効なframe_interval_minutes（負の値）
