@@ -91,6 +91,7 @@ class KalmanFilter:
         # 共分散予測: P' = F * P * F^T + Q
         self.P = self.F @ self.P @ self.F.T + self.Q
 
+        assert self.x is not None  # 型チェック用
         return self.x.copy()
 
     def update(self, measurement: np.ndarray) -> np.ndarray:
@@ -124,6 +125,7 @@ class KalmanFilter:
         identity = np.eye(self.ndim, dtype=np.float32)
         self.P = (identity - K @ self.H) @ self.P
 
+        assert self.x is not None  # 型チェック用
         return self.x.copy()
 
     def get_state(self) -> np.ndarray:

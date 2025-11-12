@@ -15,11 +15,11 @@ import time
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-import psutil  # noqa: E402
+import psutil
 
-from src.config import ConfigManager  # noqa: E402
-from src.pipeline import FrameExtractionPipeline  # noqa: E402
-from src.utils import setup_logging, setup_output_directories  # noqa: E402
+from src.config import ConfigManager
+from src.pipeline import FrameExtractionPipeline
+from src.utils import setup_logging, setup_output_directories
 
 logger = logging.getLogger(__name__)
 

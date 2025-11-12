@@ -65,7 +65,7 @@ class ReprojectionErrorEvaluator:
                 "errors": [],
             }
 
-        errors = []
+        errors: list[float] = []
         H = np.array(homography_matrix, dtype=np.float64)
 
         for src_pt, dst_pt in zip(src_points, dst_points, strict=False):
@@ -99,7 +99,7 @@ class ReprojectionErrorEvaluator:
 
         errors_array = np.array(errors)
 
-        result = {
+        result: dict[str, float | list[float]] = {
             "mean_error": float(np.mean(errors_array)),
             "max_error": float(np.max(errors_array)),
             "min_error": float(np.min(errors_array)),
@@ -174,7 +174,7 @@ class ReprojectionErrorEvaluator:
 
         errors_array = np.array(all_errors)
 
-        result = {
+        result: dict[str, float | list[list[float]]] = {
             "mean_error": float(np.mean(errors_array)),
             "max_error": float(np.max(errors_array)),
             "min_error": float(np.min(errors_array)),

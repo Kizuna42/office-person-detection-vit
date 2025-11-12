@@ -56,6 +56,7 @@ class TemporalValidatorV2:
             return True, 1.0, "First frame"
 
         # フレーム差を計算
+        assert self.last_frame_idx is not None  # 型チェック用
         frame_diff = frame_idx - self.last_frame_idx
         if frame_diff <= 0:
             return False, 0.0, f"Invalid frame_diff: {frame_diff}"
@@ -124,7 +125,7 @@ class TemporalValidatorV2:
         std_interval = np.std(intervals)
 
         # 適応的許容範囲 = ベース許容範囲 + 標準偏差の倍数
-        adaptive_tolerance = self.base_tolerance + (std_interval * 1.5)
+        adaptive_tolerance: float = self.base_tolerance + (std_interval * 1.5)
 
         # 最小値と最大値を設定
         adaptive_tolerance = max(
@@ -132,7 +133,7 @@ class TemporalValidatorV2:
             min(adaptive_tolerance, self.base_tolerance * 3.0),
         )
 
-        return adaptive_tolerance
+        return float(adaptive_tolerance)
 
     def _detect_outlier(self, time_diff: float, _expected_seconds: float) -> tuple[bool, float]:
         """外れ値検出（Z-score法）

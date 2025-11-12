@@ -151,4 +151,3 @@ class FineSampler:
 
 **実装者**: AI Assistant  
 **実装日時**: 2025-11-07
-

@@ -32,7 +32,7 @@ class FeatureExtractor:
             return features
 
         norms = np.linalg.norm(features, axis=1, keepdims=True)
-        normalized = features / (norms + 1e-8)
+        normalized: np.ndarray = features / (norms + 1e-8)
 
         return normalized
 

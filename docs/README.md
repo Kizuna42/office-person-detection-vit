@@ -20,4 +20,3 @@
 - [タイムラプス最適化](timelapse_optimization.md)
 - [テスト評価レポート](test_evaluation_report.md)
 - [OCR改善レポート](ocr_improvement/ocr_accuracy_evaluation_report.md)
-

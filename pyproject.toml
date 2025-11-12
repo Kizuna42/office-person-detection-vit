@@ -147,7 +147,7 @@ addopts = [
     "--cov=src",
     "--cov-report=term-missing",
     "--cov-report=html",
-    "--cov-fail-under=0",  # カバレッジチェックを無効化（段階的導入）
+    "--cov-fail-under=75",  # カバレッジ75%を目標（段階的に80%へ）
 ]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",

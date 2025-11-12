@@ -74,7 +74,11 @@ class CameraCalibrator:
 
         # キャリブレーション実行
         ret, camera_matrix, dist_coeffs, rvecs, tvecs = cv2.calibrateCamera(
-            objpoints, imgpoints, gray.shape[::-1], None, None
+            objpoints,
+            imgpoints,
+            gray.shape[::-1],
+            None,
+            None,  # type: ignore[call-overload]
         )
 
         self.camera_matrix = camera_matrix
@@ -101,6 +105,9 @@ class CameraCalibrator:
         """
         if not self.calibrated:
             raise RuntimeError("Camera not calibrated. Call calibrate_from_images() first.")
+
+        assert self.camera_matrix is not None  # 型チェック用
+        assert self.dist_coeffs is not None  # 型チェック用
 
         h, w = image.shape[:2]
         new_camera_matrix, roi = cv2.getOptimalNewCameraMatrix(self.camera_matrix, self.dist_coeffs, (w, h), 1, (w, h))

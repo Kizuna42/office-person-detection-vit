@@ -106,6 +106,7 @@ class VideoProcessor:
             )
 
         # FPSの検証
+        assert self.fps is not None  # 型チェック用
         if abs(self.fps - self.REQUIRED_FPS) > self.FPS_TOLERANCE:
             issues.append(
                 f"FPSが要件と異なります: {self.fps:.2f} " f"(期待: {self.REQUIRED_FPS:.2f}±{self.FPS_TOLERANCE})"

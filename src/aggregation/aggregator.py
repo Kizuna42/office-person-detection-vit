@@ -120,7 +120,7 @@ class Aggregator:
 
                 # データ行: タイムスタンプごとに1行
                 for timestamp in sorted(timestamp_data.keys()):
-                    row = [timestamp]
+                    row: list[str | int] = [timestamp]
                     for zone_id in zone_ids:
                         count = timestamp_data[timestamp].get(zone_id, 0)
                         row.append(count)

@@ -48,4 +48,3 @@ Phase 1（フレーム抽出）、Phase 2（人物検出）、Phase 3（座標�
 
 - Phase 4: 集計処理
 - Phase 5: 可視化
-

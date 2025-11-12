@@ -384,7 +384,8 @@ class CoordinateTransformer:
             return True
 
         x, y = floor_point
-        return (0 <= x < self.image_width) and (0 <= y < self.image_height)
+        result: bool = (0 <= x < self.image_width) and (0 <= y < self.image_height)
+        return result
 
     def get_floormap_info(self) -> dict:
         """フロアマップの情報を取得する

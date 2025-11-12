@@ -247,7 +247,7 @@ class FloormapVisualizer:
             if detection.track_id is not None:
                 # track_idに基づいて色を生成（HSV色空間を使用）
                 hue = (detection.track_id * 137) % 180  # 黄金角を使用して色を分散
-                color_hsv = np.uint8([[[hue, 255, 255]]])
+                color_hsv = np.array([[[hue, 255, 255]]], dtype=np.uint8)
                 color_bgr = cv2.cvtColor(color_hsv, cv2.COLOR_HSV2BGR)[0][0]
                 color = tuple(int(c) for c in color_bgr)
 
@@ -325,7 +325,7 @@ class FloormapVisualizer:
             # track_idに基づいて色を生成
             if track_id is not None:
                 hue = (track_id * 137) % 180
-                color_hsv = np.uint8([[[hue, 255, 255]]])
+                color_hsv = np.array([[[hue, 255, 255]]], dtype=np.uint8)
                 color_bgr = cv2.cvtColor(color_hsv, cv2.COLOR_HSV2BGR)[0][0]
                 color = tuple(int(c) for c in color_bgr)
             else:

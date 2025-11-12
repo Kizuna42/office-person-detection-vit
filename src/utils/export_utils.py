@@ -100,7 +100,7 @@ class TrajectoryExporter:
         """
         output_path = self.output_dir / filename
 
-        data = {
+        data: dict[str, Any] = {
             "tracks": [],
             "metadata": {
                 "num_tracks": len(tracks),
@@ -227,7 +227,7 @@ class TrajectoryExporter:
 
         # 動画ライターを初期化
         h, w = floormap_image.shape[:2]
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        fourcc = cv2.VideoWriter.fourcc(*"mp4v")  # type: ignore[attr-defined]
         writer = cv2.VideoWriter(str(output_path), fourcc, fps, (w, h))
 
         try:
@@ -245,7 +245,7 @@ class TrajectoryExporter:
                     # track_idに基づいて色を生成（FloormapVisualizerと同じロジック）
                     if track.track_id is not None:
                         hue = (track.track_id * 137) % 180  # 黄金角を使用して色を分散
-                        color_hsv = np.uint8([[[hue, 255, 255]]])
+                        color_hsv = np.array([[[hue, 255, 255]]], dtype=np.uint8)
                         color_bgr = cv2.cvtColor(color_hsv, cv2.COLOR_HSV2BGR)[0][0]
                         track_color = tuple(int(c) for c in color_bgr)
                     else:
@@ -408,7 +408,7 @@ class SideBySideVideoExporter:
 
             # track_idに基づいて色を生成（HSV色空間、黄金角を使用）
             hue = (detection.track_id * 137) % 180
-            color_hsv = np.uint8([[[hue, 255, 255]]])
+            color_hsv = np.array([[[hue, 255, 255]]], dtype=np.uint8)
             color_bgr = cv2.cvtColor(color_hsv, cv2.COLOR_HSV2BGR)[0][0]
             color = tuple(int(c) for c in color_bgr)
 

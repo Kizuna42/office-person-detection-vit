@@ -23,10 +23,10 @@ class CoarseSampler:
             interval_seconds: サンプリング間隔（秒）
         """
         self.video_path = video_path
-        self.video: cv2.VideoCapture = None
-        self.fps: float = None
+        self.video: cv2.VideoCapture | None = None
+        self.fps: float | None = None
         self.interval_seconds = interval_seconds
-        self.interval_frames: int = None
+        self.interval_frames: int | None = None
 
     def _ensure_opened(self) -> None:
         """動画ファイルが開かれていることを確認"""
@@ -34,8 +34,12 @@ class CoarseSampler:
             self.video = cv2.VideoCapture(self.video_path)
             if not self.video.isOpened():
                 raise RuntimeError(f"Failed to open video: {self.video_path}")
-            self.fps = self.video.get(cv2.CAP_PROP_FPS)
-            self.interval_frames = int(self.fps * self.interval_seconds)
+            fps_value = self.video.get(cv2.CAP_PROP_FPS)
+            self.fps = float(fps_value) if fps_value is not None else None
+            if self.fps is not None:
+                self.interval_frames = int(self.fps * self.interval_seconds)
+            else:
+                raise RuntimeError(f"Failed to get FPS from video: {self.video_path}")
 
     def sample(self) -> Iterator[tuple[int, np.ndarray]]:
         """フレームをサンプリング
@@ -44,6 +48,8 @@ class CoarseSampler:
             (フレーム番号, フレーム画像) のタプル
         """
         self._ensure_opened()
+        assert self.video is not None  # 型チェック用
+        assert self.interval_frames is not None  # 型チェック用
         frame_idx = 0
         total_frames = int(self.video.get(cv2.CAP_PROP_FRAME_COUNT))
 
@@ -91,7 +97,7 @@ class FineSampler:
         self.video = video
         self.search_window = search_window
         self.interval_seconds = interval_seconds
-        self.fps: float = None
+        self.fps: float | None = None
 
     def _ensure_fps(self) -> None:
         """FPSが取得されていることを確認"""
