@@ -67,7 +67,7 @@ class CoordinateTransformer:
         if self.use_distortion_correction:
             if self.camera_matrix is None or self.dist_coeffs is None:
                 logger.warning(
-                    "歪み補正が有効ですが、カメラ行列または歪み係数が設定されていません。" "歪み補正を無効化します。"
+                    "歪み補正が有効ですが、カメラ行列または歪み係数が設定されていません。歪み補正を無効化します。"
                 )
                 self.use_distortion_correction = False
             else:
@@ -156,7 +156,7 @@ class CoordinateTransformer:
             raise RuntimeError("カメラ行列または歪み係数が設定されていません。")
 
         h, w = image.shape[:2]
-        new_camera_matrix, roi = cv2.getOptimalNewCameraMatrix(self.camera_matrix, self.dist_coeffs, (w, h), 1, (w, h))
+        new_camera_matrix, _roi = cv2.getOptimalNewCameraMatrix(self.camera_matrix, self.dist_coeffs, (w, h), 1, (w, h))
 
         dst = cv2.undistort(image, self.camera_matrix, self.dist_coeffs, None, new_camera_matrix)
         return dst
@@ -198,9 +198,7 @@ class CoordinateTransformer:
             w = transformed[2]
             if abs(w) < 1e-10:
                 error_msg = (
-                    f"変換後のw成分が0に近い値です: {w}. "
-                    f"カメラ座標: ({camera_x}, {camera_y}), "
-                    f"変換後: {transformed}"
+                    f"変換後のw成分が0に近い値です: {w}. カメラ座標: ({camera_x}, {camera_y}), 変換後: {transformed}"
                 )
                 logger.error(error_msg)
                 raise ValueError(error_msg)
@@ -229,7 +227,7 @@ class CoordinateTransformer:
             # ValueErrorはそのまま再スロー
             raise
         except Exception as e:
-            error_msg = f"座標変換に失敗しました: camera_point={camera_point}, " f"error={type(e).__name__}: {e}"
+            error_msg = f"座標変換に失敗しました: camera_point={camera_point}, error={type(e).__name__}: {e}"
             logger.error(error_msg, exc_info=True)
             raise ValueError(f"座標変換エラー: {e}") from e
 

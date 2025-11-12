@@ -10,19 +10,19 @@ import pytest
 from src.timestamp.ocr_engine import MultiEngineOCR
 
 
-@pytest.fixture()
+@pytest.fixture
 def sample_roi() -> np.ndarray:
     """テスト用のROI画像（前処理済み）"""
     return np.random.randint(0, 255, (100, 200), dtype=np.uint8)
 
 
-@pytest.fixture()
+@pytest.fixture
 def valid_timestamp_text() -> str:
     """有効なタイムスタンプテキスト"""
     return "2025/08/26 16:07:45"
 
 
-@pytest.fixture()
+@pytest.fixture
 def invalid_timestamp_text() -> str:
     """無効なタイムスタンプテキスト"""
     return "invalid text"

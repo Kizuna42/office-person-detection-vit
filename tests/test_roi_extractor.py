@@ -8,25 +8,25 @@ import pytest
 from src.timestamp.roi_extractor import TimestampROIExtractor
 
 
-@pytest.fixture()
+@pytest.fixture
 def sample_frame() -> np.ndarray:
     """テスト用のフレーム画像（1280x720 BGR）"""
     return np.random.randint(0, 255, (720, 1280, 3), dtype=np.uint8)
 
 
-@pytest.fixture()
+@pytest.fixture
 def dark_frame() -> np.ndarray:
     """極端に暗いフレーム"""
     return np.random.randint(0, 30, (720, 1280, 3), dtype=np.uint8)
 
 
-@pytest.fixture()
+@pytest.fixture
 def bright_frame() -> np.ndarray:
     """極端に明るいフレーム"""
     return np.random.randint(225, 255, (720, 1280, 3), dtype=np.uint8)
 
 
-@pytest.fixture()
+@pytest.fixture
 def default_roi_config() -> dict:
     """デフォルトROI設定"""
     return {"x_ratio": 0.65, "y_ratio": 0.0, "width_ratio": 0.35, "height_ratio": 0.08}
@@ -182,7 +182,7 @@ def test_custom_roi_config(sample_frame: np.ndarray):
     }
 
     extractor = TimestampROIExtractor(roi_config=custom_config)
-    roi, coords = extractor.extract_roi(sample_frame)
+    _roi, coords = extractor.extract_roi(sample_frame)
 
     # カスタム設定が適用されていることを確認
     x, y, w, h = coords

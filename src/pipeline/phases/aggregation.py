@@ -1,18 +1,20 @@
 """Aggregation phase of the pipeline."""
 
+import logging
 from pathlib import Path
 
 from tqdm import tqdm
 
 from src.aggregation import Aggregator
+from src.config import ConfigManager
 from src.models import FrameResult
-from src.pipeline.base_phase import BasePhase
+from src.pipeline.phases.base import BasePhase
 
 
 class AggregationPhase(BasePhase):
     """集計フェーズ"""
 
-    def __init__(self, config, logger):
+    def __init__(self, config: ConfigManager, logger: logging.Logger):
         """初期化
 
         Args:
@@ -66,7 +68,7 @@ class AggregationPhase(BasePhase):
                 trend_info["trend"], trend_info["trend"]
             )
             self.logger.info(
-                f"  {zone_name}: {trend_str} " f"(傾き={trend_info['slope']:.3f}, R²={trend_info['r_squared']:.3f})"
+                f"  {zone_name}: {trend_str} (傾き={trend_info['slope']:.3f}, R²={trend_info['r_squared']:.3f})"
             )
 
         # ピーク時間帯を表示

@@ -18,14 +18,14 @@ from src.detection.preprocessing import (
 )
 
 
-@pytest.fixture()
+@pytest.fixture
 def sample_grayscale_image() -> np.ndarray:
     """テスト用のグレースケール画像"""
 
     return np.random.randint(0, 255, (100, 100), dtype=np.uint8)
 
 
-@pytest.fixture()
+@pytest.fixture
 def sample_bgr_image() -> np.ndarray:
     """テスト用のBGR画像"""
 

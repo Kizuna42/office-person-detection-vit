@@ -127,9 +127,9 @@ def test_preprocessing_parameters(
 
         param_results = []
 
-        for frame_idx, frame in tqdm(frames, desc=f"  セット{param_idx+1}処理中", leave=False):
+        for frame_idx, frame in tqdm(frames, desc=f"  セット{param_idx + 1}処理中", leave=False):
             # ROI抽出
-            roi, roi_coords = roi_extractor.extract_roi(frame)
+            roi, _roi_coords = roi_extractor.extract_roi(frame)
 
             # 前処理
             preprocessed = preprocess_roi_with_params(roi, **params)
@@ -146,7 +146,7 @@ def test_preprocessing_parameters(
             )
 
             # 前処理済み画像を保存
-            param_name = f"param_{param_idx+1}"
+            param_name = f"param_{param_idx + 1}"
             preprocessed_path = output_dir / f"{param_name}_frame_{frame_idx:06d}.jpg"
             cv2.imwrite(str(preprocessed_path), preprocessed)
 
@@ -169,7 +169,7 @@ def test_preprocessing_parameters(
     logger.info("=" * 80)
 
     for i, result in enumerate(results):
-        logger.info(f"パラメータセット {i+1}:")
+        logger.info(f"パラメータセット {i + 1}:")
         logger.info(f"  パラメータ: {result['params']}")
         logger.info(f"  平均信頼度: {result['avg_confidence']:.4f}")
         logger.info("")

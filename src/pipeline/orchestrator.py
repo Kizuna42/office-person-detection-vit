@@ -10,12 +10,14 @@ from tqdm import tqdm
 from src.aggregation import Aggregator
 from src.config import ConfigManager
 from src.models import Detection, FrameResult
-from src.pipeline.aggregation_phase import AggregationPhase
-from src.pipeline.detection_phase import DetectionPhase
 from src.pipeline.frame_extraction_pipeline import FrameExtractionPipeline
-from src.pipeline.tracking_phase import TrackingPhase
-from src.pipeline.transform_phase import TransformPhase
-from src.pipeline.visualization_phase import VisualizationPhase
+from src.pipeline.phases import (
+    AggregationPhase,
+    DetectionPhase,
+    TrackingPhase,
+    TransformPhase,
+    VisualizationPhase,
+)
 from src.utils import OutputManager, PerformanceMonitor, cleanup_resources, setup_output_directories
 from src.video import VideoProcessor
 

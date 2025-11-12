@@ -36,8 +36,7 @@ class SimilarityCalculator:
         self.motion_weight = motion_weight
 
         logger.info(
-            f"SimilarityCalculator initialized: appearance_weight={appearance_weight}, "
-            f"motion_weight={motion_weight}"
+            f"SimilarityCalculator initialized: appearance_weight={appearance_weight}, motion_weight={motion_weight}"
         )
 
     def cosine_similarity(self, feat1: np.ndarray, feat2: np.ndarray) -> float:

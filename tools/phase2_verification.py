@@ -204,7 +204,7 @@ def verify_production_video(video_path: str, duration_seconds: int = 3600, confi
         logger.info("=" * 80)
         logger.info("試験実行結果")
         logger.info("=" * 80)
-        logger.info(f"✓ 処理時間: {elapsed_time:.2f}秒 ({elapsed_time/60:.2f}分)")
+        logger.info(f"✓ 処理時間: {elapsed_time:.2f}秒 ({elapsed_time / 60:.2f}分)")
         logger.info(
             f"✓ メモリ使用量: {memory_before:.1f}MB → {memory_after:.1f}MB (増加: {memory_after - memory_before:.1f}MB)"
         )

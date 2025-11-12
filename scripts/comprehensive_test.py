@@ -24,9 +24,9 @@ class ColorPrint:
 
     @classmethod
     def header(cls, text):
-        print(f"\n{cls.HEADER}{cls.BOLD}{'='*70}{cls.ENDC}")
+        print(f"\n{cls.HEADER}{cls.BOLD}{'=' * 70}{cls.ENDC}")
         print(f"{cls.HEADER}{cls.BOLD}{text}{cls.ENDC}")
-        print(f"{cls.HEADER}{cls.BOLD}{'='*70}{cls.ENDC}\n")
+        print(f"{cls.HEADER}{cls.BOLD}{'=' * 70}{cls.ENDC}\n")
 
     @classmethod
     def section(cls, text):

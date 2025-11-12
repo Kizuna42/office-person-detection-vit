@@ -244,9 +244,9 @@ def apply_deskew(image: np.ndarray, max_angle: float = 5.0, enabled: bool = True
     angles = []
     for line in lines[:20]:  # 最初の20本のみ使用
         if isinstance(line, list | tuple) and len(line) >= 2 and not isinstance(line[0], list | np.ndarray):
-            rho, theta = line[0], line[1]
+            _rho, theta = line[0], line[1]
         else:
-            rho, theta = line[0]
+            _rho, theta = line[0]
         angle = np.degrees(theta) - 90
         if -max_angle <= angle <= max_angle:
             angles.append(angle)

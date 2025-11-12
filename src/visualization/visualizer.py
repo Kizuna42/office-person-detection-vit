@@ -217,7 +217,7 @@ class Visualizer:
         Returns:
             カラーバー付き画像
         """
-        height, width = image.shape[:2]
+        _height, width = image.shape[:2]
         colorbar_width = 30
         colorbar_height = 200
 
@@ -304,7 +304,7 @@ class Visualizer:
             output_dir = Path(output_path).parent
             output_dir.mkdir(parents=True, exist_ok=True)
 
-            success = cv2.imwrite(output_path, image)
+            success = bool(cv2.imwrite(output_path, image))
             if success:
                 logger.info(f"Image saved: {output_path}")
             else:
@@ -471,7 +471,7 @@ class Visualizer:
             mins = [statistics[z]["min"] for z in zone_ids]
 
             # グラフを作成
-            fig, ax = plt.subplots(figsize=figsize)
+            _fig, ax = plt.subplots(figsize=figsize)
 
             x = np.arange(len(zone_ids))
             width = 0.25
@@ -541,7 +541,7 @@ class Visualizer:
                         heatmap_data[i, j] = matching_results[0].count
 
             # ヒートマップを作成
-            fig, ax = plt.subplots(figsize=figsize)
+            _fig, ax = plt.subplots(figsize=figsize)
 
             im = ax.imshow(heatmap_data, cmap="YlOrRd", aspect="auto")
 

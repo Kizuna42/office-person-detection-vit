@@ -16,13 +16,13 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-@pytest.fixture()
+@pytest.fixture
 def sample_frame() -> np.ndarray:
     """テスト用のフレーム画像"""
     return np.random.randint(0, 255, (720, 1280, 3), dtype=np.uint8)
 
 
-@pytest.fixture()
+@pytest.fixture
 def sample_detections() -> list[Detection]:
     """テスト用の検出結果"""
     return [
@@ -43,7 +43,7 @@ def sample_detections() -> list[Detection]:
     ]
 
 
-@pytest.fixture()
+@pytest.fixture
 def sample_logger() -> logging.Logger:
     """テスト用のロガー"""
     logger = logging.getLogger("test_image_utils")

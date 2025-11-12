@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -12,6 +12,8 @@ from sklearn.manifold import TSNE
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    from mpl_toolkits.mplot3d.axes3d import Axes3D
 
 logger = logging.getLogger(__name__)
 
@@ -94,8 +96,8 @@ class FeatureVisualizer:
             ax.set_xlabel("t-SNE Component 1")
             ax.set_ylabel("t-SNE Component 2")
         else:  # 3次元
-            ax = fig.add_subplot(111, projection="3d")
-            scatter = ax.scatter(
+            ax3d = cast("Axes3D", fig.add_subplot(111, projection="3d"))
+            scatter = ax3d.scatter(
                 embedded[:, 0],
                 embedded[:, 1],
                 embedded[:, 2],
@@ -103,12 +105,14 @@ class FeatureVisualizer:
                 cmap="tab20",
                 alpha=0.6,
             )
-            ax.set_xlabel("t-SNE Component 1")
-            ax.set_ylabel("t-SNE Component 2")
-            ax.set_zlabel("t-SNE Component 3")
+            ax3d.set_xlabel("t-SNE Component 1")
+            ax3d.set_ylabel("t-SNE Component 2")
+            ax3d.set_zlabel("t-SNE Component 3")
+            ax = ax3d
 
         ax.set_title(title)
-        plt.colorbar(scatter, ax=ax, label="Track ID" if track_ids else "Cluster")
+        colorbar_label = "Track ID" if track_ids is not None else "Cluster"
+        plt.colorbar(scatter, ax=ax, label=colorbar_label)
 
         if output_path:
             output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -117,13 +121,13 @@ class FeatureVisualizer:
 
         plt.close(fig)
 
-        return embedded
+        return cast("np.ndarray", embedded)
 
     def cluster_features(
         self,
         features: np.ndarray,
         n_clusters: int | None = None,
-    ) -> tuple[np.ndarray, dict]:
+    ) -> tuple[np.ndarray, dict[str, Any]]:
         """特徴量をクラスタリング
 
         Args:
@@ -150,7 +154,7 @@ class FeatureVisualizer:
         labels = kmeans.fit_predict(features)
 
         # クラスタリング統計情報
-        cluster_stats = {
+        cluster_stats: dict[str, Any] = {
             "n_clusters": n_clusters,
             "n_samples": features.shape[0],
             "cluster_sizes": [int(np.sum(labels == cluster_id)) for cluster_id in range(n_clusters)],

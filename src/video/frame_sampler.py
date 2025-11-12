@@ -116,16 +116,19 @@ class FineSampler:
             (フレーム番号, フレーム画像) のタプル
         """
         self._ensure_fps()
+        fps = self.fps
+        if fps is None:
+            raise RuntimeError("FPS is not initialized")
         total_frames = int(self.video.get(cv2.CAP_PROP_FRAME_COUNT))
 
         # 探索範囲を計算
-        window_frames = int(self.search_window * self.fps)
+        window_frames = int(self.search_window * fps)
         start_frame = max(0, approx_frame_idx - window_frames)
         end_frame = min(total_frames, approx_frame_idx + window_frames)
 
         # 指定間隔でサンプリング（デフォルト: 0.1秒間隔）
         # 0.1秒間隔 = fps * 0.1 = 30 * 0.1 = 3フレーム間隔
-        frame_interval = max(1, int(self.fps * self.interval_seconds))
+        frame_interval = max(1, int(fps * self.interval_seconds))
 
         for frame_idx in range(start_frame, end_frame, frame_interval):
             self.video.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)

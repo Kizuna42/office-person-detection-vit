@@ -1,12 +1,15 @@
 """Transform and zone classification phase of the pipeline."""
 
 import json
+import logging
 from pathlib import Path
+from typing import Any
 
 from tqdm import tqdm
 
+from src.config import ConfigManager
 from src.models import Detection, FrameResult
-from src.pipeline.base_phase import BasePhase
+from src.pipeline.phases.base import BasePhase
 from src.transform import CoordinateTransformer
 from src.zone import ZoneClassifier
 
@@ -14,7 +17,7 @@ from src.zone import ZoneClassifier
 class TransformPhase(BasePhase):
     """座標変換とゾーン判定フェーズ"""
 
-    def __init__(self, config, logger):
+    def __init__(self, config: ConfigManager, logger: logging.Logger):
         """初期化
 
         Args:
@@ -101,9 +104,7 @@ class TransformPhase(BasePhase):
                     # 座標変換エラー（詳細ログはCoordinateTransformerで出力済み）
                     transform_errors += 1
                     self.logger.warning(
-                        f"フレーム #{frame_num}: 座標変換エラー - "
-                        f"カメラ座標={detection.camera_coords}, "
-                        f"エラー={e}"
+                        f"フレーム #{frame_num}: 座標変換エラー - カメラ座標={detection.camera_coords}, エラー={e}"
                     )
                     detection.floor_coords = None
                     detection.floor_coords_mm = None
@@ -136,10 +137,12 @@ class TransformPhase(BasePhase):
             self.logger.info("=" * 80)
             self.logger.info("座標変換・ゾーン判定統計:")
             self.logger.info(f"  総検出数: {total_detections}")
-            self.logger.info(f"  変換エラー数: {transform_errors} ({transform_errors/total_detections*100:.1f}%)")
-            self.logger.info(f"  範囲外座標数: {out_of_bounds_count} ({out_of_bounds_count/total_detections*100:.1f}%)")
+            self.logger.info(f"  変換エラー数: {transform_errors} ({transform_errors / total_detections * 100:.1f}%)")
             self.logger.info(
-                f"  ゾーン分類成功数: {zone_classification_count} ({zone_classification_count/total_detections*100:.1f}%)"
+                f"  範囲外座標数: {out_of_bounds_count} ({out_of_bounds_count / total_detections * 100:.1f}%)"
+            )
+            self.logger.info(
+                f"  ゾーン分類成功数: {zone_classification_count} ({zone_classification_count / total_detections * 100:.1f}%)"
             )
             self.logger.info("=" * 80)
 
@@ -156,14 +159,14 @@ class TransformPhase(BasePhase):
         """
         coordinate_data = []
         for frame_result in frame_results:
-            frame_data = {
+            frame_data: dict[str, Any] = {
                 "frame_number": frame_result.frame_number,
                 "timestamp": frame_result.timestamp,
                 "detections": [],
             }
 
             for detection in frame_result.detections:
-                detection_data = {
+                detection_data: dict[str, Any] = {
                     "bbox": {
                         "x": float(detection.bbox[0]),
                         "y": float(detection.bbox[1]),

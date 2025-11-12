@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-@pytest.fixture()
+@pytest.fixture
 def sample_detections() -> list[Detection]:
     """テスト用の検出結果リスト"""
 

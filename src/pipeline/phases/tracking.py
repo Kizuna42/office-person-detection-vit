@@ -1,14 +1,16 @@
 """Tracking phase of the pipeline."""
 
 import json
+import logging
 from pathlib import Path
 
 import numpy as np
 from tqdm import tqdm
 
+from src.config import ConfigManager
 from src.detection import ViTDetector
 from src.models import Detection
-from src.pipeline.base_phase import BasePhase
+from src.pipeline.phases.base import BasePhase
 from src.tracking import Tracker
 from src.tracking.track import Track
 from src.utils.export_utils import TrajectoryExporter
@@ -17,7 +19,7 @@ from src.utils.export_utils import TrajectoryExporter
 class TrackingPhase(BasePhase):
     """オブジェクト追跡フェーズ"""
 
-    def __init__(self, config, logger):
+    def __init__(self, config: ConfigManager, logger: logging.Logger):
         """初期化
 
         Args:
@@ -120,7 +122,7 @@ class TrackingPhase(BasePhase):
             tracked_results.append((frame_num, timestamp, tracked_detections))
 
             self.logger.debug(
-                f"フレーム #{frame_num} ({timestamp}): " f"{len(detections)}検出 → {len(tracked_detections)}追跡"
+                f"フレーム #{frame_num} ({timestamp}): {len(detections)}検出 → {len(tracked_detections)}追跡"
             )
 
         # 最終的なトラックを取得

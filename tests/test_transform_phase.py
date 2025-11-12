@@ -9,13 +9,13 @@ import pytest
 
 from src.config import ConfigManager
 from src.models import Detection, FrameResult
-from src.pipeline.transform_phase import TransformPhase
+from src.pipeline.phases import TransformPhase
 
 if TYPE_CHECKING:
     from pathlib import Path
 
 
-@pytest.fixture()
+@pytest.fixture
 def sample_config(tmp_path: Path) -> ConfigManager:
     """テスト用のConfigManager"""
     config = ConfigManager("nonexistent_config.yaml")
@@ -45,7 +45,7 @@ def sample_config(tmp_path: Path) -> ConfigManager:
     return config
 
 
-@pytest.fixture()
+@pytest.fixture
 def sample_logger():
     """テスト用のロガー"""
     logger = logging.getLogger("test_transform_phase")
@@ -53,7 +53,7 @@ def sample_logger():
     return logger
 
 
-@pytest.fixture()
+@pytest.fixture
 def sample_detections() -> list[Detection]:
     """テスト用の検出結果"""
     return [
@@ -74,7 +74,7 @@ def sample_detections() -> list[Detection]:
     ]
 
 
-@pytest.fixture()
+@pytest.fixture
 def sample_detection_results(
     sample_detections,
 ) -> list[tuple[int, str, list[Detection]]]:

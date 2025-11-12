@@ -8,7 +8,7 @@ from src.models import Detection
 from src.utils.stats_utils import DetectionStatistics, calculate_detection_statistics
 
 
-@pytest.fixture()
+@pytest.fixture
 def sample_detections() -> list[Detection]:
     """テスト用の検出結果"""
     return [

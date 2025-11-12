@@ -14,15 +14,15 @@ from src.utils.stats_utils import DetectionStatistics, calculate_detection_stati
 from src.utils.torch_utils import setup_mps_compatibility
 
 __all__ = [
-    "setup_logging",
-    "setup_output_directories",
-    "OutputManager",
-    "format_file_size",
-    "calculate_detection_statistics",
     "DetectionStatistics",
-    "cleanup_resources",
-    "save_detection_image",
-    "setup_mps_compatibility",
+    "OutputManager",
     "PerformanceMonitor",
     "TrajectoryExporter",
+    "calculate_detection_statistics",
+    "cleanup_resources",
+    "format_file_size",
+    "save_detection_image",
+    "setup_logging",
+    "setup_mps_compatibility",
+    "setup_output_directories",
 ]

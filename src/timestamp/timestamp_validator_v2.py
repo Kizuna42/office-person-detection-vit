@@ -77,7 +77,7 @@ class TemporalValidatorV2:
             # 異常値リカバリー: 前後フレームからの線形補間
             recovered_timestamp = self._recover_timestamp(frame_idx, expected_seconds)
             if recovered_timestamp:
-                logger.warning(f"Outlier detected (z-score={z_score:.2f}), " f"recovered: {recovered_timestamp}")
+                logger.warning(f"Outlier detected (z-score={z_score:.2f}), recovered: {recovered_timestamp}")
                 # リカバリー後のタイムスタンプで再検証
                 time_diff = (recovered_timestamp - self.last_timestamp).total_seconds()
                 timestamp = recovered_timestamp
@@ -104,8 +104,7 @@ class TemporalValidatorV2:
         return (
             False,
             0.0,
-            f"Invalid: expected={expected_seconds:.1f}s, actual={time_diff:.1f}s, "
-            f"tolerance={adaptive_tolerance:.1f}s",
+            f"Invalid: expected={expected_seconds:.1f}s, actual={time_diff:.1f}s, tolerance={adaptive_tolerance:.1f}s",
         )
 
     def _calculate_adaptive_tolerance(self) -> float:

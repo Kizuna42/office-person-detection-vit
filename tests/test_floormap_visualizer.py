@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-@pytest.fixture()
+@pytest.fixture
 def sample_floormap_path(tmp_path: Path) -> Path:
     """テスト用のフロアマップ画像を作成"""
 
@@ -25,7 +25,7 @@ def sample_floormap_path(tmp_path: Path) -> Path:
     return floormap_path
 
 
-@pytest.fixture()
+@pytest.fixture
 def sample_floormap_config() -> dict:
     """テスト用のフロアマップ設定"""
 
@@ -39,7 +39,7 @@ def sample_floormap_config() -> dict:
     }
 
 
-@pytest.fixture()
+@pytest.fixture
 def sample_zones() -> list[dict]:
     """テスト用のゾーン定義"""
 
@@ -59,7 +59,7 @@ def sample_zones() -> list[dict]:
     ]
 
 
-@pytest.fixture()
+@pytest.fixture
 def sample_camera_config() -> dict:
     """テスト用のカメラ設定"""
 

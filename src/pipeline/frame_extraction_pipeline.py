@@ -4,11 +4,12 @@ import csv
 from datetime import datetime, timedelta
 import logging
 from pathlib import Path
+from typing import Any
 
 import cv2
 from tqdm import tqdm
 
-from src.timestamp.timestamp_extractor_v2 import TimestampExtractorV2
+from src.timestamp.timestamp_extractor_v2 import TimestampExtractorV2, TimestampValidator
 from src.video import VideoProcessor
 from src.video.frame_sampler import CoarseSampler, FineSampler
 
@@ -129,13 +130,13 @@ class FrameExtractionPipeline:
             current += timedelta(minutes=interval_minutes)
         return targets
 
-    def run(self) -> list[dict[str, any]]:
+    def run(self) -> list[dict[str, Any]]:
         """パイプライン実行
 
         Returns:
             抽出結果のリスト
         """
-        results = []
+        results: list[dict[str, Any]] = []
 
         logger.info(f"Starting frame extraction for {len(self.target_timestamps)} target timestamps")
 
@@ -157,7 +158,7 @@ class FrameExtractionPipeline:
         finally:
             self.cleanup()
 
-    def _extract_frame_for_target(self, target_ts: datetime) -> dict[str, any] | None:
+    def _extract_frame_for_target(self, target_ts: datetime) -> dict[str, Any] | None:
         """目標タイムスタンプに最も近いフレームを抽出
 
         Args:
@@ -208,7 +209,7 @@ class FrameExtractionPipeline:
 
         return approx_frame_idx
 
-    def _find_best_frame_around(self, target_ts: datetime, approx_frame_idx: int) -> dict[str, any] | None:
+    def _find_best_frame_around(self, target_ts: datetime, approx_frame_idx: int) -> dict[str, Any] | None:
         """精密サンプリングで±10秒以内のベストフレームを探す
 
         Args:
@@ -218,7 +219,7 @@ class FrameExtractionPipeline:
         Returns:
             最良のフレーム結果。見つからない場合はNone
         """
-        candidates = []
+        candidates: list[dict[str, Any]] = []
 
         for frame_idx, frame in self.fine_sampler.sample_around_target(approx_frame_idx):
             result = self.extractor.extract(frame, frame_idx)
@@ -251,7 +252,7 @@ class FrameExtractionPipeline:
 
         return best
 
-    def _save_frame(self, result: dict[str, any]) -> None:
+    def _save_frame(self, result: dict[str, Any]) -> None:
         """抽出したフレームを保存
 
         Args:
@@ -270,7 +271,7 @@ class FrameExtractionPipeline:
             cv2.imwrite(str(output_path), frame)
             logger.debug(f"Saved frame: {output_path}")
 
-    def _save_results_csv(self, results: list[dict[str, any]]) -> None:
+    def _save_results_csv(self, results: list[dict[str, Any]]) -> None:
         """結果をCSVで保存
 
         Args:
@@ -310,7 +311,7 @@ class FrameExtractionPipeline:
         self,
         max_frames: int | None = None,
         disable_validation: bool = False,
-    ) -> list[dict[str, any]]:
+    ) -> list[dict[str, Any]]:
         """5分刻みフレーム抽出（自動目標タイムスタンプ生成）
 
         指定範囲のフレームからタイムスタンプを全て抽出し、
@@ -325,14 +326,14 @@ class FrameExtractionPipeline:
             抽出結果のリスト
         """
         # 検証を無効化する場合のダミーバリデーター
-        original_validator = None
+        original_validator: TimestampValidator | None = None
         if disable_validation:
 
             class NoOpValidator:
-                def validate(self, _timestamp, _frame_idx):
+                def validate(self, _timestamp: datetime, _frame_idx: int) -> tuple[bool, float, str]:
                     return True, 1.0, "Validation disabled"
 
-                def reset(self):
+                def reset(self) -> None:
                     pass
 
             original_validator = self.extractor.validator
@@ -346,12 +347,18 @@ class FrameExtractionPipeline:
 
             try:
                 total_video_frames = video_processor.total_frames
-                if max_frames is None:
-                    max_frames = total_video_frames
-                process_frames = min(max_frames, total_video_frames)
+                if total_video_frames is None:
+                    logger.error("動画の総フレーム数を取得できませんでした")
+                    return []
 
-                all_extracted_frames = []
-                for frame_idx in tqdm(range(process_frames), desc="タイムスタンプ抽出中"):
+                frames_limit = total_video_frames
+                if isinstance(max_frames, int):
+                    frames_limit = max_frames
+
+                frames_to_process = min(frames_limit, total_video_frames)
+
+                all_extracted_frames: list[dict[str, Any]] = []
+                for frame_idx in tqdm(range(frames_to_process), desc="タイムスタンプ抽出中"):
                     frame = video_processor.get_frame(frame_idx)
                     if frame is None:
                         continue
@@ -410,11 +417,11 @@ class FrameExtractionPipeline:
 
             # ステップ3: 各目標タイムスタンプに最も近いフレームを選択
             logger.info("ステップ3: 各目標タイムスタンプに最も近いフレームを選択中...")
-            selected_frames = []
+            selected_frames: list[dict[str, Any]] = []
             tolerance_seconds = max(self.tolerance_seconds, 60.0)  # 最低60秒の許容範囲
 
             for target_ts in target_timestamps:
-                best_frame = None
+                best_frame: dict[str, Any] | None = None
                 min_diff = float("inf")
 
                 for extracted in all_extracted_frames:
@@ -451,7 +458,7 @@ class FrameExtractionPipeline:
 
             # ステップ4: 選択されたフレームのみを保存
             logger.info(f"ステップ4: {len(selected_frames)}枚のフレームを保存中...")
-            results = []
+            results: list[dict[str, Any]] = []
 
             # フレーム保存用のディレクトリ（frames/サブディレクトリを使用）
             frames_dir = self.output_dir / "frames"
@@ -485,7 +492,7 @@ class FrameExtractionPipeline:
             return results
 
         finally:
-            if disable_validation:
+            if disable_validation and original_validator is not None:
                 self.extractor.validator = original_validator
             self.extractor.reset_validator()
 

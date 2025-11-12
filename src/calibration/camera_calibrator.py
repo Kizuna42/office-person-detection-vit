@@ -73,13 +73,13 @@ class CameraCalibrator:
             raise ValueError(f"Insufficient images with detected corners: {len(objpoints)} < 3")
 
         # キャリブレーション実行
-        ret, camera_matrix, dist_coeffs, rvecs, tvecs = cv2.calibrateCamera(
+        ret, camera_matrix, dist_coeffs, _rvecs, _tvecs = cv2.calibrateCamera(
             objpoints,
             imgpoints,
             gray.shape[::-1],
             None,
-            None,  # type: ignore[call-overload]
-        )
+            None,
+        )  # type: ignore[call-overload]
 
         self.camera_matrix = camera_matrix
         self.dist_coeffs = dist_coeffs
@@ -110,7 +110,7 @@ class CameraCalibrator:
         assert self.dist_coeffs is not None  # 型チェック用
 
         h, w = image.shape[:2]
-        new_camera_matrix, roi = cv2.getOptimalNewCameraMatrix(self.camera_matrix, self.dist_coeffs, (w, h), 1, (w, h))
+        new_camera_matrix, _roi = cv2.getOptimalNewCameraMatrix(self.camera_matrix, self.dist_coeffs, (w, h), 1, (w, h))
 
         dst = cv2.undistort(image, self.camera_matrix, self.dist_coeffs, None, new_camera_matrix)
         return dst

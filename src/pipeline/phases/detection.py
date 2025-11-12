@@ -2,21 +2,23 @@
 
 import gc
 import json
+import logging
 from pathlib import Path
 
 import numpy as np
 from tqdm import tqdm
 
+from src.config import ConfigManager
 from src.detection import ViTDetector
 from src.models import Detection
-from src.pipeline.base_phase import BasePhase
+from src.pipeline.phases.base import BasePhase
 from src.utils import PerformanceMonitor, calculate_detection_statistics, save_detection_image
 
 
 class DetectionPhase(BasePhase):
     """人物検出フェーズ"""
 
-    def __init__(self, config, logger):
+    def __init__(self, config: ConfigManager, logger: logging.Logger):
         """初期化
 
         Args:
@@ -116,7 +118,7 @@ class DetectionPhase(BasePhase):
                     gc.collect()
 
             except Exception as e:
-                self.logger.error(f"バッチ {i//batch_size + 1} の検出処理に失敗しました: {e}", exc_info=True)
+                self.logger.error(f"バッチ {i // batch_size + 1} の検出処理に失敗しました: {e}", exc_info=True)
                 # エラーが発生した場合は空の結果を追加
                 for frame_num, timestamp, _ in batch:
                     results.append((frame_num, timestamp, []))

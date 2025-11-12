@@ -1,12 +1,14 @@
 """Visualization phase of the pipeline."""
 
+import logging
 from pathlib import Path
 
 from tqdm import tqdm
 
 from src.aggregation import Aggregator
+from src.config import ConfigManager
 from src.models import FrameResult
-from src.pipeline.base_phase import BasePhase
+from src.pipeline.phases.base import BasePhase
 from src.utils.export_utils import SideBySideVideoExporter
 from src.visualization import FloormapVisualizer, Visualizer
 
@@ -14,7 +16,7 @@ from src.visualization import FloormapVisualizer, Visualizer
 class VisualizationPhase(BasePhase):
     """可視化フェーズ"""
 
-    def __init__(self, config, logger):
+    def __init__(self, config: ConfigManager, logger: logging.Logger):
         """初期化
 
         Args:

@@ -227,7 +227,7 @@ class TrajectoryExporter:
 
         # 動画ライターを初期化
         h, w = floormap_image.shape[:2]
-        fourcc = cv2.VideoWriter.fourcc(*"mp4v")  # type: ignore[attr-defined]
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # type: ignore[attr-defined]
         writer = cv2.VideoWriter(str(output_path), fourcc, fps, (w, h))
 
         try:
@@ -633,7 +633,7 @@ class SideBySideVideoExporter:
         video_height = target_height
 
         # 動画ライターを初期化
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # type: ignore[attr-defined]
         writer = cv2.VideoWriter(str(output_path), fourcc, fps, (video_width, video_height))
 
         if not writer.isOpened():

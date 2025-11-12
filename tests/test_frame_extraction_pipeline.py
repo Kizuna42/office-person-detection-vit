@@ -15,13 +15,13 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-@pytest.fixture()
+@pytest.fixture
 def mock_video_path(tmp_path: Path) -> Path:
     """モック動画ファイルパス"""
     return tmp_path / "test_video.mov"
 
 
-@pytest.fixture()
+@pytest.fixture
 def sample_output_dir(tmp_path: Path) -> Path:
     """サンプル出力ディレクトリ"""
     output_dir = tmp_path / "output"
@@ -29,7 +29,7 @@ def sample_output_dir(tmp_path: Path) -> Path:
     return output_dir
 
 
-@pytest.fixture()
+@pytest.fixture
 def target_timestamps() -> list[datetime]:
     """テスト用の目標タイムスタンプリスト"""
     return [
@@ -293,9 +293,12 @@ def test_target_timestamps_generation(sample_output_dir: Path):
     start = datetime(2025, 8, 26, 16, 5, 0)
     end = datetime(2025, 8, 26, 16, 20, 0)
 
-    with patch("src.pipeline.frame_extraction_pipeline.CoarseSampler"), patch(
-        "src.pipeline.frame_extraction_pipeline.FineSampler"
-    ), patch("src.pipeline.frame_extraction_pipeline.TimestampExtractorV2"), patch("cv2.VideoCapture"):
+    with (
+        patch("src.pipeline.frame_extraction_pipeline.CoarseSampler"),
+        patch("src.pipeline.frame_extraction_pipeline.FineSampler"),
+        patch("src.pipeline.frame_extraction_pipeline.TimestampExtractorV2"),
+        patch("cv2.VideoCapture"),
+    ):
         pipeline = FrameExtractionPipeline(
             video_path="dummy.mov",
             output_dir=str(sample_output_dir),

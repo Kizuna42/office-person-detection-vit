@@ -33,7 +33,7 @@ class HungarianAlgorithm:
         if cost_matrix.size == 0:
             return np.array([], dtype=np.int32), 0.0
 
-        n, m = cost_matrix.shape
+        _rows, _cols = cost_matrix.shape
 
         # 簡易実装: 貪欲法（本番環境ではscipy.optimize.linear_sum_assignmentを使用推奨）
         assignment, total_cost = self._greedy_assignment(cost_matrix)

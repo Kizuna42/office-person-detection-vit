@@ -16,21 +16,21 @@ import pytest  # noqa: E402
 from src.models import Detection  # noqa: E402
 
 
-@pytest.fixture()
+@pytest.fixture
 def fixtures_dir() -> Path:
     """Return the directory containing static test fixtures."""
 
     return Path(__file__).parent / "fixtures"
 
 
-@pytest.fixture()
+@pytest.fixture
 def sample_frame() -> np.ndarray:
     """Return a dummy frame (720x1280 BGR)."""
 
     return np.zeros((720, 1280, 3), dtype=np.uint8)
 
 
-@pytest.fixture()
+@pytest.fixture
 def sample_detection() -> Detection:
     """Return a detection instance located in zone_a."""
 
@@ -45,7 +45,7 @@ def sample_detection() -> Detection:
     )
 
 
-@pytest.fixture()
+@pytest.fixture
 def ground_truth_path(fixtures_dir: Path) -> Path:
     """Return the path to the sample COCO ground truth file."""
 

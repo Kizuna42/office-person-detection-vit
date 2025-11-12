@@ -1,8 +1,10 @@
 """Multi-engine OCR wrapper for timestamp extraction."""
 
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
 import re
+from typing import Any
 
 import numpy as np
 
@@ -56,7 +58,7 @@ class MultiEngineOCR:
             use_weighted_consensus: 重み付けスキームを使用するか（デフォルト: False）
             use_voting_consensus: 投票ロジックを使用するか（デフォルト: False）
         """
-        self.engines: dict[str, callable] = {}
+        self.engines: dict[str, Callable[[np.ndarray], str]] = {}
         self.enabled_engines = enabled_engines or []
         self.use_weighted_consensus = use_weighted_consensus
         self.use_voting_consensus = use_voting_consensus
@@ -74,7 +76,7 @@ class MultiEngineOCR:
         if not self.engines:
             logger.warning("No OCR engines available. Please install at least one OCR engine.")
 
-    def _init_tesseract(self) -> callable:
+    def _init_tesseract(self) -> Callable[[np.ndarray], str]:
         """Tesseract: 高速、数字に強い"""
         import pytesseract
 
@@ -82,11 +84,11 @@ class MultiEngineOCR:
         config = r"--psm 8 --oem 3 -c tessedit_char_whitelist=0123456789/: "
 
         def tesseract_func(img: np.ndarray) -> str:
-            return pytesseract.image_to_string(img, config=config)
+            return str(pytesseract.image_to_string(img, config=config))
 
         return tesseract_func
 
-    def _init_easyocr(self) -> callable:
+    def _init_easyocr(self) -> Callable[[np.ndarray], str]:
         """EasyOCR: 高精度、やや遅い"""
         import easyocr
 
@@ -98,7 +100,7 @@ class MultiEngineOCR:
 
         return easyocr_func
 
-    def _init_paddleocr(self) -> callable:
+    def _init_paddleocr(self) -> Callable[[np.ndarray], str]:
         """PaddleOCR: 中国語カメラでも対応"""
         from paddleocr import PaddleOCR
 
@@ -161,10 +163,10 @@ class MultiEngineOCR:
         Returns:
             (抽出テキスト, 信頼度) のタプル
         """
-        results: list[dict[str, any]] = []
+        results: list[dict[str, Any]] = []
 
         # 並列実行でOCR処理を高速化
-        def run_ocr(engine_name: str, engine_func: callable) -> dict | None:
+        def run_ocr(engine_name: str, engine_func: Callable[[np.ndarray], str]) -> dict[str, Any] | None:
             """単一のOCRエンジンを実行"""
             try:
                 text = engine_func(roi)
@@ -220,10 +222,10 @@ class MultiEngineOCR:
         Returns:
             (抽出テキスト, 信頼度) のタプル
         """
-        results: list[dict[str, any]] = []
+        results: list[dict[str, Any]] = []
 
         # 並列実行でOCR処理を高速化
-        def run_ocr_weighted(engine_name: str, engine_func: callable) -> dict | None:
+        def run_ocr_weighted(engine_name: str, engine_func: Callable[[np.ndarray], str]) -> dict[str, Any] | None:
             """単一のOCRエンジンを実行（重み付け版）"""
             try:
                 text = engine_func(roi)
@@ -292,10 +294,10 @@ class MultiEngineOCR:
         Returns:
             (抽出テキスト, 信頼度) のタプル
         """
-        results: list[dict[str, any]] = []
+        results: list[dict[str, Any]] = []
 
         # 並列実行でOCR処理を高速化
-        def run_ocr_voting(engine_name: str, engine_func: callable) -> dict | None:
+        def run_ocr_voting(engine_name: str, engine_func: Callable[[np.ndarray], str]) -> dict[str, Any] | None:
             """単一のOCRエンジンを実行（投票版）"""
             try:
                 text = engine_func(roi)

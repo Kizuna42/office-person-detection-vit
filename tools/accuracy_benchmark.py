@@ -224,16 +224,16 @@ def main():
         success_rate_improved = improved.get("success_rate", 0.0)
         success_rate_delta = comparison["success_rate"]["delta"]
         logger.info(
-            f"抽出成功率: {success_rate_baseline:.2f}% → " f"{success_rate_improved:.2f}% (Δ{success_rate_delta:+.2f}%)"
+            f"抽出成功率: {success_rate_baseline:.2f}% → {success_rate_improved:.2f}% (Δ{success_rate_delta:+.2f}%)"
         )
         avg_conf_baseline = baseline.get("avg_confidence", 0.0)
         avg_conf_improved = improved.get("avg_confidence", 0.0)
         avg_conf_delta = comparison["avg_confidence"]["delta"]
-        logger.info(f"平均信頼度: {avg_conf_baseline:.4f} → " f"{avg_conf_improved:.4f} (Δ{avg_conf_delta:+.4f})")
+        logger.info(f"平均信頼度: {avg_conf_baseline:.4f} → {avg_conf_improved:.4f} (Δ{avg_conf_delta:+.4f})")
         valid_ts_baseline = baseline.get("valid_timestamps", 0)
         valid_ts_improved = improved.get("valid_timestamps", 0)
         valid_ts_delta = comparison["valid_timestamps"]["delta"]
-        logger.info(f"有効タイムスタンプ: {valid_ts_baseline} → " f"{valid_ts_improved} (Δ{valid_ts_delta:+d})")
+        logger.info(f"有効タイムスタンプ: {valid_ts_baseline} → {valid_ts_improved} (Δ{valid_ts_delta:+d})")
         logger.info("")
 
         if comparison["overall_improved"]:

@@ -314,7 +314,7 @@ def create_summary_image(
         frame_small = cv2.resize(frame, (cell_w, cell_h))
 
         # ROI矩形を描画
-        roi, roi_coords = roi_extractor.extract_roi(frame)
+        _, roi_coords = roi_extractor.extract_roi(frame)
         rx, ry, rw, rh = roi_coords
         # 縮小率に合わせて座標を調整
         scale_x = cell_w / frame_w

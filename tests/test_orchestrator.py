@@ -15,7 +15,7 @@ from src.models import Detection, FrameResult
 from src.pipeline.orchestrator import PipelineOrchestrator
 
 
-@pytest.fixture()
+@pytest.fixture
 def sample_config(tmp_path: Path) -> ConfigManager:
     """テスト用のConfigManager"""
     config = ConfigManager("nonexistent_config.yaml")
@@ -40,7 +40,7 @@ def sample_config(tmp_path: Path) -> ConfigManager:
     return config
 
 
-@pytest.fixture()
+@pytest.fixture
 def sample_logger() -> logging.Logger:
     """テスト用のロガー"""
     logger = logging.getLogger("test_orchestrator")
@@ -48,7 +48,7 @@ def sample_logger() -> logging.Logger:
     return logger
 
 
-@pytest.fixture()
+@pytest.fixture
 def sample_extraction_results() -> list[dict]:
     """テスト用の抽出結果"""
     return [
@@ -67,7 +67,7 @@ def sample_extraction_results() -> list[dict]:
     ]
 
 
-@pytest.fixture()
+@pytest.fixture
 def sample_detections() -> list[Detection]:
     """テスト用の検出結果"""
     return [

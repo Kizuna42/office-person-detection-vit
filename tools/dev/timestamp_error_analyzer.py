@@ -132,7 +132,7 @@ def visualize_error_distribution(results: list[dict], output_path: Path, toleran
     time_diffs = [r["time_diff_seconds"] for r in results]
 
     # 図の作成
-    fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+    _fig, axes = plt.subplots(2, 2, figsize=(15, 12))
 
     # 1. 誤差のヒストグラム
     ax1 = axes[0, 0]

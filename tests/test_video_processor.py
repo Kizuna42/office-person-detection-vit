@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-@pytest.fixture()
+@pytest.fixture
 def sample_video_path(tmp_path: Path) -> Path:
     """テスト用の動画ファイルパスを作成（実際のファイルは作成しない）"""
     return tmp_path / "test_video.mov"

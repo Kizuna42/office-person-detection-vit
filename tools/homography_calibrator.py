@@ -265,7 +265,7 @@ def compute_homography(
         "rmse": rmse,
         "max_error": max_error,
         "inliers": inliers,
-        "total_points": int(len(camera_points)),
+        "total_points": len(camera_points),
     }
     LOGGER.info(
         "再投影RMSE=%.3f px, 最大誤差=%.3f px, インライア=%d/%d",
@@ -420,7 +420,7 @@ def main() -> None:
         )
 
     points_json = save_points_json(output_dir, camera_points, floormap_points, reference_path, floormap_path)
-    H, mask, metrics = compute_homography(camera_points, floormap_points, args.method, args.ransac_threshold)
+    H, _mask, metrics = compute_homography(camera_points, floormap_points, args.method, args.ransac_threshold)
     homography_yaml = save_homography_yaml(output_dir, H, metrics, points_json)
 
     if args.update_config:

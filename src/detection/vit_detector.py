@@ -1,6 +1,8 @@
 """Vision Transformer based person detection module."""
 
+from collections.abc import Sequence
 import logging
+from typing import cast
 
 import numpy as np
 from PIL import Image
@@ -80,12 +82,15 @@ class ViTDetector:
             logger.info(f"Loading model: {self.model_name}")
 
             # プロセッサとモデルをロード
-            self.processor = DetrImageProcessor.from_pretrained(self.model_name)
-            self.model = DetrForObjectDetection.from_pretrained(self.model_name)
+            processor = DetrImageProcessor.from_pretrained(self.model_name)
+            model = DetrForObjectDetection.from_pretrained(self.model_name)
 
             # デバイスに転送
-            self.model.to(self.device)
-            self.model.eval()
+            model.to(self.device)
+            model.eval()
+
+            self.processor = processor
+            self.model = model
 
             logger.info("Model loaded successfully")
 
@@ -105,7 +110,8 @@ class ViTDetector:
         Raises:
             RuntimeError: モデルがロードされていない場合
         """
-        if self.model is None or self.processor is None:
+        model = self.model
+        if model is None or self.processor is None:
             raise RuntimeError("Model not loaded. Call load_model() first.")
 
         try:
@@ -114,7 +120,7 @@ class ViTDetector:
 
             # 推論
             with torch.no_grad():
-                outputs = self.model(**inputs)
+                outputs = model(**inputs)
 
             # 後処理
             detections = self._postprocess(outputs, frame.shape)
@@ -139,7 +145,8 @@ class ViTDetector:
         Raises:
             RuntimeError: モデルがロードされていない場合
         """
-        if self.model is None or self.processor is None:
+        model = self.model
+        if model is None or self.processor is None:
             raise RuntimeError("Model not loaded. Call load_model() first.")
 
         try:
@@ -148,7 +155,7 @@ class ViTDetector:
 
             # 推論（特徴量も取得）
             with torch.no_grad():
-                outputs = self.model(**inputs, output_hidden_states=True)
+                outputs = model(**inputs, output_hidden_states=True)
 
             # 後処理
             detections = self._postprocess(outputs, frame.shape)
@@ -180,7 +187,8 @@ class ViTDetector:
         Raises:
             RuntimeError: モデルがロードされていない場合
         """
-        if self.model is None or self.processor is None:
+        model = self.model
+        if model is None or self.processor is None:
             raise RuntimeError("Model not loaded. Call load_model() first.")
 
         if not detections:
@@ -192,7 +200,7 @@ class ViTDetector:
 
             # 推論（特徴量も取得）
             with torch.no_grad():
-                outputs = self.model(**inputs, output_hidden_states=True)
+                outputs = model(**inputs, output_hidden_states=True)
 
             # 特徴量抽出
             features = self._extract_features_from_outputs(outputs, detections)
@@ -248,14 +256,14 @@ class ViTDetector:
                 detection_features = features[:num_detections]
 
             # CPUに移動してnumpy配列に変換
-            features_np = detection_features.cpu().numpy()
+            features_np = cast("np.ndarray", detection_features.cpu().numpy())
 
             # L2正規化（コサイン類似度計算のため）
             norms = np.linalg.norm(features_np, axis=1, keepdims=True)
             features_np = features_np / (norms + 1e-8)
 
             logger.debug(f"Extracted features: shape={features_np.shape}")
-            return features_np
+            return cast("np.ndarray", features_np)
 
         except Exception as e:
             logger.error(f"Failed to extract features from outputs: {e}")
@@ -280,14 +288,18 @@ class ViTDetector:
         image_pil = Image.fromarray(image_rgb)
 
         # プロセッサで前処理（パッチ分割、正規化）
-        inputs = self.processor(images=image_pil, return_tensors="pt")
+        processor = self.processor
+        if processor is None:
+            raise RuntimeError("Processor not loaded. Call load_model() first.")
+
+        inputs = processor(images=image_pil, return_tensors="pt")
 
         # デバイスに転送
         inputs = {k: v.to(self.device) for k, v in inputs.items()}
 
         return inputs
 
-    def _postprocess(self, outputs, image_shape: tuple[int, int, int]) -> list[Detection]:
+    def _postprocess(self, outputs, image_shape: tuple[int, ...]) -> list[Detection]:
         """モデル出力を検出結果に変換
 
         Args:
@@ -298,11 +310,15 @@ class ViTDetector:
             検出結果のリスト
         """
         # 画像サイズを取得
-        height, width = image_shape[:2]
+        height, width = image_shape[0], image_shape[1]
         target_sizes = torch.tensor([[height, width]]).to(self.device)
 
+        processor = self.processor
+        if processor is None:
+            raise RuntimeError("Processor not loaded. Call load_model() first.")
+
         # 後処理（座標を元画像サイズにスケール）
-        results = self.processor.post_process_object_detection(
+        results = processor.post_process_object_detection(
             outputs, target_sizes=target_sizes, threshold=self.confidence_threshold
         )[0]
 
@@ -422,7 +438,7 @@ class ViTDetector:
         cls_attention = attn_mean[0, 1:]  # CLSトークンから他のパッチへの注意度
 
         # CPUに移動してnumpy配列に変換
-        attention_map = cls_attention.cpu().numpy()
+        attention_map: np.ndarray = cls_attention.cpu().numpy()
 
         # 正規化
         attention_map = (attention_map - attention_map.min()) / (attention_map.max() - attention_map.min() + 1e-8)
@@ -489,7 +505,8 @@ class ViTDetector:
         Raises:
             RuntimeError: モデルがロードされていない場合
         """
-        if self.model is None or self.processor is None:
+        model = self.model
+        if model is None or self.processor is None:
             raise RuntimeError("Model not loaded. Call load_model() first.")
 
         if not frames:
@@ -511,7 +528,7 @@ class ViTDetector:
 
                 # バッチ推論
                 with torch.no_grad():
-                    outputs = self.model(**batch_inputs)
+                    outputs = model(**batch_inputs)
 
                 # バッチ後処理
                 batch_detections = self._postprocess_batch(outputs, [frame.shape for frame in batch_frames])
@@ -523,7 +540,7 @@ class ViTDetector:
                 if self.device == "mps" or self.device == "cuda":
                     torch.mps.empty_cache() if self.device == "mps" else torch.cuda.empty_cache()
 
-                logger.debug(f"Processed batch {i//batch_size + 1}/{(len(frames) + batch_size - 1)//batch_size}")
+                logger.debug(f"Processed batch {i // batch_size + 1}/{(len(frames) + batch_size - 1) // batch_size}")
 
             except Exception as e:
                 logger.error(f"Batch detection failed for batch starting at index {i}: {e}")
@@ -548,15 +565,19 @@ class ViTDetector:
             image_pil = Image.fromarray(image_rgb)
             images_pil.append(image_pil)
 
+        processor = self.processor
+        if processor is None:
+            raise RuntimeError("Processor not loaded. Call load_model() first.")
+
         # プロセッサでバッチ前処理
-        inputs = self.processor(images=images_pil, return_tensors="pt")
+        inputs = processor(images=images_pil, return_tensors="pt")
 
         # デバイスに転送
         inputs = {k: v.to(self.device) for k, v in inputs.items()}
 
         return inputs
 
-    def _postprocess_batch(self, outputs, image_shapes: list[tuple[int, int, int]]) -> list[list[Detection]]:
+    def _postprocess_batch(self, outputs, image_shapes: Sequence[tuple[int, ...]]) -> list[list[Detection]]:
         """バッチモデル出力を検出結果に変換
 
         Args:
@@ -569,8 +590,12 @@ class ViTDetector:
         # 各画像のサイズを取得
         target_sizes = torch.tensor([[shape[0], shape[1]] for shape in image_shapes]).to(self.device)
 
+        processor = self.processor
+        if processor is None:
+            raise RuntimeError("Processor not loaded. Call load_model() first.")
+
         # 後処理（座標を元画像サイズにスケール）
-        results = self.processor.post_process_object_detection(
+        results = processor.post_process_object_detection(
             outputs, target_sizes=target_sizes, threshold=self.confidence_threshold
         )
 

@@ -9,13 +9,13 @@ import pytest
 from src.timestamp.timestamp_validator_v2 import TemporalValidatorV2
 
 
-@pytest.fixture()
+@pytest.fixture
 def validator_30fps() -> TemporalValidatorV2:
     """30fps用のTemporalValidatorV2"""
     return TemporalValidatorV2(fps=30.0, base_tolerance_seconds=10.0)
 
 
-@pytest.fixture()
+@pytest.fixture
 def validator_60fps() -> TemporalValidatorV2:
     """60fps用のTemporalValidatorV2"""
     return TemporalValidatorV2(fps=60.0, base_tolerance_seconds=10.0)
@@ -40,11 +40,11 @@ def test_sequential_validation_valid(validator_30fps: TemporalValidatorV2):
 
     # 次のフレーム（1秒後、30フレーム後）
     next_time = base_time + timedelta(seconds=1.0)
-    is_valid, confidence, reason = validator_30fps.validate(next_time, 30)
+    is_valid, confidence, _reason = validator_30fps.validate(next_time, 30)
 
     assert is_valid is True
     assert confidence > 0.0
-    assert "Valid" in reason
+    assert "Valid" in _reason
 
 
 def test_sequential_validation_invalid(validator_30fps: TemporalValidatorV2):
@@ -73,7 +73,7 @@ def test_fps_variation_handling(validator_30fps: TemporalValidatorV2):
 
     # 少し遅いフレーム（許容範囲内）
     next_time = base_time + timedelta(seconds=1.1)  # 30フレームで1.1秒
-    is_valid, confidence, reason = validator_30fps.validate(next_time, 30)
+    is_valid, confidence, _reason = validator_30fps.validate(next_time, 30)
 
     assert is_valid is True
     assert confidence > 0.0
@@ -94,7 +94,7 @@ def test_reset_functionality(validator_30fps: TemporalValidatorV2):
     assert len(validator_30fps.interval_history) == 0
 
     # リセット後は再び初回フレームとして扱われる
-    is_valid, confidence, reason = validator_30fps.validate(base_time, 0)
+    is_valid, _confidence, reason = validator_30fps.validate(base_time, 0)
     assert is_valid is True
     assert reason == "First frame"
 

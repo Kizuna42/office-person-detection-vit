@@ -7,8 +7,8 @@ from pathlib import Path
 
 import numpy as np
 
-from src.utils.feature_visualizer import FeatureVisualizer
 from src.utils.logging_utils import setup_logging
+from src.visualization import FeatureVisualizer
 
 logger = logging.getLogger(__name__)
 

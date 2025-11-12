@@ -57,7 +57,7 @@ class Tracker:
         self.tracks: list[Track] = []
         self.next_id = 1  # 次のトラックID
 
-        logger.info(f"Tracker initialized: max_age={max_age}, min_hits={min_hits}, " f"iou_threshold={iou_threshold}")
+        logger.info(f"Tracker initialized: max_age={max_age}, min_hits={min_hits}, iou_threshold={iou_threshold}")
 
     def update(self, detections: list[Detection]) -> list[Detection]:
         """検出結果でトラッカーを更新

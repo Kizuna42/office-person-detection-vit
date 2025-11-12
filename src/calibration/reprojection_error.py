@@ -37,7 +37,7 @@ class ReprojectionErrorEvaluator:
         src_points: list[tuple[float, float]],
         dst_points: list[tuple[float, float]],
         homography_matrix: np.ndarray,
-    ) -> dict[str, float]:
+    ) -> dict[str, float | list[float]]:
         """ホモグラフィ変換の再投影誤差を評価
 
         Args:
@@ -120,7 +120,7 @@ class ReprojectionErrorEvaluator:
         image_points: list[np.ndarray],
         camera_matrix: np.ndarray | None = None,
         dist_coeffs: np.ndarray | None = None,
-    ) -> dict[str, float]:
+    ) -> dict[str, float | list[list[float]]]:
         """カメラキャリブレーションの再投影誤差を評価
 
         Args:

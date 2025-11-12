@@ -51,11 +51,11 @@ def deskew_image(image: np.ndarray, max_angle: float = 5.0) -> tuple[np.ndarray,
     for line in lines[:20]:  # 最初の20本のみ使用
         if isinstance(line, list | tuple) and len(line) >= 2:
             if not isinstance(line[0], list | np.ndarray):
-                rho, theta = line[0], line[1]
+                _rho, theta = line[0], line[1]
             else:
-                rho, theta = line[0]
+                _rho, theta = line[0]
         else:
-            rho, theta = line[0]
+            _rho, theta = line[0]
         angle = np.degrees(theta) - 90
         if -max_angle <= angle <= max_angle:
             angles.append(angle)
@@ -337,7 +337,7 @@ def test_fine_tuning(
 
         for frame_idx, frame in tqdm(frames, desc=f"  {name}処理中", leave=False):
             # ROI抽出
-            roi, roi_coords = roi_extractor.extract_roi(frame)
+            roi, _roi_coords = roi_extractor.extract_roi(frame)
 
             # 前処理
             preprocessed = preprocess_with_fine_params(roi, **params)

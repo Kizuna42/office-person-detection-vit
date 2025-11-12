@@ -11,13 +11,13 @@ import pytest
 from src.aggregation import Aggregator
 from src.config import ConfigManager
 from src.models import Detection, FrameResult
-from src.pipeline.visualization_phase import VisualizationPhase
+from src.pipeline.phases import VisualizationPhase
 
 if TYPE_CHECKING:
     from pathlib import Path
 
 
-@pytest.fixture()
+@pytest.fixture
 def sample_config(tmp_path: Path) -> ConfigManager:
     """テスト用のConfigManager"""
     config = ConfigManager("nonexistent_config.yaml")
@@ -50,7 +50,7 @@ def sample_config(tmp_path: Path) -> ConfigManager:
     return config
 
 
-@pytest.fixture()
+@pytest.fixture
 def sample_logger():
     """テスト用のロガー"""
     logger = logging.getLogger("test_visualization_phase")
@@ -58,7 +58,7 @@ def sample_logger():
     return logger
 
 
-@pytest.fixture()
+@pytest.fixture
 def sample_detections() -> list[Detection]:
     """テスト用の検出結果"""
     return [
@@ -74,7 +74,7 @@ def sample_detections() -> list[Detection]:
     ]
 
 
-@pytest.fixture()
+@pytest.fixture
 def sample_frame_results(sample_detections) -> list[FrameResult]:
     """テスト用のFrameResultリスト"""
     return [
@@ -87,7 +87,7 @@ def sample_frame_results(sample_detections) -> list[FrameResult]:
     ]
 
 
-@pytest.fixture()
+@pytest.fixture
 def sample_aggregator() -> Aggregator:
     """テスト用のAggregator"""
     aggregator = Aggregator()
@@ -108,7 +108,7 @@ def sample_aggregator() -> Aggregator:
     return aggregator
 
 
-@patch("src.pipeline.visualization_phase.Visualizer")
+@patch("src.pipeline.phases.visualization.Visualizer")
 def test_execute_success(
     mock_visualizer_class,
     sample_config,
@@ -134,8 +134,8 @@ def test_execute_success(
     mock_visualizer.plot_zone_statistics.assert_called_once()
 
 
-@patch("src.pipeline.visualization_phase.Visualizer")
-@patch("src.pipeline.visualization_phase.FloormapVisualizer")
+@patch("src.pipeline.phases.visualization.Visualizer")
+@patch("src.pipeline.phases.visualization.FloormapVisualizer")
 def test_execute_with_floormap(
     mock_floormap_visualizer_class,
     mock_visualizer_class,
@@ -176,7 +176,7 @@ def test_execute_with_floormap(
     assert mock_floormap_visualizer.save_visualization.call_count == len(sample_frame_results)
 
 
-@patch("src.pipeline.visualization_phase.Visualizer")
+@patch("src.pipeline.phases.visualization.Visualizer")
 def test_execute_without_floormap(
     mock_visualizer_class,
     sample_config,
@@ -204,8 +204,8 @@ def test_execute_without_floormap(
     mock_visualizer.plot_zone_statistics.assert_called_once()
 
 
-@patch("src.pipeline.visualization_phase.Visualizer")
-@patch("src.pipeline.visualization_phase.FloormapVisualizer")
+@patch("src.pipeline.phases.visualization.Visualizer")
+@patch("src.pipeline.phases.visualization.FloormapVisualizer")
 def test_execute_floormap_file_not_found(
     mock_floormap_visualizer_class,
     mock_visualizer_class,
@@ -236,7 +236,7 @@ def test_execute_floormap_file_not_found(
     mock_visualizer.plot_time_series.assert_called_once()
 
 
-@patch("src.pipeline.visualization_phase.Visualizer")
+@patch("src.pipeline.phases.visualization.Visualizer")
 def test_execute_empty_results(
     mock_visualizer_class,
     sample_config,
@@ -261,7 +261,7 @@ def test_execute_empty_results(
     mock_visualizer.plot_zone_statistics.assert_called_once()
 
 
-@patch("src.pipeline.visualization_phase.Visualizer")
+@patch("src.pipeline.phases.visualization.Visualizer")
 def test_execute_graph_generation_failure(
     mock_visualizer_class,
     sample_config,

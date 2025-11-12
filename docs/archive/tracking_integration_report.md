@@ -140,7 +140,7 @@ $ pytest tests/test_tracking.py -v
 ### インポート確認 ✅
 
 ```bash
-$ python -c "from src.pipeline.tracking_phase import TrackingPhase; print('OK')"
+$ python -c "from src.pipeline.phases import TrackingPhase; print('OK')"
 TrackingPhase import OK
 
 $ python -c "from src.pipeline.orchestrator import PipelineOrchestrator; print('OK')"

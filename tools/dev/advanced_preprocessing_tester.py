@@ -182,7 +182,7 @@ def test_all_strategies(
 
         for frame_idx, frame in tqdm(frames, desc=f"  {strategy_name}処理中", leave=False):
             # ROI抽出
-            roi, roi_coords = roi_extractor.extract_roi(frame)
+            roi, _roi_coords = roi_extractor.extract_roi(frame)
 
             # 前処理
             preprocessed = strategy_func(roi)

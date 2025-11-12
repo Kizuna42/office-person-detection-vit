@@ -2,6 +2,7 @@
 
 import logging
 from pathlib import Path
+from typing import cast
 
 import cv2
 import numpy as np
@@ -249,7 +250,7 @@ class FloormapVisualizer:
                 hue = (detection.track_id * 137) % 180  # 黄金角を使用して色を分散
                 color_hsv = np.array([[[hue, 255, 255]]], dtype=np.uint8)
                 color_bgr = cv2.cvtColor(color_hsv, cv2.COLOR_HSV2BGR)[0][0]
-                color = tuple(int(c) for c in color_bgr)
+                color = cast("tuple[int, int, int]", tuple(int(c) for c in color_bgr))
 
             # 円を描画（足元位置）
             cv2.circle(image, (x, y), 8, color, -1)

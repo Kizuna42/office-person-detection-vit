@@ -1,7 +1,9 @@
 """Integrated timestamp extraction module (V2)."""
 
+from datetime import datetime
 import hashlib
 import logging
+from typing import Any, Protocol
 
 import numpy as np
 
@@ -11,6 +13,14 @@ from src.timestamp.timestamp_parser import TimestampParser
 from src.timestamp.timestamp_validator_v2 import TemporalValidatorV2
 
 logger = logging.getLogger(__name__)
+
+
+class TimestampValidator(Protocol):
+    """タイムスタンプ検証のためのプロトコル。"""
+
+    def validate(self, timestamp: datetime, frame_idx: int) -> tuple[bool, float, str]: ...
+
+    def reset(self) -> None: ...
 
 
 class TimestampExtractorV2:
@@ -25,7 +35,7 @@ class TimestampExtractorV2:
         confidence_threshold: float = 0.7,
         roi_config: dict[str, float] | None = None,
         fps: float = 30.0,
-        enabled_ocr_engines: list | None = None,
+        enabled_ocr_engines: list[str] | None = None,
         use_improved_validator: bool = False,
         base_tolerance_seconds: float = 10.0,
         history_size: int = 10,
@@ -56,6 +66,7 @@ class TimestampExtractorV2:
         self.parser = TimestampParser()
 
         # 改善されたバリデーターを使用するか選択
+        self.validator: TimestampValidator
         if use_improved_validator:
             self.validator = TemporalValidatorV2(
                 fps=fps,
@@ -95,7 +106,7 @@ class TimestampExtractorV2:
         roi_bytes = roi.tobytes()
         return hashlib.md5(roi_bytes).hexdigest()
 
-    def extract(self, frame: np.ndarray, frame_idx: int, retry_count: int = 3) -> dict[str, any] | None:
+    def extract(self, frame: np.ndarray, frame_idx: int, retry_count: int = 3) -> dict[str, Any] | None:
         """フレームからタイムスタンプを抽出（キャッシュ対応）
 
         Args:
@@ -151,7 +162,7 @@ class TimestampExtractorV2:
                             del self._ocr_cache[oldest_key]
                         break
                 except Exception as e:
-                    logger.error(f"Frame {frame_idx}: OCR error (attempt {attempt+1}/{retry_count}): {e}")
+                    logger.error(f"Frame {frame_idx}: OCR error (attempt {attempt + 1}/{retry_count}): {e}")
                     continue
 
         # OCR結果が取得できた場合、パースと時系列検証を実行
@@ -166,7 +177,7 @@ class TimestampExtractorV2:
 
                 if timestamp is None:
                     logger.warning(
-                        f"Frame {frame_idx}: Parse failed for '{ocr_text}' (attempt {attempt+1}/{retry_count})"
+                        f"Frame {frame_idx}: Parse failed for '{ocr_text}' (attempt {attempt + 1}/{retry_count})"
                     )
                     continue
 
@@ -194,10 +205,10 @@ class TimestampExtractorV2:
                     )
                 else:
                     logger.debug(
-                        f"Frame {frame_idx}: Low confidence ({total_confidence:.2f}), " f"valid={is_valid}, {reason}"
+                        f"Frame {frame_idx}: Low confidence ({total_confidence:.2f}), valid={is_valid}, {reason}"
                     )
             except Exception as e:
-                logger.error(f"Frame {frame_idx}: Error during extraction (attempt {attempt+1}/{retry_count}): {e}")
+                logger.error(f"Frame {frame_idx}: Error during extraction (attempt {attempt + 1}/{retry_count}): {e}")
 
         logger.error(f"Frame {frame_idx}: Failed after {retry_count} attempts")
         return None

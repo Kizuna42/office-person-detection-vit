@@ -11,13 +11,13 @@ import pytest
 
 from src.config import ConfigManager
 from src.models import Detection
-from src.pipeline.detection_phase import DetectionPhase
+from src.pipeline.phases import DetectionPhase
 
 if TYPE_CHECKING:
     from pathlib import Path
 
 
-@pytest.fixture()
+@pytest.fixture
 def sample_config(tmp_path: Path) -> ConfigManager:
     """テスト用のConfigManager"""
     config = ConfigManager("nonexistent_config.yaml")
@@ -30,7 +30,7 @@ def sample_config(tmp_path: Path) -> ConfigManager:
     return config
 
 
-@pytest.fixture()
+@pytest.fixture
 def sample_logger():
     """テスト用のロガー"""
     logger = logging.getLogger("test_detection_phase")
@@ -38,7 +38,7 @@ def sample_logger():
     return logger
 
 
-@pytest.fixture()
+@pytest.fixture
 def sample_frames() -> list[tuple[int, str, np.ndarray]]:
     """テスト用のフレームリスト"""
     return [
@@ -60,7 +60,7 @@ def sample_frames() -> list[tuple[int, str, np.ndarray]]:
     ]
 
 
-@pytest.fixture()
+@pytest.fixture
 def sample_detections() -> list[Detection]:
     """テスト用の検出結果"""
     return [
@@ -81,7 +81,7 @@ def sample_detections() -> list[Detection]:
     ]
 
 
-@patch("src.pipeline.detection_phase.ViTDetector")
+@patch("src.pipeline.phases.detection.ViTDetector")
 def test_initialize(mock_detector_class, sample_config, sample_logger):
     """初期化が正しく動作する"""
     mock_detector = MagicMock()
@@ -95,7 +95,7 @@ def test_initialize(mock_detector_class, sample_config, sample_logger):
     assert phase.detector is mock_detector
 
 
-@patch("src.pipeline.detection_phase.ViTDetector")
+@patch("src.pipeline.phases.detection.ViTDetector")
 def test_execute_success(mock_detector_class, sample_config, sample_logger, sample_frames, sample_detections):
     """executeが正しく動作する"""
     mock_detector = MagicMock()
@@ -121,7 +121,7 @@ def test_execute_success(mock_detector_class, sample_config, sample_logger, samp
     assert len(results[2][2]) == 2  # 最後のバッチはsample_detectionsが返される
 
 
-@patch("src.pipeline.detection_phase.ViTDetector")
+@patch("src.pipeline.phases.detection.ViTDetector")
 def test_execute_without_initialize(mock_detector_class, sample_config, sample_logger, sample_frames):
     """初期化前にexecuteを呼ぶとエラー"""
     phase = DetectionPhase(sample_config, sample_logger)
@@ -130,8 +130,8 @@ def test_execute_without_initialize(mock_detector_class, sample_config, sample_l
         phase.execute(sample_frames)
 
 
-@patch("src.pipeline.detection_phase.ViTDetector")
-@patch("src.pipeline.detection_phase.save_detection_image")
+@patch("src.pipeline.phases.detection.ViTDetector")
+@patch("src.pipeline.phases.detection.save_detection_image")
 def test_execute_with_image_saving(
     mock_save_image,
     mock_detector_class,
@@ -159,7 +159,7 @@ def test_execute_with_image_saving(
     mock_save_image.assert_called_once()
 
 
-@patch("src.pipeline.detection_phase.ViTDetector")
+@patch("src.pipeline.phases.detection.ViTDetector")
 def test_execute_batch_processing(mock_detector_class, sample_config, sample_logger, sample_frames, sample_detections):
     """バッチ処理が正しく動作する"""
     sample_config.set("detection.batch_size", 2)
@@ -181,7 +181,7 @@ def test_execute_batch_processing(mock_detector_class, sample_config, sample_log
     assert len(results) == 3
 
 
-@patch("src.pipeline.detection_phase.ViTDetector")
+@patch("src.pipeline.phases.detection.ViTDetector")
 def test_execute_error_handling(mock_detector_class, sample_config, sample_logger, sample_frames):
     """エラーハンドリングが正しく動作する"""
     mock_detector = MagicMock()
@@ -198,8 +198,8 @@ def test_execute_error_handling(mock_detector_class, sample_config, sample_logge
     assert all(len(detections) == 0 for _, _, detections in results)
 
 
-@patch("src.pipeline.detection_phase.ViTDetector")
-@patch("src.pipeline.detection_phase.calculate_detection_statistics")
+@patch("src.pipeline.phases.detection.ViTDetector")
+@patch("src.pipeline.phases.detection.calculate_detection_statistics")
 def test_log_statistics(
     mock_calc_stats,
     mock_detector_class,
@@ -241,7 +241,7 @@ def test_log_statistics(
     assert (output_path / "detection_statistics.json").exists()
 
 
-@patch("src.pipeline.detection_phase.ViTDetector")
+@patch("src.pipeline.phases.detection.ViTDetector")
 def test_execute_empty_frames(mock_detector_class, sample_config, sample_logger):
     """空のフレームリストでexecuteを呼ぶ"""
     mock_detector = MagicMock()
@@ -257,7 +257,7 @@ def test_execute_empty_frames(mock_detector_class, sample_config, sample_logger)
     mock_detector.detect_batch.assert_not_called()
 
 
-@patch("src.pipeline.detection_phase.ViTDetector")
+@patch("src.pipeline.phases.detection.ViTDetector")
 def test_output_path_setting(mock_detector_class, sample_config, sample_logger, tmp_path):
     """output_pathが設定されている場合"""
     mock_detector = MagicMock()

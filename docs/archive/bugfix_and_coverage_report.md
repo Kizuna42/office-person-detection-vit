@@ -198,5 +198,5 @@ output_path = output_dir / filename
 
 ---
 
-**作成者**: AI Assistant  
+**作成者**: AI Assistant
 **レビュー推奨**: 1週間後

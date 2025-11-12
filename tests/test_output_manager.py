@@ -15,13 +15,13 @@ from src.utils.output_manager import (
 )
 
 
-@pytest.fixture()
+@pytest.fixture
 def output_base(tmp_path: Path) -> Path:
     """テスト用の出力ベースディレクトリ"""
     return tmp_path / "output"
 
 
-@pytest.fixture()
+@pytest.fixture
 def output_manager(output_base: Path) -> OutputManager:
     """テスト用のOutputManager"""
     return OutputManager(output_base)

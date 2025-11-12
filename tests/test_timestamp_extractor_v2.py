@@ -11,17 +11,18 @@ import pytest
 from src.timestamp.timestamp_extractor_v2 import TimestampExtractorV2
 
 
-@pytest.fixture()
+@pytest.fixture
 def sample_frame() -> np.ndarray:
     """テスト用のフレーム画像"""
     return np.random.randint(0, 255, (720, 1280, 3), dtype=np.uint8)
 
 
-@pytest.fixture()
+@pytest.fixture
 def extractor() -> TimestampExtractorV2:
     """TimestampExtractorV2インスタンス"""
-    with patch("src.timestamp.ocr_engine.PADDLEOCR_AVAILABLE", False), patch(
-        "src.timestamp.ocr_engine.EASYOCR_AVAILABLE", False
+    with (
+        patch("src.timestamp.ocr_engine.PADDLEOCR_AVAILABLE", False),
+        patch("src.timestamp.ocr_engine.EASYOCR_AVAILABLE", False),
     ):
         return TimestampExtractorV2(
             confidence_threshold=0.7,
