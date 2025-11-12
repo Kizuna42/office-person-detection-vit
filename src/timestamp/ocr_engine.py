@@ -86,13 +86,15 @@ class MultiEngineOCR:
 
     def _init_tesseract(self) -> Callable[[np.ndarray], str]:
         """Tesseract: 高速、数字に強い"""
-        import pytesseract
+        pytesseract_module = globals().get("pytesseract")
+        if pytesseract_module is None:
+            raise RuntimeError("pytesseract module is not available")
 
         # PSM 8: 単一の単語（最適化テストの結果、PSM 8が最も正確）
         config = r"--psm 8 --oem 3 -c tessedit_char_whitelist=0123456789/: "
 
         def tesseract_func(img: np.ndarray) -> str:
-            return str(pytesseract.image_to_string(img, config=config))
+            return str(pytesseract_module.image_to_string(img, config=config))
 
         return tesseract_func
 

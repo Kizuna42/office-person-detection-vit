@@ -33,36 +33,12 @@ run: ## 通常実行（メインパイプライン）
 	@echo "=========================================="
 	$(PYTHON) main.py --config $(CONFIG)
 
-.PHONY: run-debug
-run-debug: ## デバッグモードで実行（詳細ログ、中間結果出力）
-	@echo "=========================================="
-	@echo "ワークフロー実行: デバッグモード"
-	@echo "=========================================="
-	$(PYTHON) main.py --config $(CONFIG) --debug
-
 .PHONY: run-eval
 run-eval: ## 評価モードで実行（Ground Truthとの比較）
 	@echo "=========================================="
 	@echo "ワークフロー実行: 評価モード"
 	@echo "=========================================="
 	$(PYTHON) main.py --config $(CONFIG) --evaluate
-
-.PHONY: run-time
-run-time: ## 時刻指定で実行（例: make run-time START_TIME="2025/08/26 16:05:00" END_TIME="2025/08/26 16:15:00"）
-	@# 注意: 日付/時刻のパースは main.py 側で堅牢に処理されることを想定
-	@# シェル依存の処理を避けるため、引数はそのまま main.py に渡す
-	@if [ -z "$(START_TIME)" ] || [ -z "$(END_TIME)" ]; then \
-		echo "エラー: START_TIMEとEND_TIMEを指定してください"; \
-		echo "例: make run-time START_TIME=\"2025/08/26 16:05:00\" END_TIME=\"2025/08/26 16:15:00\""; \
-		echo "または: make run-time START_TIME=\"16:05:00\" END_TIME=\"16:15:00\""; \
-		exit 1; \
-	fi
-	@echo "=========================================="
-	@echo "ワークフロー実行: 時刻指定モード"
-	@echo "開始時刻: $(START_TIME)"
-	@echo "終了時刻: $(END_TIME)"
-	@echo "=========================================="
-	$(PYTHON) main.py --config $(CONFIG) --start-time "$(START_TIME)" --end-time "$(END_TIME)"
 
 .PHONY: run-timestamps
 run-timestamps: ## タイムスタンプOCRのみ実行（5分刻みフレーム抽出+OCR、CSV+オーバーレイ画像出力）
@@ -246,10 +222,7 @@ help: ## 利用可能なコマンド一覧を表示
 	@echo "  make setup-check            # インストール確認"
 	@echo ""
 	@echo "  make run                    # 通常実行"
-	@echo "  make run-debug              # デバッグモード"
 	@echo "  make run-timestamps         # タイムスタンプOCRのみ実行"
-	@echo "  make run-time START_TIME=\"2025/08/26 16:05:00\" END_TIME=\"2025/08/26 16:15:00\"  # 時刻指定（日時形式）"
-	@echo "  make run-time START_TIME=\"16:05:00\" END_TIME=\"16:15:00\"  # 時刻指定（時刻のみ）"
 	@echo "  make clean                  # outputクリーンアップ"
 	@echo "  make test                   # テスト実行"
 	@echo "  make lint                   # Lintチェック（ruff + mypy）"
