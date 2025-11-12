@@ -5,10 +5,18 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
 import re
 from typing import Any
+import warnings
 
 import numpy as np
 
 logger = logging.getLogger(__name__)
+
+# EasyOCR内部でtorch.ao.quantizationを呼び出す際の非推奨警告を抑制
+warnings.filterwarnings(
+    "ignore",
+    message=r"torch\.ao\.quantization is deprecated and will be removed in 2\.10\.",
+    category=DeprecationWarning,
+)
 
 # OCRエンジンの利用可能性をチェック
 TESSERACT_AVAILABLE = False
