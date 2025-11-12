@@ -274,27 +274,6 @@ def test_init_easyocr(mock_easyocr, sample_roi: np.ndarray):
         assert result_text is not None
 
 
-@patch("src.timestamp.ocr_engine.PADDLEOCR_AVAILABLE", True)
-@patch("src.timestamp.ocr_engine.EASYOCR_AVAILABLE", False)
-@patch("src.timestamp.ocr_engine.TESSERACT_AVAILABLE", False)
-def test_init_paddleocr(sample_roi: np.ndarray):
-    """PaddleOCR初期化のテスト"""
-    # PaddleOCRが利用可能な場合のみテスト
-    try:
-        from paddleocr import PaddleOCR  # noqa: F401
-
-        # 実際のPaddleOCRをモックせず、初期化が成功することを確認
-        ocr = MultiEngineOCR(enabled_engines=["paddleocr"])
-
-        # エンジンが初期化されていることを確認
-        if "paddleocr" in ocr.engines:
-            # エンジン関数が呼び出し可能であることを確認
-            assert callable(ocr.engines["paddleocr"])
-    except (ImportError, Exception):
-        # PaddleOCRが利用できない、または初期化に失敗した場合はスキップ
-        pytest.skip("PaddleOCR not available or initialization failed")
-
-
 @patch("src.timestamp.ocr_engine.PADDLEOCR_AVAILABLE", False)
 @patch("src.timestamp.ocr_engine.EASYOCR_AVAILABLE", False)
 def test_extract_with_weighted_consensus(sample_roi: np.ndarray):

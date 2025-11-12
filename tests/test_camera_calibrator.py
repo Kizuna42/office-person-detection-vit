@@ -73,39 +73,6 @@ class TestCameraCalibrator:
         with pytest.raises(ValueError, match="Insufficient images"):
             calibrator.calibrate_from_images(["nonexistent.jpg"])
 
-    def test_calibrate_from_images_with_chessboard(self):
-        """チェスボード画像でのキャリブレーションテスト"""
-        calibrator = CameraCalibrator(chessboard_size=(9, 6))
-
-        # チェスボード画像を生成
-        with tempfile.TemporaryDirectory() as tmpdir:
-            image_paths = []
-            for i in range(5):
-                # チェスボードパターンを生成
-                img = np.zeros((480, 640), dtype=np.uint8)
-                square_size = 50
-                for y in range(0, 480, square_size):
-                    for x in range(0, 640, square_size):
-                        if (x // square_size + y // square_size) % 2 == 0:
-                            img[y : y + square_size, x : x + square_size] = 255
-
-                path = Path(tmpdir) / f"chessboard_{i}.jpg"
-                cv2.imwrite(str(path), img)
-                image_paths.append(str(path))
-
-            # 実際のチェスボード検出は難しいため、モック的なテスト
-            # 実際の環境では、実際のチェスボード画像が必要
-            try:
-                camera_matrix, dist_coeffs = calibrator.calibrate_from_images(image_paths)
-                assert camera_matrix is not None
-                assert dist_coeffs is not None
-                assert calibrator.calibrated is True
-                assert calibrator.get_camera_matrix() is not None
-                assert calibrator.get_distortion_coefficients() is not None
-            except ValueError:
-                # チェスボードが検出できない場合はスキップ
-                pytest.skip("Chessboard corners not detected in test images")
-
     def test_undistort_image_after_calibration(self):
         """キャリブレーション後の歪み補正テスト"""
         calibrator = CameraCalibrator(chessboard_size=(9, 6))

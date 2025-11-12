@@ -92,7 +92,7 @@ class MultiEngineOCR:
         """EasyOCR: 高精度、やや遅い"""
         import easyocr
 
-        reader = easyocr.Reader(["en"], gpu=False)  # GPU利用は環境に応じて調整
+        reader = easyocr.Reader(["en"], gpu=False, quantize=False)  # GPU利用は環境に応じて調整
 
         def easyocr_func(img: np.ndarray) -> str:
             results = reader.readtext(img)
