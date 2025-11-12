@@ -1,5 +1,6 @@
 """Logging utilities for the office person detection system."""
 
+from contextlib import suppress
 import logging
 from pathlib import Path
 import sys
@@ -18,7 +19,12 @@ def setup_logging(debug_mode: bool = False, output_dir: str = "output") -> None:
     # 既存のハンドラをクリア
     root_logger = logging.getLogger()
     for handler in root_logger.handlers[:]:
+        if hasattr(handler, "flush"):
+            with suppress(Exception):
+                handler.flush()
         root_logger.removeHandler(handler)
+        if isinstance(handler, logging.FileHandler):
+            handler.close()
 
     # コンソール出力
     console_handler = logging.StreamHandler(sys.stdout)
