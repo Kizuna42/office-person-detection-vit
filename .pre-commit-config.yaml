@@ -1,73 +1,32 @@
-# pre-commitフレームワーク設定
-# Office Person Detection System - Pre-commit Configuration
-
 repos:
-  # 汎用フック（trailing whitespace、end of file fixerなど）
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v4.6.0
     hooks:
       - id: trailing-whitespace
-        args: [--markdown-linebreak-ext=md]
       - id: end-of-file-fixer
-      - id: check-yaml
-        args: [--unsafe]  # カスタムタグを許可
-      - id: check-added-large-files
-        args: [--maxkb=10000]  # 10MB以上のファイルを警告
-      - id: check-json
-      - id: check-toml
-      - id: check-merge-conflict
-      - id: debug-statements
-      - id: mixed-line-ending
-        args: [--fix=lf]
 
-  # Ruff（lint + format + import整理）
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.1.9
+    rev: v0.6.4
     hooks:
-      # Ruff lintチェック
       - id: ruff
-        args: [--fix, --exit-non-zero-on-fix]
-      # Ruff formatチェック
+        args: [--fix]
       - id: ruff-format
 
-  # MyPy（型チェック）- CIで実行されるため、pre-commitではスキップ
-  # - repo: https://github.com/pre-commit/mirrors-mypy
-  #   rev: v1.7.1
-  #   hooks:
-  #     - id: mypy
-  #       # types-allはオプション（必要に応じて個別の型定義パッケージをインストール）
-  #       args: [--ignore-missing-imports]
-  #       exclude: ^(tests/|tools/|scripts/)
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest
+        entry: pytest
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
 
-  # Pytest（テスト実行）- pre-pushでのみ実行（時間がかかるため）
-  # 注意: CI/CDではGitHub Actionsで実行されるため、ローカルでは一時的に無効化
-  # - repo: local
-  #   hooks:
-  #     - id: pytest
-  #       name: pytest
-  #       entry: bash -c 'cd "$(git rev-parse --show-toplevel)" && python -m pytest tests/ -v --tb=short'
-  #       language: system
-  #       pass_filenames: false
-  #       always_run: false
-  #       stages: [pre-push]  # pre-pushでのみ実行（時間がかかるため）
-  #       verbose: true
-
-# デフォルト設定
 default_language_version:
   python: python3.10
 
-# フックの実行順序
-default_stages: [pre-commit, pre-push]
-
-# カスタム設定
 exclude: |
   (?x)^(
-      \.git/|
-      venv/|
-      __pycache__/|
-      \.pytest_cache/|
-      \.mypy_cache/|
-      output/|
-      models/|
-      \.venv/
+    \.git/|
+    venv/|
+    \.venv/
   )

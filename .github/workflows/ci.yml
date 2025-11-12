@@ -2,6 +2,39 @@ name: CI
 
 on:
   push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Format check
+        run: ruff format --check .
+
+      - name: Run tests
+        run: pytest
+name: CI
+
+on:
+  push:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
@@ -149,6 +182,9 @@ jobs:
           if ! command -v brew &> /dev/null; then
             echo "Homebrew is not installed. Installing..."
             /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+            # PATHに追加
+            echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> $HOME/.zprofile
+            eval "$(/opt/homebrew/bin/brew shellenv)"
           fi
           # Tesseractをインストール（既にインストールされている場合はスキップ）
           brew install tesseract tesseract-lang || echo "Tesseract installation skipped (may already be installed)"
@@ -167,7 +203,7 @@ jobs:
             --cov-report=term-missing \
             --cov-report=html \
             --cov-fail-under=75 \
-            -m "not slow"
+            -m "not slow"  # スローテストは除外（CI時間短縮）
 
       - name: Upload coverage reports (Codecov)
         if: matrix.python-version == '3.10' && matrix.os == 'ubuntu-latest'
@@ -311,15 +347,21 @@ jobs:
     steps:
       - name: Check CI status
         run: |
-          echo "All CI checks completed"
-          # 必要に応じてSlack/Discord通知を追加可能
+          echo "Checking CI status..."
           # ジョブの成功/失敗を確認
           if [ "${{ needs.format.result }}" != "success" ] || \
              [ "${{ needs.lint.result }}" != "success" ] || \
              [ "${{ needs.type-check.result }}" != "success" ] || \
              [ "${{ needs.pre-commit.result }}" != "success" ] || \
-             [ "${{ needs.test.result }}" != "success" ]; then
-            echo "Some CI checks failed"
+             [ "${{ needs.test.result }}" != "success" ] || \
+             [ "${{ needs.security.result }}" != "success" ]; then
+            echo "❌ Some CI checks failed"
+            echo "Format: ${{ needs.format.result }}"
+            echo "Lint: ${{ needs.lint.result }}"
+            echo "Type-check: ${{ needs.type-check.result }}"
+            echo "Pre-commit: ${{ needs.pre-commit.result }}"
+            echo "Test: ${{ needs.test.result }}"
+            echo "Security: ${{ needs.security.result }}"
             exit 1
           fi
-          echo "All CI checks passed"
+          echo "✅ All CI checks passed"
