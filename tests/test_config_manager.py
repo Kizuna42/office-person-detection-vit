@@ -181,7 +181,7 @@ output:
     config_path.write_text(yaml_content, encoding="utf-8")
 
     config = ConfigManager(str(config_path))
-    with pytest.raises(ValueError, match="必須項目.*confidence_threshold"):
+    with pytest.raises(ValueError, match=r"必須項目.*confidence_threshold"):
         config.validate()
 
 
@@ -277,7 +277,7 @@ output:
     config_path.write_text(yaml_content, encoding="utf-8")
 
     config = ConfigManager(str(config_path))
-    with pytest.raises(ValueError, match="homography.matrix"):
+    with pytest.raises(ValueError, match=r"homography\.matrix"):
         config.validate()
 
 
@@ -492,7 +492,7 @@ output:
     config_path.write_text(yaml_content, encoding="utf-8")
 
     config = ConfigManager(str(config_path))
-    with pytest.raises(ValueError, match="video.input_path は文字列"):
+    with pytest.raises(ValueError, match=r"video\.input_path は文字列"):
         config.validate()
 
     # 無効なframe_interval_minutes（負の値）

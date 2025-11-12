@@ -198,7 +198,7 @@ def test_consensus_algorithm_engine_failure(sample_roi: np.ndarray):
     ocr.engines["failing"] = failing_engine
 
     # エラーが発生しても処理が継続されることを確認
-    text, confidence = ocr.extract_with_consensus(sample_roi)
+    _text, _confidence = ocr.extract_with_consensus(sample_roi)
 
     # エンジンが失敗した場合はNoneまたは低い信頼度
     # 実装に応じて調整が必要
@@ -270,7 +270,7 @@ def test_init_easyocr(mock_easyocr, sample_roi: np.ndarray):
 
     # エンジンが正しく動作することを確認
     if "easyocr" in ocr.engines:
-        result_text, result_conf = ocr.extract_with_consensus(sample_roi)
+        result_text, _result_conf = ocr.extract_with_consensus(sample_roi)
         assert result_text is not None
 
 

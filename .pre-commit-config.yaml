@@ -54,7 +54,7 @@ repos:
 
 # デフォルト設定
 default_language_version:
-  python: python3.11
+  python: python3.10
 
 # フックの実行順序
 default_stages: [pre-commit, pre-push]

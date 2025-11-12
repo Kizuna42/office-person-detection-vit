@@ -28,7 +28,7 @@ def sample_zones():
 def test_invalid_zones_definition():
     """ゾーン定義がリストでない場合は ValueError。"""
 
-    with pytest.raises(ValueError, match=".*リスト.*"):
+    with pytest.raises(ValueError, match=r".*リスト.*"):
         ZoneClassifier({})
 
 

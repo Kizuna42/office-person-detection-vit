@@ -67,7 +67,7 @@ class TestSimilarityCalculator:
 
     def test_init_invalid_weights(self):
         """無効な重みでの初期化テスト"""
-        with pytest.raises(ValueError, match=".*must equal.*"):
+        with pytest.raises(ValueError, match=r".*must equal.*"):
             SimilarityCalculator(appearance_weight=0.8, motion_weight=0.3)
 
     def test_cosine_similarity(self):

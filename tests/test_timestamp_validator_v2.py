@@ -131,7 +131,7 @@ def test_outlier_detection(validator_30fps: TemporalValidatorV2):
 
     # 外れ値（大きくずれた時間）
     base_time + timedelta(seconds=10.0)  # 4秒後のはずが10秒後
-    is_outlier, z_score = validator_30fps._detect_outlier(10.0, 1.0)
+    _is_outlier, _z_score = validator_30fps._detect_outlier(10.0, 1.0)
 
     # 履歴が少ない場合は外れ値として検出されない可能性がある
     # 履歴が十分な場合は検出される
@@ -171,7 +171,7 @@ def test_invalid_frame_diff(validator_30fps: TemporalValidatorV2):
 
     # フレーム番号が逆転している場合
     invalid_time = base_time + timedelta(seconds=1.0)
-    is_valid, confidence, reason = validator_30fps.validate(invalid_time, 0)
+    is_valid, _confidence, reason = validator_30fps.validate(invalid_time, 0)
 
     assert is_valid is False
     assert "Invalid frame_diff" in reason

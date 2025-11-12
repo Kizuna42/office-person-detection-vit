@@ -69,7 +69,7 @@ def test_roi_extraction_boundary_check(sample_frame: np.ndarray):
     }
 
     extractor = TimestampROIExtractor(roi_config=extreme_config)
-    roi, coords = extractor.extract_roi(sample_frame)
+    _roi, coords = extractor.extract_roi(sample_frame)
     x, y, w, h = coords
 
     # 境界内に収まっていることを確認

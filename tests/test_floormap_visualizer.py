@@ -96,7 +96,7 @@ def test_init_invalid_image(tmp_path: Path, sample_floormap_config: dict, sample
     invalid_path = tmp_path / "invalid.png"
     invalid_path.write_bytes(b"invalid image data")
 
-    with pytest.raises(ValueError, match=".*画像.*"):
+    with pytest.raises(ValueError, match=r".*画像.*"):
         FloormapVisualizer(str(invalid_path), sample_floormap_config, sample_zones)
 
 

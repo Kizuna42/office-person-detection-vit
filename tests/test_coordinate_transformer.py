@@ -11,7 +11,7 @@ from src.transform import CoordinateTransformer
 def test_validate_matrix_invalid_shape():
     """3x3以外の行列を渡すと ValueError を送出する。"""
 
-    with pytest.raises(ValueError, match=".*3x3.*"):
+    with pytest.raises(ValueError, match=r".*3x3.*"):
         CoordinateTransformer([[1, 0], [0, 1]])
 
 
