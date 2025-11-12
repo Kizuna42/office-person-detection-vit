@@ -30,14 +30,14 @@ repos:
       # Ruff formatチェック
       - id: ruff-format
 
-  # MyPy（型チェック）
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.7.1
-    hooks:
-      - id: mypy
-        # types-allはオプション（必要に応じて個別の型定義パッケージをインストール）
-        args: [--ignore-missing-imports]
-        exclude: ^(tests/|tools/|scripts/)
+  # MyPy（型チェック）- CIで実行されるため、pre-commitではスキップ
+  # - repo: https://github.com/pre-commit/mirrors-mypy
+  #   rev: v1.7.1
+  #   hooks:
+  #     - id: mypy
+  #       # types-allはオプション（必要に応じて個別の型定義パッケージをインストール）
+  #       args: [--ignore-missing-imports]
+  #       exclude: ^(tests/|tools/|scripts/)
 
   # Pytest（テスト実行）- pre-pushでのみ実行（時間がかかるため）
   # 注意: CI/CDではGitHub Actionsで実行されるため、ローカルでは一時的に無効化
