@@ -109,3 +109,4 @@ models/*.bin
 
 # Thumbnails
 ._*
+output/sessions/
