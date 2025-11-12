@@ -242,28 +242,57 @@ class TrajectoryExporter:
                     x, y = track.trajectory[frame_idx]
                     x, y = int(x), int(y)
 
-                    # 軌跡線を描画（過去の軌跡も含む）
+                    # track_idに基づいて色を生成（FloormapVisualizerと同じロジック）
+                    if track.track_id is not None:
+                        hue = (track.track_id * 137) % 180  # 黄金角を使用して色を分散
+                        color_hsv = np.uint8([[[hue, 255, 255]]])
+                        color_bgr = cv2.cvtColor(color_hsv, cv2.COLOR_HSV2BGR)[0][0]
+                        track_color = tuple(int(c) for c in color_bgr)
+                    else:
+                        track_color = (0, 255, 0)  # デフォルトは緑
+
+                    # 軌跡線を描画（過去の軌跡も含む、時系列でグラデーション）
                     if draw_trajectories:
-                        for i in range(1, min(frame_idx + 1, len(track.trajectory))):
+                        trajectory_length = min(frame_idx + 1, len(track.trajectory))
+                        for i in range(1, trajectory_length):
                             prev_x, prev_y = track.trajectory[i - 1]
                             curr_x, curr_y = track.trajectory[i]
                             prev_x, prev_y = int(prev_x), int(prev_y)
                             curr_x, curr_y = int(curr_x), int(curr_y)
-                            cv2.line(image, (prev_x, prev_y), (curr_x, curr_y), (0, 255, 0), 2)
+
+                            # 透明度を計算（古い軌跡ほど薄く）
+                            # 最新の軌跡は1.0、古い軌跡は0.3まで減少
+                            alpha_factor = 0.3 + 0.7 * (i / trajectory_length)
+
+                            # オーバーレイを作成して透明度を適用
+                            overlay = image.copy()
+                            cv2.line(overlay, (prev_x, prev_y), (curr_x, curr_y), track_color, 2)
+                            cv2.addWeighted(overlay, alpha_factor, image, 1 - alpha_factor, 0, image)
 
                     # 現在位置を描画
-                    cv2.circle(image, (x, y), 5, (0, 0, 255), -1)
+                    cv2.circle(image, (x, y), 8, track_color, -1)
+                    cv2.circle(image, (x, y), 10, (255, 255, 255), 2)
 
                     # IDを表示
                     if draw_ids:
+                        label = f"ID:{track.track_id}"
                         cv2.putText(
                             image,
-                            f"ID:{track.track_id}",
-                            (x + 10, y - 10),
+                            label,
+                            (x + 15, y - 10),
                             cv2.FONT_HERSHEY_SIMPLEX,
                             0.5,
                             (255, 255, 255),
                             2,
+                        )
+                        cv2.putText(
+                            image,
+                            label,
+                            (x + 15, y - 10),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            0.5,
+                            track_color,
+                            1,
                         )
 
                 writer.write(image)

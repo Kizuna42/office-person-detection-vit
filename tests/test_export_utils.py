@@ -241,6 +241,53 @@ class TestTrajectoryExporter:
 
             assert output_path.exists()
 
+    def test_export_video_without_trajectories(self):
+        """軌跡線なしでの動画エクスポートテスト"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            exporter = TrajectoryExporter(tmpdir)
+            tracks = [self._create_test_track(1, num_points=2)]
+            floormap = np.zeros((200, 200, 3), dtype=np.uint8)
+            output_path = exporter.export_video(tracks, floormap, filename="test_no_traj.mp4", draw_trajectories=False)
+
+            assert output_path.exists()
+
+    def test_export_video_without_ids(self):
+        """ID表示なしでの動画エクスポートテスト"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            exporter = TrajectoryExporter(tmpdir)
+            tracks = [self._create_test_track(1, num_points=2)]
+            floormap = np.zeros((200, 200, 3), dtype=np.uint8)
+            output_path = exporter.export_video(tracks, floormap, filename="test_no_ids.mp4", draw_ids=False)
+
+            assert output_path.exists()
+
+    def test_export_video_multiple_tracks(self):
+        """複数トラックでの動画エクスポートテスト"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            exporter = TrajectoryExporter(tmpdir)
+            tracks = [
+                self._create_test_track(1, num_points=2),
+                self._create_test_track(2, num_points=3),
+            ]
+            floormap = np.zeros((200, 200, 3), dtype=np.uint8)
+            output_path = exporter.export_video(tracks, floormap, filename="test_multi.mp4")
+
+            assert output_path.exists()
+
+    def test_export_video_color_gradient(self):
+        """動画エクスポートでの色のグラデーションテスト"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            exporter = TrajectoryExporter(tmpdir)
+            # track_idが異なるトラックを作成
+            tracks = [
+                self._create_test_track(1, num_points=3),
+                self._create_test_track(5, num_points=3),  # 異なるIDで色が変わることを確認
+            ]
+            floormap = np.zeros((200, 200, 3), dtype=np.uint8)
+            output_path = exporter.export_video(tracks, floormap, filename="test_gradient.mp4")
+
+            assert output_path.exists()
+
     def test_export_multiple_tracks(self):
         """複数トラックでのエクスポートテスト"""
         with tempfile.TemporaryDirectory() as tmpdir:

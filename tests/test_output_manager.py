@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 import json
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -34,11 +33,7 @@ def test_init(output_base: Path):
 
     assert manager.output_base == Path(output_base)
     assert manager.sessions_dir == output_base / "sessions"
-    assert manager.archive_dir == output_base / "archive"
-    assert manager.shared_dir == output_base / "shared"
     assert manager.sessions_dir.exists()
-    assert manager.archive_dir.exists()
-    assert manager.shared_dir.exists()
 
 
 def test_create_session(output_manager: OutputManager):
@@ -144,20 +139,6 @@ def test_find_sessions_with_date_range(output_manager: OutputManager):
     assert len(sessions) >= 1
 
 
-def test_archive_old_sessions(output_manager: OutputManager):
-    """古いセッションのアーカイブが正しく動作する"""
-    output_manager.create_session()
-
-    # 過去の日時に設定（モック）
-    with patch("src.utils.output_manager.datetime") as mock_datetime:
-        mock_datetime.now.return_value = datetime.now() + timedelta(days=31)
-        mock_datetime.strptime = datetime.strptime
-
-        output_manager.archive_old_sessions(days=30)
-
-        # アーカイブ処理が実行されることを確認（実際のアーカイブは環境依存）
-
-
 def test_get_session_size(output_manager: OutputManager, tmp_path: Path):
     """セッションサイズ取得が正しく動作する"""
     session_dir = output_manager.create_session()
@@ -168,17 +149,6 @@ def test_get_session_size(output_manager: OutputManager, tmp_path: Path):
 
     size = output_manager.get_session_size(session_dir)
     assert size > 0
-
-
-def test_cleanup_old_archives(output_manager: OutputManager):
-    """古いアーカイブの削除が正しく動作する"""
-    # アーカイブディレクトリにテストセッションを作成
-    old_date = (datetime.now() - timedelta(days=91)).strftime("%Y%m%d_%H%M%S")
-    old_archive = output_manager.archive_dir / old_date
-    old_archive.mkdir(parents=True, exist_ok=True)
-
-    output_manager.cleanup_old_archives(days=90)
-    # 削除処理が実行されることを確認（実際の削除は環境依存）
 
 
 def test_format_file_size():
