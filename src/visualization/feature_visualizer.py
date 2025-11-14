@@ -90,7 +90,7 @@ class FeatureVisualizer:
         fig = plt.figure(figsize=(10, 8))
         # 色付け用のデータを決定
         color_data = labels if labels is not None else track_ids
-        scatter_kwargs = {"alpha": 0.6}
+        scatter_kwargs: dict[str, Any] = {"alpha": 0.6}
         if color_data is not None:
             scatter_kwargs["c"] = color_data
             scatter_kwargs["cmap"] = "tab20"

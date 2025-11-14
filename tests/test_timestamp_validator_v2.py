@@ -45,7 +45,7 @@ class TestTemporalValidatorV2:
 
         # 次のフレーム（1秒後、30フレーム後）
         next_time = base_time + timedelta(seconds=1.0)
-        is_valid, confidence, reason = validator.validate(next_time, 30)
+        is_valid, confidence, _reason = validator.validate(next_time, 30)
         assert is_valid is True
         assert 0.0 <= confidence <= 1.0
 
@@ -72,7 +72,7 @@ class TestTemporalValidatorV2:
         validator.validate(base_time, 10)
 
         # 同じフレーム番号
-        is_valid, confidence, reason = validator.validate(base_time + timedelta(seconds=1.0), 10)
+        is_valid, confidence, _reason = validator.validate(base_time + timedelta(seconds=1.0), 10)
         assert is_valid is False
         assert confidence == 0.0
 
@@ -86,7 +86,7 @@ class TestTemporalValidatorV2:
 
         # 許容範囲を大幅に超える時間差（10秒後、30フレーム後）
         next_time = base_time + timedelta(seconds=10.0)
-        is_valid, confidence, reason = validator.validate(next_time, 30)
+        is_valid, confidence, _reason = validator.validate(next_time, 30)
         assert is_valid is False
         assert confidence == 0.0
 
@@ -212,7 +212,7 @@ class TestTemporalValidatorV2:
         # 異常なタイムスタンプ（外れ値として検出される可能性がある）
         # ただし、リカバリーが機能する場合もある
         abnormal_time = base_time + timedelta(seconds=10.0)
-        is_valid, confidence, reason = validator.validate(abnormal_time, 150)
+        is_valid, confidence, _reason = validator.validate(abnormal_time, 150)
         # 結果は実装による（リカバリーが成功するかどうか）
         assert isinstance(is_valid, bool)
         assert 0.0 <= confidence <= 1.0
