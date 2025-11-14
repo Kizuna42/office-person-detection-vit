@@ -437,3 +437,105 @@ def test_confidence_threshold_filtering(mock_processor_cls, mock_model_cls, samp
     # 信頼度0.5以上の検出のみが残る
     assert len(detections) == 2
     assert all(det.confidence >= 0.5 for det in detections)
+
+
+@patch("src.detection.vit_detector.DetrForObjectDetection")
+@patch("src.detection.vit_detector.DetrImageProcessor")
+def test_load_model_processor_error(mock_processor_cls, mock_model_cls):
+    """プロセッサのロードに失敗した場合のエラーハンドリング"""
+    mock_processor_cls.from_pretrained.side_effect = Exception("Processor load error")
+
+    detector = ViTDetector(device="cpu")
+    with pytest.raises(RuntimeError, match="Failed to load model"):
+        detector.load_model()
+
+
+@patch("src.detection.vit_detector.DetrForObjectDetection")
+@patch("src.detection.vit_detector.DetrImageProcessor")
+def test_preprocess_error_handling(mock_processor_cls, mock_model_cls, sample_frame):
+    """前処理でエラーが発生した場合のハンドリング"""
+    mock_processor = MagicMock()
+    mock_model = MagicMock()
+    mock_processor_cls.from_pretrained.return_value = mock_processor
+    mock_model_cls.from_pretrained.return_value = mock_model
+    mock_processor.side_effect = Exception("Preprocessing error")
+
+    detector = ViTDetector(device="cpu")
+    detector.load_model()
+
+    with pytest.raises(Exception, match="Preprocessing error"):
+        detector._preprocess(sample_frame)
+
+
+@patch("src.detection.vit_detector.DetrForObjectDetection")
+@patch("src.detection.vit_detector.DetrImageProcessor")
+def test_postprocess_error_handling(mock_processor_cls, mock_model_cls, sample_frame):
+    """後処理でエラーが発生した場合のハンドリング"""
+    mock_processor = MagicMock()
+    mock_model = MagicMock()
+    mock_processor_cls.from_pretrained.return_value = mock_processor
+    mock_model_cls.from_pretrained.return_value = mock_model
+    mock_processor.post_process_object_detection.side_effect = Exception("Postprocessing error")
+
+    detector = ViTDetector(device="cpu")
+    detector.load_model()
+
+    mock_outputs = MagicMock()
+    with pytest.raises(Exception, match="Postprocessing error"):
+        detector._postprocess(mock_outputs, sample_frame.shape)
+
+
+@patch("src.detection.vit_detector.DetrForObjectDetection")
+@patch("src.detection.vit_detector.DetrImageProcessor")
+def test_extract_features_error_handling(mock_processor_cls, mock_model_cls, sample_frame):
+    """特徴量抽出でエラーが発生した場合のハンドリング"""
+    from src.models.data_models import Detection
+
+    mock_processor = MagicMock()
+    mock_model = MagicMock()
+    mock_processor_cls.from_pretrained.return_value = mock_processor
+    mock_model_cls.from_pretrained.return_value = mock_model
+    mock_model.side_effect = Exception("Feature extraction error")
+
+    detector = ViTDetector(device="cpu")
+    detector.load_model()
+
+    detections = [
+        Detection(bbox=(100, 100, 50, 100), confidence=0.9, class_id=1, class_name="person", camera_coords=(125, 200)),
+    ]
+
+    with pytest.raises(Exception, match="Feature extraction error"):
+        detector.extract_features(sample_frame, detections)
+
+
+@patch("torch.backends.mps.is_available")
+@patch("torch.cuda.is_available")
+def test_device_setup_explicit_cpu(mock_cuda_available, mock_mps_available):
+    """明示的にCPUを指定した場合"""
+    mock_mps_available.return_value = True
+    mock_cuda_available.return_value = True
+
+    detector = ViTDetector(device="cpu")
+    assert detector.device == "cpu"
+
+
+@patch("torch.backends.mps.is_available")
+@patch("torch.cuda.is_available")
+def test_device_setup_explicit_cuda(mock_cuda_available, mock_mps_available):
+    """明示的にCUDAを指定した場合（利用可能）"""
+    mock_mps_available.return_value = False
+    mock_cuda_available.return_value = True
+
+    detector = ViTDetector(device="cuda")
+    assert detector.device == "cuda"
+
+
+@patch("torch.backends.mps.is_available")
+@patch("torch.cuda.is_available")
+def test_device_setup_explicit_mps(mock_cuda_available, mock_mps_available):
+    """明示的にMPSを指定した場合（利用可能）"""
+    mock_mps_available.return_value = True
+    mock_cuda_available.return_value = False
+
+    detector = ViTDetector(device="mps")
+    assert detector.device == "mps"

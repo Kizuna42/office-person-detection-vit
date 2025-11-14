@@ -41,7 +41,6 @@ SCRIPTS_DIR := scripts
 # ツールコマンド
 RUFF := $(shell command -v ruff 2>/dev/null || echo "")
 MYPY := $(shell command -v mypy 2>/dev/null || echo "")
-PRE_COMMIT := $(shell command -v pre-commit 2>/dev/null || echo "")
 
 # カラー出力（ANSIエスケープシーケンス）
 COLOR_RESET := \033[0m
@@ -60,24 +59,24 @@ COLOR_RED := \033[31m
 
 # セクション区切りを表示
 define print_section
-	@echo "$(COLOR_BOLD)==========================================$(COLOR_RESET)"
-	@echo "$(COLOR_BOLD)$(1)$(COLOR_RESET)"
-	@echo "$(COLOR_BOLD)==========================================$(COLOR_RESET)"
+	echo "$(COLOR_BOLD)==========================================$(COLOR_RESET)"
+	echo "$(COLOR_BOLD)$(1)$(COLOR_RESET)"
+	echo "$(COLOR_BOLD)==========================================$(COLOR_RESET)"
 endef
 
 # 成功メッセージを表示
 define print_success
-	@echo "$(COLOR_GREEN)✓$(COLOR_RESET) $(1)"
+	echo "$(COLOR_GREEN)✓$(COLOR_RESET) $(1)"
 endef
 
 # 警告メッセージを表示
 define print_warning
-	@echo "$(COLOR_YELLOW)⚠$(COLOR_RESET) $(1)"
+	echo "$(COLOR_YELLOW)⚠$(COLOR_RESET) $(1)"
 endef
 
 # エラーメッセージを表示
 define print_error
-	@echo "$(COLOR_RED)❌$(COLOR_RESET) $(1)"
+	echo "$(COLOR_RED)❌$(COLOR_RESET) $(1)"
 endef
 
 # コマンドの存在確認
@@ -98,23 +97,13 @@ run: ## 通常実行（メインパイプライン）
 	$(call print_section,"ワークフロー実行: 通常モード")
 	@$(PYTHON) main.py --config $(CONFIG)
 
-.PHONY: run-eval
-run-eval: ## 評価モードで実行（Ground Truthとの比較）
-	$(call print_section,"ワークフロー実行: 評価モード")
-	@$(PYTHON) main.py --config $(CONFIG) --evaluate
-
-.PHONY: run-timestamps
-run-timestamps: ## タイムスタンプOCRのみ実行（5分刻みフレーム抽出+OCR、CSV+オーバーレイ画像出力）
-	$(call print_section,"ワークフロー実行: タイムスタンプOCRモード")
-	@$(PYTHON) main.py --config $(CONFIG) --timestamps-only --debug
-
 # ========================================
 # クリーンアップコマンド
 # ========================================
 
 .PHONY: clean
 clean: ## outputディレクトリ内の生成ファイルを削除（labels/result_fixed.json、calibration/、shared/は保持）
-	$(call print_section,"outputディレクトリをクリーンアップ中...")
+	@$(call print_section,"outputディレクトリをクリーンアップ中...")
 	@if [ -d $(OUTPUT_DIR) ]; then \
 		echo "生成ファイルを削除中..."; \
 		find $(OUTPUT_DIR) -type f \( \
@@ -143,48 +132,9 @@ clean: ## outputディレクトリ内の生成ファイルを削除（labels/res
 		$(call print_success,"outputディレクトリが存在しません"); \
 	fi
 
-.PHONY: clean-all
-clean-all: clean clean-cache ## output + Pythonキャッシュを削除
-
-.PHONY: clean-cache
-clean-cache: ## Pythonキャッシュ（__pycache__、*.pyc、テスト/型チェックキャッシュ）を削除
-	$(call print_section,"Pythonキャッシュをクリーンアップ中...")
-	@echo "注意: CIや他ツールのキャッシュも削除対象です"
-	@echo "Pythonバイトコードを削除中..."; \
-	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true; \
-	find . -type f \( -name "*.pyc" -o -name "*.pyo" -o -name "*.pyd" \) -delete 2>/dev/null || true; \
-	echo "パッケージ情報を削除中..."; \
-	find . -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true; \
-	find . -type d -name "dist" -exec rm -rf {} + 2>/dev/null || true; \
-	find . -type d -name "build" -exec rm -rf {} + 2>/dev/null || true; \
-	echo "テストキャッシュを削除中..."; \
-	find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true; \
-	find . -type f -name ".coverage" -delete 2>/dev/null || true; \
-	find . -type d -name "htmlcov" -exec rm -rf {} + 2>/dev/null || true; \
-	find . -type d -name ".tox" -exec rm -rf {} + 2>/dev/null || true; \
-	echo "型チェックキャッシュを削除中..."; \
-	find . -type d -name ".mypy_cache" -exec rm -rf {} + 2>/dev/null || true; \
-	find . -type d -name ".ruff_cache" -exec rm -rf {} + 2>/dev/null || true; \
-	$(call print_success,"Pythonキャッシュをクリーンアップしました")
-
 # ========================================
 # テストコマンド
 # ========================================
-
-# 並列実行オプションの決定（実行時にpytest-xdistがインストールされているかチェック）
-define get_parallel_opts
-	if [ "$(TEST_PARALLEL)" = "no" ]; then \
-		echo ""; \
-	elif $(VENV_PY) -c "import xdist" 2>/dev/null || $(PYTHON) -c "import xdist" 2>/dev/null; then \
-		if [ "$(TEST_PARALLEL)" = "auto" ]; then \
-			echo "-n auto"; \
-		else \
-			echo "-n $(TEST_PARALLEL)"; \
-		fi; \
-	else \
-		echo ""; \
-	fi
-endef
 
 .PHONY: test
 test: ## テストを実行（TEST_MODE=coverage|verbose|fast、TEST_PARALLEL=auto|no|N を指定可能）
@@ -220,18 +170,6 @@ test: ## テストを実行（TEST_MODE=coverage|verbose|fast、TEST_PARALLEL=au
 		echo "$(COLOR_BOLD)==========================================$(COLOR_RESET)"; \
 		$(VENV_PY) -m pytest $(TESTS_DIR)/ -v $$PARALLEL_OPTS; \
 	fi
-
-.PHONY: test-unit
-test-unit: ## ユニットテストのみ実行
-	$(call print_section,"ユニットテストを実行中...")
-	@PARALLEL_OPTS=$$($(call get_parallel_opts)); \
-	$(VENV_PY) -m pytest $(TESTS_DIR)/ -v -m unit $$PARALLEL_OPTS
-
-.PHONY: test-integration
-test-integration: ## 統合テストのみ実行
-	$(call print_section,"統合テストを実行中...")
-	@PARALLEL_OPTS=$$($(call get_parallel_opts)); \
-	$(VENV_PY) -m pytest $(TESTS_DIR)/ -v -m integration $$PARALLEL_OPTS
 
 # ========================================
 # セットアップコマンド
@@ -297,29 +235,6 @@ setup: ## 開発環境を一括初期化（仮想環境 + 依存関係 + 動作�
 	echo "  2. 実行: make run"; \
 	echo ""
 
-.PHONY: install
-install: setup ## setupのエイリアス
-
-.PHONY: setup-recreate
-setup-recreate: ## 仮想環境を削除して再作成（pipが破損している場合に使用）
-	$(call print_section,"仮想環境を再作成します")
-	@if [ -d $(VENV_DIR) ]; then \
-		echo "既存の仮想環境を削除中..."; \
-		rm -rf $(VENV_DIR); \
-		$(call print_success,"仮想環境を削除しました"); \
-	fi
-	@echo "新しい仮想環境を作成中..."; \
-	$(PYTHON) -m venv $(VENV_DIR); \
-	$(call print_success,"仮想環境を作成しました"); \
-	echo ""; \
-	echo "依存関係をインストール中..."; \
-	$(VENV_BIN)/python -m pip install --upgrade pip || \
-		($(call print_warning,"pipのアップグレードに失敗しました。get-pip.pyで再インストールします..."); \
-		 curl -sSL https://bootstrap.pypa.io/get-pip.py | $(VENV_BIN)/python); \
-	$(VENV_BIN)/python -m pip install -r $(REQUIREMENTS); \
-	echo ""; \
-	$(call print_section,"仮想環境の再作成が完了しました！")
-
 .PHONY: help
 help: ## 利用可能なコマンド一覧を表示
 	$(call print_section,"オフィス人物検出システム - Makefile")
@@ -335,20 +250,17 @@ help: ## 利用可能なコマンド一覧を表示
 	}' $(MAKEFILE_LIST)
 	@echo ""
 	@echo "使用例:"
-	@echo "  $(COLOR_CYAN)make setup$(COLOR_RESET)                  # 開発環境の初期化（万能コマンド）"
+	@echo "  $(COLOR_CYAN)make setup$(COLOR_RESET)                  # 開発環境の初期化"
 	@echo "  $(COLOR_CYAN)make test$(COLOR_RESET)                   # テスト実行"
 	@echo "  $(COLOR_CYAN)make test TEST_MODE=coverage$(COLOR_RESET)  # カバレッジ付きテスト"
-	@echo "  $(COLOR_CYAN)make test TEST_PARALLEL=4$(COLOR_RESET)   # 4並列でテスト実行"
-	@echo ""
 	@echo "  $(COLOR_CYAN)make run$(COLOR_RESET)                    # 通常実行"
-	@echo "  $(COLOR_CYAN)make run-timestamps$(COLOR_RESET)         # タイムスタンプOCRのみ実行"
 	@echo "  $(COLOR_CYAN)make clean$(COLOR_RESET)                  # outputクリーンアップ"
-	@echo "  $(COLOR_CYAN)make lint$(COLOR_RESET)                   # Lintチェック（ruff + mypy）"
-	@echo "  $(COLOR_CYAN)make format$(COLOR_RESET)                # コードフォーマット（ruff）"
+	@echo "  $(COLOR_CYAN)make lint$(COLOR_RESET)                   # Lintチェック"
+	@echo "  $(COLOR_CYAN)make format$(COLOR_RESET)                # コードフォーマット"
 	@echo ""
 
 # ========================================
-# その他の便利コマンド
+# コード品質コマンド
 # ========================================
 
 .PHONY: lint
@@ -382,58 +294,3 @@ format: ## コードフォーマット（ruff format + ruff check --fix）
 	@$(call print_success,"ruff check --fix実行中...")
 	@ruff check . --fix
 	@$(call print_success,"フォーマットが完了しました")
-
-.PHONY: format-check
-format-check: ## フォーマットチェック（変更なし）
-	$(call print_section,"フォーマットチェック実行中...")
-	@if [ -z "$(RUFF)" ]; then \
-		$(call print_error,"ruffがインストールされていません"); \
-		echo "  インストール: pip install ruff"; \
-		exit 1; \
-	fi
-	@$(call print_success,"ruff format --check実行中...")
-	@ruff format --check .
-	@$(call print_success,"フォーマットチェックが完了しました")
-
-.PHONY: precommit-install
-precommit-install: ## Pre-commitフレームワークのGitフックをインストール
-	$(call print_section,"Pre-commitフレームワークをセットアップ中...")
-	@if [ ! -d .git ]; then \
-		$(call print_error,".git ディレクトリが見つかりません。Gitリポジトリで実行してください。"); \
-		exit 1; \
-	fi
-	@if [ -z "$(PRE_COMMIT)" ]; then \
-		$(call print_error,"pre-commitがインストールされていません"); \
-		echo "  インストール: pip install pre-commit"; \
-		exit 1; \
-	fi
-	@$(call print_success,"pre-commitをインストール中...")
-	@pre-commit install
-	@pre-commit install --hook-type pre-push
-	@echo ""
-	@$(call print_success,"Pre-commitフレームワークのセットアップが完了しました")
-	@echo "  - commit前に自動的にフックが実行されます"
-	@echo "  - push前に自動的にテストが実行されます"
-	@echo ""
-	@echo "手動実行: pre-commit run --all-files"
-
-.PHONY: precommit-update
-precommit-update: ## Pre-commitフレームワークのフックを更新
-	$(call print_section,"Pre-commitフレームワークを更新中...")
-	@if [ -z "$(PRE_COMMIT)" ]; then \
-		$(call print_error,"pre-commitがインストールされていません"); \
-		echo "  インストール: pip install pre-commit"; \
-		exit 1; \
-	fi
-	@pre-commit autoupdate
-	@$(call print_success,"Pre-commitフレームワークを更新しました")
-
-.PHONY: precommit-run
-precommit-run: ## Pre-commitフックを手動実行（全ファイル）
-	$(call print_section,"Pre-commitフックを手動実行中...")
-	@if [ -z "$(PRE_COMMIT)" ]; then \
-		$(call print_error,"pre-commitがインストールされていません"); \
-		echo "  インストール: pip install pre-commit"; \
-		exit 1; \
-	fi
-	@pre-commit run --all-files

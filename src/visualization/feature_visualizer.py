@@ -88,11 +88,16 @@ class FeatureVisualizer:
 
         # 可視化
         fig = plt.figure(figsize=(10, 8))
+        # 色付け用のデータを決定
+        color_data = labels if labels is not None else track_ids
+        scatter_kwargs = {"alpha": 0.6}
+        if color_data is not None:
+            scatter_kwargs["c"] = color_data
+            scatter_kwargs["cmap"] = "tab20"
+
         if self.n_components == 2:
             ax = fig.add_subplot(111)
-            scatter = ax.scatter(
-                embedded[:, 0], embedded[:, 1], c=labels if labels is not None else track_ids, cmap="tab20", alpha=0.6
-            )
+            scatter = ax.scatter(embedded[:, 0], embedded[:, 1], **scatter_kwargs)
             ax.set_xlabel("t-SNE Component 1")
             ax.set_ylabel("t-SNE Component 2")
         else:  # 3次元
@@ -101,9 +106,7 @@ class FeatureVisualizer:
                 embedded[:, 0],
                 embedded[:, 1],
                 embedded[:, 2],
-                c=labels if labels is not None else track_ids,
-                cmap="tab20",
-                alpha=0.6,
+                **scatter_kwargs,
             )
             ax3d.set_xlabel("t-SNE Component 1")
             ax3d.set_ylabel("t-SNE Component 2")
@@ -111,8 +114,9 @@ class FeatureVisualizer:
             ax = ax3d
 
         ax.set_title(title)
-        colorbar_label = "Track ID" if track_ids is not None else "Cluster"
-        plt.colorbar(scatter, ax=ax, label=colorbar_label)
+        if color_data is not None:
+            colorbar_label = "Track ID" if track_ids is not None else "Cluster"
+            plt.colorbar(scatter, ax=ax, label=colorbar_label)
 
         if output_path:
             output_path.parent.mkdir(parents=True, exist_ok=True)

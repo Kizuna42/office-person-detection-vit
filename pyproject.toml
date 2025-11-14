@@ -151,7 +151,7 @@ addopts = [
     "--strict-config",
     "--cov=src",
     "--cov-report=term-missing",
-    "--cov-fail-under=73",  # カバレッジ73%以上を要求（段階的に75%→80%へ向上予定）
+    "--cov-fail-under=80",  # カバレッジ80%以上を要求
 ]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
