@@ -7,12 +7,17 @@ import argparse
 import json
 import logging
 from pathlib import Path
+import sys
 import time
 
 try:
     import psutil
 except ImportError:
     psutil = None
+
+# プロジェクトルートをパスに追加
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
 
 from src.config import ConfigManager
 from src.pipeline.orchestrator import PipelineOrchestrator

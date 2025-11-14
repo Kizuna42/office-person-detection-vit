@@ -7,6 +7,11 @@ import argparse
 import json
 import logging
 from pathlib import Path
+import sys
+
+# プロジェクトルートをパスに追加
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
 
 from src.evaluation.mot_metrics import MOTMetrics
 from src.tracking.track import Track

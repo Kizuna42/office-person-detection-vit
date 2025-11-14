@@ -14,8 +14,18 @@ logger = logging.getLogger(__name__)
 # EasyOCR内部でtorch.ao.quantizationを呼び出す際の非推奨警告を抑制
 warnings.filterwarnings(
     "ignore",
-    message=r"torch\.ao\.quantization is deprecated and will be removed in 2\.10\.",
+    message=r".*torch\.ao\.quantization.*deprecated.*",
     category=DeprecationWarning,
+)
+warnings.filterwarnings(
+    "ignore",
+    category=DeprecationWarning,
+    module="torch.ao.quantization",
+)
+warnings.filterwarnings(
+    "ignore",
+    category=DeprecationWarning,
+    module="easyocr",
 )
 
 # OCRエンジンの利用可能性をチェック

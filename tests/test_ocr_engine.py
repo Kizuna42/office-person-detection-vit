@@ -258,20 +258,28 @@ def test_confidence_partial_match():
 @patch("src.timestamp.ocr_engine.PADDLEOCR_AVAILABLE", False)
 @patch("src.timestamp.ocr_engine.TESSERACT_AVAILABLE", False)
 @patch("src.timestamp.ocr_engine.easyocr")
+@pytest.mark.filterwarnings("ignore::DeprecationWarning")
 def test_init_easyocr(mock_easyocr, sample_roi: np.ndarray):
     """EasyOCR初期化のテスト"""
-    mock_reader = MagicMock()
-    mock_reader.readtext.return_value = [(["coords"], "2025/08/26 16:07:45", 0.9)]
-    mock_easyocr.Reader.return_value = mock_reader
+    import warnings
 
-    ocr = MultiEngineOCR(enabled_engines=["easyocr"])
+    # EasyOCR内部でtorch.ao.quantizationを使用する際の非推奨警告を抑制
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=DeprecationWarning, module="torch.ao.quantization")
+        warnings.filterwarnings("ignore", category=DeprecationWarning, module="easyocr")
 
-    assert "easyocr" in ocr.engines
+        mock_reader = MagicMock()
+        mock_reader.readtext.return_value = [(["coords"], "2025/08/26 16:07:45", 0.9)]
+        mock_easyocr.Reader.return_value = mock_reader
 
-    # エンジンが正しく動作することを確認
-    if "easyocr" in ocr.engines:
-        result_text, _result_conf = ocr.extract_with_consensus(sample_roi)
-        assert result_text is not None
+        ocr = MultiEngineOCR(enabled_engines=["easyocr"])
+
+        assert "easyocr" in ocr.engines
+
+        # エンジンが正しく動作することを確認
+        if "easyocr" in ocr.engines:
+            result_text, _result_conf = ocr.extract_with_consensus(sample_roi)
+            assert result_text is not None
 
 
 @patch("src.timestamp.ocr_engine.PADDLEOCR_AVAILABLE", False)

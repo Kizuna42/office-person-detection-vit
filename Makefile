@@ -189,27 +189,37 @@ endef
 .PHONY: test
 test: ## テストを実行（TEST_MODE=coverage|verbose|fast、TEST_PARALLEL=auto|no|N を指定可能）
 	@set -e; \
-	PARALLEL_OPTS=$$($(call get_parallel_opts)); \
-	case "$(TEST_MODE)" in \
-		coverage) \
-			$(call print_section,"カバレッジ付きテストを実行中..."); \
-			$(VENV_PY) -m pytest $(TESTS_DIR)/ --cov=$(SRC_DIR) --cov-report=term --cov-report=html -v $$PARALLEL_OPTS; \
-			echo ""; \
-			$(call print_success,"カバレッジレポート: htmlcov/index.html を開いてください"); \
-			;; \
-		verbose) \
-			$(call print_section,"詳細出力付きテストを実行中..."); \
-			$(VENV_PY) -m pytest $(TESTS_DIR)/ -vv -s $$PARALLEL_OPTS; \
-			;; \
-		fast) \
-			$(call print_section,"高速テストを実行中（並列実行）..."); \
-			$(VENV_PY) -m pytest $(TESTS_DIR)/ -v -m "not slow" $$PARALLEL_OPTS; \
-			;; \
-		*) \
-			$(call print_section,"テストを実行中..."); \
-			$(VENV_PY) -m pytest $(TESTS_DIR)/ -v $$PARALLEL_OPTS; \
-			;; \
-	esac
+	PARALLEL_OPTS=""; \
+	if [ "$(TEST_PARALLEL)" != "no" ]; then \
+		if $(VENV_PY) -c "import pytest_xdist" 2>/dev/null || $(PYTHON) -c "import pytest_xdist" 2>/dev/null; then \
+			if [ "$(TEST_PARALLEL)" = "auto" ]; then \
+				PARALLEL_OPTS="-n auto"; \
+			else \
+				PARALLEL_OPTS="-n $(TEST_PARALLEL)"; \
+			fi; \
+		fi; \
+	fi; \
+	if [ "$(TEST_MODE)" = "coverage" ]; then \
+		echo "$(COLOR_BOLD)==========================================$(COLOR_RESET)"; \
+		echo "$(COLOR_BOLD)カバレッジ付きテストを実行中...$(COLOR_RESET)"; \
+		echo "$(COLOR_BOLD)==========================================$(COLOR_RESET)"; \
+		$(VENV_PY) -m pytest $(TESTS_DIR)/ --cov=$(SRC_DIR) --cov-report=term -v $$PARALLEL_OPTS; \
+	elif [ "$(TEST_MODE)" = "verbose" ]; then \
+		echo "$(COLOR_BOLD)==========================================$(COLOR_RESET)"; \
+		echo "$(COLOR_BOLD)詳細出力付きテストを実行中...$(COLOR_RESET)"; \
+		echo "$(COLOR_BOLD)==========================================$(COLOR_RESET)"; \
+		$(VENV_PY) -m pytest $(TESTS_DIR)/ -vv -s $$PARALLEL_OPTS; \
+	elif [ "$(TEST_MODE)" = "fast" ]; then \
+		echo "$(COLOR_BOLD)==========================================$(COLOR_RESET)"; \
+		echo "$(COLOR_BOLD)高速テストを実行中（並列実行）...$(COLOR_RESET)"; \
+		echo "$(COLOR_BOLD)==========================================$(COLOR_RESET)"; \
+		$(VENV_PY) -m pytest $(TESTS_DIR)/ -v -m "not slow" $$PARALLEL_OPTS; \
+	else \
+		echo "$(COLOR_BOLD)==========================================$(COLOR_RESET)"; \
+		echo "$(COLOR_BOLD)テストを実行中...$(COLOR_RESET)"; \
+		echo "$(COLOR_BOLD)==========================================$(COLOR_RESET)"; \
+		$(VENV_PY) -m pytest $(TESTS_DIR)/ -v $$PARALLEL_OPTS; \
+	fi
 
 .PHONY: test-unit
 test-unit: ## ユニットテストのみ実行

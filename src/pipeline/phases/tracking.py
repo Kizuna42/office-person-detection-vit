@@ -14,6 +14,7 @@ from src.pipeline.phases.base import BasePhase
 from src.tracking import Tracker
 from src.tracking.track import Track
 from src.utils.export_utils import TrajectoryExporter
+from src.utils.image_utils import save_tracked_detection_image
 
 
 class TrackingPhase(BasePhase):
@@ -30,6 +31,8 @@ class TrackingPhase(BasePhase):
         self.tracker: Tracker | None = None
         self.detector: ViTDetector | None = None  # 特徴量抽出用
         self.tracks: list[Track] = []
+        self.tracked_results: list[tuple[int, str, list[Detection]]] = []  # 画像出力用
+        self.sample_frames: list[tuple[int, str, np.ndarray]] = []  # 画像出力用
 
     def initialize(self) -> None:
         """トラッカーを初期化"""
@@ -91,6 +94,8 @@ class TrackingPhase(BasePhase):
             raise RuntimeError("トラッカーまたは検出器が初期化されていません。initialize()を先に呼び出してください。")
 
         tracked_results = []
+        # 画像出力用にsample_framesを保存
+        self.sample_frames = sample_frames
 
         # フレームをframe_numでインデックス化
         frame_dict = {frame_num: frame for frame_num, _, frame in sample_frames}
@@ -127,6 +132,8 @@ class TrackingPhase(BasePhase):
 
         # 最終的なトラックを取得
         self.tracks = self.tracker.get_confirmed_tracks()
+        # 画像出力用にtracked_resultsを保存
+        self.tracked_results = tracked_results
 
         self.logger.info(f"追跡処理が完了: {len(tracked_results)}フレーム, {len(self.tracks)}トラック")
 
@@ -195,6 +202,42 @@ class TrackingPhase(BasePhase):
             self.logger.info(f"追跡統計情報をJSONに出力しました: {stats_path}")
         except Exception as e:
             self.logger.error(f"追跡統計情報のJSON出力に失敗しました: {e}")
+
+        # ID付き検出画像を出力（オプション）
+        save_tracking_images = self.config.get("output.save_tracking_images", True)
+        if save_tracking_images and self.tracked_results and self.sample_frames:
+            try:
+                images_dir = output_path / "images"
+                images_dir.mkdir(parents=True, exist_ok=True)
+
+                # フレームをframe_numでインデックス化
+                frame_dict = {frame_num: frame for frame_num, _, frame in self.sample_frames}
+
+                # 各フレームの画像を保存
+                saved_count = 0
+                for frame_num, timestamp, detections in self.tracked_results:
+                    frame = frame_dict.get(frame_num)
+                    if frame is None:
+                        self.logger.warning(
+                            f"フレーム #{frame_num}: 対応する画像が見つかりません（画像出力をスキップ）"
+                        )
+                        continue
+
+                    if detections:
+                        save_tracked_detection_image(
+                            frame,
+                            detections,
+                            timestamp,
+                            images_dir,
+                            self.logger,
+                        )
+                        saved_count += 1
+                    else:
+                        self.logger.debug(f"フレーム #{frame_num}: 検出結果が空のため画像を保存しません")
+
+                self.logger.info(f"ID付き検出画像を {saved_count} 枚保存しました: {images_dir}")
+            except Exception as e:
+                self.logger.error(f"ID付き検出画像の保存に失敗しました: {e}", exc_info=True)
 
     def get_tracks(self) -> list[Track]:
         """追跡結果のトラックを取得

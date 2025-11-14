@@ -14,7 +14,7 @@ import warnings
 
 # 非推奨警告を表示
 warnings.warn(
-    "visualizer_app.py は非推奨です。" "代わりに `streamlit run tools/interactive_visualizer.py` を使用してください。",
+    "visualizer_app.py は非推奨です。代わりに `streamlit run tools/interactive_visualizer.py` を使用してください。",
     DeprecationWarning,
     stacklevel=2,
 )

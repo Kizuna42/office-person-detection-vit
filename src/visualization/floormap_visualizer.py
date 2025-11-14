@@ -174,12 +174,13 @@ class FloormapVisualizer:
 
         return image
 
-    def draw_zones(self, image: np.ndarray, alpha: float = 0.3) -> np.ndarray:
+    def draw_zones(self, image: np.ndarray, alpha: float = 0.3, draw_zone_names: bool = False) -> np.ndarray:
         """ゾーンを描画する
 
         Args:
             image: 描画対象の画像
             alpha: ゾーンの透明度（0.0-1.0）
+            draw_zone_names: ゾーン名を描画するか（OpenCVは日本語非対応のため非推奨）
 
         Returns:
             ゾーンを描画した画像
@@ -198,18 +199,20 @@ class FloormapVisualizer:
             # 境界線を描画
             cv2.polylines(image, [points], True, color, 2)
 
-            # ゾーン名を描画
-            centroid = points.mean(axis=0).astype(int)
-            zone_name = zone.get("name", zone_id)
-            cv2.putText(
-                image,
-                zone_name,
-                tuple(centroid),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.6,
-                (255, 255, 255),
-                2,
-            )
+            # ゾーン名を描画（OpenCVは日本語非対応のためデフォルトでは非表示）
+            # 日本語を含むゾーン名は「????」と表示されるため非推奨
+            if draw_zone_names:
+                centroid = points.mean(axis=0).astype(int)
+                zone_name = zone.get("name", zone_id)
+                cv2.putText(
+                    image,
+                    zone_name,
+                    tuple(centroid),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    (255, 255, 255),
+                    2,
+                )
 
         # 透明度を適用
         cv2.addWeighted(overlay, alpha, image, 1 - alpha, 0, image)
@@ -257,14 +260,9 @@ class FloormapVisualizer:
             cv2.circle(image, (x, y), 10, (255, 255, 255), 2)
 
             # ラベルを描画
-            if draw_labels:
-                label_parts = []
-                if detection.track_id is not None:
-                    label_parts.append(f"ID:{detection.track_id}")
-                label_parts.append(f"{detection.confidence:.2f}")
-                if detection.zone_ids:
-                    label_parts.append(f"({','.join(detection.zone_ids)})")
-                label = " ".join(label_parts)
+            if draw_labels and detection.track_id is not None:
+                # IDのみを表示（信頼度やゾーン情報は表示しない）
+                label = f"ID:{detection.track_id}"
 
                 cv2.putText(
                     image,

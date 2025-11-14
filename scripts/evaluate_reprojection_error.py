@@ -7,8 +7,13 @@ import argparse
 import json
 import logging
 from pathlib import Path
+import sys
 
 import numpy as np
+
+# プロジェクトルートをパスに追加
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
 
 from src.calibration.reprojection_error import ReprojectionErrorEvaluator
 from src.config import ConfigManager
