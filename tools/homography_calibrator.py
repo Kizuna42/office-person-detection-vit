@@ -140,6 +140,19 @@ def parse_args() -> argparse.Namespace:
         help="詳細ログを表示します。",
     )
 
+    parser.add_argument(
+        "--camera-id",
+        default="cam01",
+        help="カメラID (default: cam01)",
+    )
+
+    parser.add_argument(
+        "--output-format",
+        choices=["template", "legacy"],
+        default="template",
+        help="出力形式: 'template' (src_points/dst_points) または 'legacy' (camera_points/floormap_points) (default: template)",
+    )
+
     return parser.parse_args()
 
 
@@ -201,12 +214,27 @@ def collect_points_interactively(
             if key in (ord("q"), 27):
                 raise KeyboardInterrupt("ユーザーにより中断されました")
             if key in (ord("s"), 13):
-                if len(floormap_collector.points) >= min_points and len(camera_collector.points) == len(
-                    floormap_collector.points
-                ):
-                    LOGGER.info("%d 組の対応点が確定しました。", len(floormap_collector.points))
+                camera_count = len(camera_collector.points)
+                floormap_count = len(floormap_collector.points)
+
+                if camera_count == floormap_count and floormap_count >= min_points:
+                    LOGGER.info("%d 組の対応点が確定しました。", floormap_count)
                     break
-                LOGGER.warning("対応点が不足しています (必要: %d)", min_points)
+
+                # 詳細な警告メッセージを表示
+                if camera_count != floormap_count:
+                    LOGGER.warning(
+                        "対応点の数が一致していません: カメラ=%d点, フロアマップ=%d点 (必要: %dペア)",
+                        camera_count,
+                        floormap_count,
+                        min_points,
+                    )
+                else:
+                    LOGGER.warning(
+                        "対応点が不足しています: %dペア (必要: %dペア)",
+                        floormap_count,
+                        min_points,
+                    )
             if key == ord("u"):
                 if state["mode"] == "floormap" and camera_collector.points:
                     camera_collector.pop_last()
@@ -284,11 +312,59 @@ def save_points_json(
     floormap_points: list[tuple[int, int]],
     reference_image: Path,
     floormap_image: Path,
+    output_format: str = "template",
+    camera_id: str = "cam01",
 ) -> Path:
+    """対応点をJSONファイルに保存
+
+    Args:
+        output_dir: 出力ディレクトリ
+        camera_points: カメラ画像上の座標リスト
+        floormap_points: フロアマップ上の座標リスト
+        reference_image: 参照画像のパス
+        floormap_image: フロアマップ画像のパス
+        output_format: 出力形式 ("template" または "legacy")
+        camera_id: カメラID
+
+    Returns:
+        保存されたファイルのパス
+    """
     output_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    path = output_dir / f"points_{timestamp}.json"
 
+    if output_format == "template":
+        # テンプレート形式（src_points, dst_points）で保存
+        path = output_dir / f"correspondence_points_{camera_id}.json"
+
+        # 画像サイズを取得
+        import cv2
+
+        ref_img = cv2.imread(str(reference_image))
+        floor_img = cv2.imread(str(floormap_image))
+        ref_size = (ref_img.shape[1], ref_img.shape[0]) if ref_img is not None else (1280, 720)
+        floor_size = (floor_img.shape[1], floor_img.shape[0]) if floor_img is not None else (1878, 1369)
+
+        payload = {
+            "src_points": [[float(x), float(y)] for x, y in camera_points],
+            "dst_points": [[float(x), float(y)] for x, y in floormap_points],
+            "camera_id": camera_id,
+            "description": f"対応点データ（{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}に作成）",
+            "metadata": {
+                "image_size": {"width": ref_size[0], "height": ref_size[1]},
+                "floormap_size": {"width": floor_size[0], "height": floor_size[1]},
+                "num_points": len(camera_points),
+                "coordinate_system_src": "camera_pixels",
+                "coordinate_system_dst": "floormap_pixels",
+                "origin_offset_applied": False,
+                "note": "src_points: カメラ画像上の座標 (x, y), dst_points: フロアマップ上の座標 (x, y)",
+                "reference_image": str(reference_image),
+                "floormap_image": str(floormap_image),
+                "created_at": datetime.now().isoformat(),
+            },
+        }
+    else:
+        # レガシー形式（camera_points, floormap_points）で保存
+        path = output_dir / f"points_{timestamp}.json"
     payload = {
         "created_at": datetime.now().isoformat(),
         "reference_image": str(reference_image),
@@ -298,7 +374,7 @@ def save_points_json(
     }
 
     with path.open("w", encoding="utf-8") as f:
-        json.dump(payload, f, indent=2)
+        json.dump(payload, f, indent=2, ensure_ascii=False)
 
     LOGGER.info("対応点JSONを保存しました: %s", path)
     return path
@@ -382,11 +458,27 @@ def update_config_homography(config_path: Path, matrix: np.ndarray, backup_dir: 
 def load_points_from_json(
     path: Path,
 ) -> tuple[list[tuple[int, int]], list[tuple[int, int]]]:
+    """対応点JSONファイルを読み込む
+
+    テンプレート形式（src_points/dst_points）とレガシー形式（camera_points/floormap_points）の両方に対応。
+
+    Args:
+        path: JSONファイルのパス
+
+    Returns:
+        (camera_points, floormap_points) のタプル
+    """
     with path.open("r", encoding="utf-8") as f:
         data = json.load(f)
 
-    camera_points = [tuple(map(int, p)) for p in data.get("camera_points", [])]
-    floormap_points = [tuple(map(int, p)) for p in data.get("floormap_points", [])]
+    # テンプレート形式（src_points/dst_points）を優先
+    if "src_points" in data and "dst_points" in data:
+        camera_points = [tuple(map(int, p)) for p in data.get("src_points", [])]
+        floormap_points = [tuple(map(int, p)) for p in data.get("dst_points", [])]
+    else:
+        # レガシー形式（camera_points/floormap_points）
+        camera_points = [tuple(map(int, p)) for p in data.get("camera_points", [])]
+        floormap_points = [tuple(map(int, p)) for p in data.get("floormap_points", [])]
 
     if len(camera_points) != len(floormap_points):
         raise ValueError("JSON 内の対応点数が一致しません")
@@ -419,7 +511,15 @@ def main() -> None:
             args.min_points,
         )
 
-    points_json = save_points_json(output_dir, camera_points, floormap_points, reference_path, floormap_path)
+    points_json = save_points_json(
+        output_dir,
+        camera_points,
+        floormap_points,
+        reference_path,
+        floormap_path,
+        output_format=args.output_format,
+        camera_id=args.camera_id,
+    )
     H, _mask, metrics = compute_homography(camera_points, floormap_points, args.method, args.ransac_threshold)
     homography_yaml = save_homography_yaml(output_dir, H, metrics, points_json)
 

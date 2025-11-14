@@ -1,0 +1,33 @@
+{
+  "src_points": [
+    [640.0, 360.0],
+    [800.0, 400.0],
+    [1000.0, 500.0],
+    [500.0, 300.0],
+    [1200.0, 600.0]
+  ],
+  "dst_points": [
+    [1000.0, 800.0],
+    [1200.0, 900.0],
+    [1400.0, 1100.0],
+    [800.0, 700.0],
+    [1600.0, 1200.0]
+  ],
+  "camera_id": "cam01",
+  "description": "対応点データのテンプレート。実際のデータで置き換えてください。",
+  "metadata": {
+    "image_size": {
+      "width": 1280,
+      "height": 720
+    },
+    "floormap_size": {
+      "width": 1878,
+      "height": 1369
+    },
+    "num_points": 5,
+    "coordinate_system_src": "camera_pixels",
+    "coordinate_system_dst": "floormap_pixels",
+    "origin_offset_applied": false,
+    "note": "src_points: カメラ画像上の座標 (x, y), dst_points: フロアマップ上の座標 (x, y)"
+  }
+}
