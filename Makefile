@@ -97,6 +97,41 @@ run: ## 通常実行（メインパイプライン）
 	$(call print_section,"ワークフロー実行: 通常モード")
 	@$(PYTHON) main.py --config $(CONFIG)
 
+.PHONY: baseline
+baseline: ## ベースライン実行と評価を連鎖実行（run_baseline.py + evaluate_baseline.py）
+	@set -e; \
+	$(call print_section,"ベースライン実行と評価"); \
+	echo "ステップ1: パイプライン実行中..."; \
+	$(PYTHON) $(SCRIPTS_DIR)/run_baseline.py --config $(CONFIG) $(if $(TAG),--tag $(TAG)) || \
+		($(call print_error,"パイプライン実行に失敗しました"); exit 1); \
+	$(call print_success,"パイプライン実行が完了しました"); \
+	echo ""; \
+	echo "ステップ2: セッションIDを取得中..."; \
+	SESSION_ID=""; \
+	if [ -L $(OUTPUT_DIR)/latest ] && [ -e $(OUTPUT_DIR)/latest ]; then \
+		SESSION_ID=$$(basename $$(readlink $(OUTPUT_DIR)/latest)) || true; \
+	fi; \
+	if [ -z "$$SESSION_ID" ] && [ -d $(OUTPUT_DIR)/sessions ]; then \
+		SESSION_ID=$$(ls -td $(OUTPUT_DIR)/sessions/*/ 2>/dev/null | head -1 | xargs -n1 basename) || true; \
+	fi; \
+	if [ -z "$$SESSION_ID" ]; then \
+		$(call print_error,"セッションIDを取得できませんでした"); \
+		echo "  output/latest シンボリックリンクまたは output/sessions/ ディレクトリを確認してください"; \
+		exit 1; \
+	fi; \
+	echo "セッションID: $$SESSION_ID"; \
+	$(call print_success,"セッションIDを取得しました"); \
+	echo ""; \
+	echo "ステップ3: 評価実行中..."; \
+	$(PYTHON) $(SCRIPTS_DIR)/evaluate_baseline.py --session $$SESSION_ID --config $(CONFIG) \
+		$(if $(GT),--gt $(GT)) $(if $(POINTS),--points $(POINTS)) || \
+		($(call print_error,"評価実行に失敗しました"); exit 1); \
+	$(call print_success,"評価実行が完了しました"); \
+	echo ""; \
+	$(call print_section,"ベースライン実行と評価が完了しました"); \
+	echo "セッションID: $$SESSION_ID"; \
+	echo "評価結果: $(OUTPUT_DIR)/sessions/$$SESSION_ID/baseline_metrics.json"
+
 # ========================================
 # クリーンアップコマンド
 # ========================================
@@ -254,6 +289,8 @@ help: ## 利用可能なコマンド一覧を表示
 	@echo "  $(COLOR_CYAN)make test$(COLOR_RESET)                   # テスト実行"
 	@echo "  $(COLOR_CYAN)make test TEST_MODE=coverage$(COLOR_RESET)  # カバレッジ付きテスト"
 	@echo "  $(COLOR_CYAN)make run$(COLOR_RESET)                    # 通常実行"
+	@echo "  $(COLOR_CYAN)make baseline$(COLOR_RESET)               # ベースライン実行と評価"
+	@echo "  $(COLOR_CYAN)make baseline GT=data/gt_tracks_auto.json$(COLOR_RESET)  # オプション指定"
 	@echo "  $(COLOR_CYAN)make clean$(COLOR_RESET)                  # outputクリーンアップ"
 	@echo "  $(COLOR_CYAN)make lint$(COLOR_RESET)                   # Lintチェック"
 	@echo "  $(COLOR_CYAN)make format$(COLOR_RESET)                # コードフォーマット"
@@ -263,34 +300,45 @@ help: ## 利用可能なコマンド一覧を表示
 # コード品質コマンド
 # ========================================
 
+# Ruff/Mypyコマンド（venv優先、フォールバック）
+RUFF_CMD := $(shell if [ -f $(VENV_BIN)/ruff ]; then echo "$(VENV_BIN)/ruff"; elif command -v ruff >/dev/null 2>&1; then echo "ruff"; else echo ""; fi)
+MYPY_CMD := $(shell if [ -f $(VENV_BIN)/mypy ]; then echo "$(VENV_BIN)/mypy"; elif command -v mypy >/dev/null 2>&1; then echo "mypy"; else echo ""; fi)
+
 .PHONY: lint
 lint: ## Lintチェック（ruff + mypy）
-	$(call print_section,"Lintチェック実行中...")
-	@if [ -z "$(RUFF)" ]; then \
+	@set -e; \
+	$(call print_section,"Lintチェック実行中..."); \
+	if [ -z "$(RUFF_CMD)" ]; then \
 		$(call print_error,"ruffがインストールされていません"); \
 		echo "  インストール: pip install ruff"; \
 		exit 1; \
-	fi
-	@$(call print_success,"ruffチェック中...")
-	@ruff check .
-	@if [ -n "$(MYPY)" ]; then \
+	fi; \
+	$(call print_success,"ruffチェック中..."); \
+	$(RUFF_CMD) check . || exit 1; \
+	if [ -n "$(MYPY_CMD)" ]; then \
 		$(call print_success,"mypyチェック中..."); \
-		mypy $(SRC_DIR)/ --ignore-missing-imports || true; \
+		$(MYPY_CMD) $(SRC_DIR)/ --ignore-missing-imports || \
+		($(call print_warning,"mypyチェックで警告がありました（続行）"); true); \
 	else \
 		$(call print_warning,"mypyがインストールされていません（スキップ）"); \
-	fi
-	@$(call print_success,"Lintチェックが完了しました")
+	fi; \
+	$(call print_success,"Lintチェックが完了しました")
 
 .PHONY: format
 format: ## コードフォーマット（ruff format + ruff check --fix）
-	$(call print_section,"コードフォーマット実行中...")
-	@if [ -z "$(RUFF)" ]; then \
+	@set -e; \
+	$(call print_section,"コードフォーマット実行中..."); \
+	if [ -z "$(RUFF_CMD)" ]; then \
 		$(call print_error,"ruffがインストールされていません"); \
 		echo "  インストール: pip install ruff"; \
 		exit 1; \
-	fi
-	@$(call print_success,"ruff format実行中...")
-	@ruff format .
-	@$(call print_success,"ruff check --fix実行中...")
-	@ruff check . --fix
-	@$(call print_success,"フォーマットが完了しました")
+	fi; \
+	$(call print_success,"ruff format実行中..."); \
+	$(RUFF_CMD) format . || exit 1; \
+	$(call print_success,"ruff check --fix実行中..."); \
+	$(RUFF_CMD) check . --fix --unsafe-fixes || exit 1; \
+	$(call print_success,"フォーマットが完了しました"); \
+	echo ""; \
+	$(call print_success,"残りのエラーがないか確認中..."); \
+	$(RUFF_CMD) check . || \
+	($(call print_warning,"修正できないエラーが残っています。手動で修正してください。"); exit 1)

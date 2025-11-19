@@ -174,6 +174,35 @@ zones:
 - ✓ ゾーン分類
 - ✓ データモデルとの統合
 
+### 再投影誤差ベンチマーク（cam01, 2025-11-19）
+
+コマンド例:
+
+```bash
+# 歪み補正OFF（config.yamlをそのまま使用）
+python scripts/evaluate_reprojection_error.py \
+  --points output/calibration/correspondence_points_cam01.json \
+  --config config.yaml \
+  --output output/calibration/reprojection_cam01_nodist.json \
+  --error-map output/calibration/reprojection_cam01_nodist.png
+
+# 歪み補正ON（テンポラリ設定ファイル）
+python scripts/evaluate_reprojection_error.py \
+  --points output/calibration/correspondence_points_cam01.json \
+  --config output/calibration/config_use_distortion.yaml \
+  --output output/calibration/reprojection_cam01_dist.json \
+  --error-map output/calibration/reprojection_cam01_dist.png
+```
+
+| 設定 | `use_distortion_correction` | 平均誤差 (px) | 最大誤差 (px) | 備考 |
+| --- | --- | --- | --- | --- |
+| `config.yaml` | false | 63.75 | 545.65 | 対応点 24 個。`baseline_metrics.json` でも同値を記録 |
+| `config_use_distortion.yaml` | true | 63.75 | 545.65 | 歪み係数が 0 のため結果は変わらず |
+
+> **メモ**
+> 現在の `correspondence_points_cam01.json` は仮の対応点であり、床面エリアによって誤差が 500 px 超まで発散している。
+> `tools/homography_calibrator.py --update-config` で実測対応点を再取得し、平均誤差 2 px / 最大 4 px 以内を目標に再キャリブレーションする。
+
 ## 注意事項
 
 1. **ホモグラフィ行列の調整**: 実際のカメラ配置に合わせて `config.yaml` の `homography.matrix` を調整する必要があります

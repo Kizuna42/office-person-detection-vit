@@ -1,0 +1,66 @@
+{
+  "__comment": "Copy this template, fill in real measurements, then merge into config.yaml.",
+
+  "camera": {
+    "position_x": 859,
+    "position_y": 1040,
+    "height_m": 2.2,
+    "show_on_floormap": true,
+    "marker_color": [0, 0, 255],
+    "marker_size": 15
+  },
+
+  "floormap": {
+    "image_path": "data/floormap.png",
+    "image_width": 1878,
+    "image_height": 1369,
+    "image_origin_x": 7,
+    "image_origin_y": 9,
+    "image_x_mm_per_pixel": 28.1926406926406,
+    "image_y_mm_per_pixel": 28.241430700447
+  },
+
+  "homography": {
+    "matrix": [
+      [1.0, 0.0, 0.0],
+      [0.0, 1.0, 0.0],
+      [0.0, 0.0, 1.0]
+    ]
+  },
+
+  "calibration": {
+    "use_distortion_correction": false,
+    "use_intrinsics": false,
+    "reprojection_error_threshold": 2.0,
+    "intrinsics": {
+      "focal_length_x": 800.0,
+      "focal_length_y": 800.0,
+      "principal_point_x": 640.0,
+      "principal_point_y": 360.0,
+      "image_width": 1280,
+      "image_height": 720
+    },
+    "distortion": {
+      "k1": 0.0,
+      "k2": 0.0,
+      "k3": 0.0,
+      "p1": 0.0,
+      "p2": 0.0
+    }
+  },
+
+  "zones": [
+    {
+      "id": "zone_1",
+      "name": "左エリア",
+      "priority": 1,
+      "polygon": [[859, 912], [1095, 912], [1095, 1350], [859, 1350]]
+    },
+    {
+      "id": "zone_2",
+      "name": "中央エリア",
+      "priority": 2,
+      "polygon": [[1095, 912], [1331, 912], [1331, 1350], [1095, 1350]]
+    }
+  ]
+}

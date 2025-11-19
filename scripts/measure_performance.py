@@ -83,10 +83,13 @@ def measure_processing_time(
     if max_frames:
         extraction_results = extraction_results[:max_frames]
 
+    # 検出用フレームを準備
+    sample_frames = orchestrator.prepare_frames_for_detection(extraction_results, video_path)
+
     # Phase 2: 検出
     logger.info("Phase 2: 人物検出を実行中...")
     start_time = time.time()
-    detection_results, sample_frames = orchestrator.run_detection(extraction_results)
+    detection_results, _ = orchestrator.run_detection(sample_frames)
     phase_times["phase2_detection"] = time.time() - start_time
     logger.info(f"  Phase 2完了: {phase_times['phase2_detection']:.2f} 秒")
 
@@ -102,21 +105,21 @@ def measure_processing_time(
     # Phase 3: 座標変換
     logger.info("Phase 3: 座標変換を実行中...")
     start_time = time.time()
-    transform_results = orchestrator.run_transform(detection_results)
+    frame_results, _ = orchestrator.run_transform(detection_results)
     phase_times["phase3_transform"] = time.time() - start_time
     logger.info(f"  Phase 3完了: {phase_times['phase3_transform']:.2f} 秒")
 
     # Phase 4: 集計
     logger.info("Phase 4: 集計を実行中...")
     start_time = time.time()
-    aggregation_results = orchestrator.run_aggregation(transform_results)
+    _, aggregator = orchestrator.run_aggregation(frame_results)
     phase_times["phase4_aggregation"] = time.time() - start_time
     logger.info(f"  Phase 4完了: {phase_times['phase4_aggregation']:.2f} 秒")
 
     # Phase 5: 可視化
     logger.info("Phase 5: 可視化を実行中...")
     start_time = time.time()
-    orchestrator.run_visualization(transform_results, aggregation_results)
+    orchestrator.run_visualization(aggregator, frame_results)
     phase_times["phase5_visualization"] = time.time() - start_time
     logger.info(f"  Phase 5完了: {phase_times['phase5_visualization']:.2f} 秒")
 

@@ -35,6 +35,14 @@ class ConfigManager:
             "image_y_mm_per_pixel",
         ],
         "homography": ["matrix"],
+        "camera": ["position_x", "position_y", "height_m"],
+        "calibration": [
+            "use_distortion_correction",
+            "use_intrinsics",
+            "reprojection_error_threshold",
+            "intrinsics",
+            "distortion",
+        ],
         "zones": [],
         "output": ["directory"],
     }
@@ -65,6 +73,34 @@ class ConfigManager:
             "image_y_mm_per_pixel": 28.241430700447,
         },
         "homography": {"matrix": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]},
+        "camera": {
+            "position_x": 0,
+            "position_y": 0,
+            "height_m": 2.0,
+            "show_on_floormap": True,
+            "marker_color": [0, 0, 255],
+            "marker_size": 15,
+        },
+        "calibration": {
+            "use_distortion_correction": False,
+            "use_intrinsics": False,
+            "reprojection_error_threshold": 2.0,
+            "intrinsics": {
+                "focal_length_x": 800.0,
+                "focal_length_y": 800.0,
+                "principal_point_x": 640.0,
+                "principal_point_y": 360.0,
+                "image_width": 1280,
+                "image_height": 720,
+            },
+            "distortion": {
+                "k1": 0.0,
+                "k2": 0.0,
+                "k3": 0.0,
+                "p1": 0.0,
+                "p2": 0.0,
+            },
+        },
         "zones": [],
         "output": {
             "directory": "output",
@@ -146,6 +182,9 @@ class ConfigManager:
         Raises:
             ValueError: 設定値が不正な場合
         """
+        # カメラ/キャリブレーションセクションがなければテンプレート値を補完
+        self._ensure_coordinate_sections()
+
         # 必須セクションの存在チェック
         for section in self.REQUIRED_KEYS:
             if section not in self.config:
@@ -181,15 +220,28 @@ class ConfigManager:
         # zones セクションの検証
         self._validate_zones_config()
 
-        # camera セクションの検証（オプション）
-        if "camera" in self.config:
-            self._validate_camera_config()
+        # camera セクションの検証
+        self._validate_camera_config()
+
+        # calibration セクションの検証
+        self._validate_calibration_config()
 
         # output セクションの検証
         self._validate_output_config()
 
         logger.info("設定ファイルの検証が完了しました。")
         return True
+
+    def _ensure_coordinate_sections(self) -> None:
+        """camera/calibration セクションが存在しない場合はテンプレート値で補完する。"""
+
+        if "camera" not in self.config:
+            logger.warning("camera セクションが見つかりません。テンプレート値を仮置きします。")
+            self.config["camera"] = dict(self.DEFAULT_CONFIG["camera"])
+
+        if "calibration" not in self.config:
+            logger.warning("calibration セクションが見つかりません。テンプレート値を仮置きします。")
+            self.config["calibration"] = dict(self.DEFAULT_CONFIG["calibration"])
 
     def _validate_video_config(self):
         """video セクションの検証"""
@@ -338,6 +390,9 @@ class ConfigManager:
         """camera セクションの検証"""
         camera_config = self.config.get("camera", {})
 
+        if not isinstance(camera_config, dict):
+            raise ValueError("camera セクションは辞書型である必要があります。")
+
         # position_x の検証
         if "position_x" in camera_config:
             pos_x = camera_config["position_x"]
@@ -373,6 +428,53 @@ class ConfigManager:
             marker_size = camera_config["marker_size"]
             if not isinstance(marker_size, int) or marker_size <= 0:
                 raise ValueError("camera.marker_size は正の整数である必要があります。")
+
+    def _validate_calibration_config(self):
+        """calibration セクションの検証"""
+        calibration_config = self.config.get("calibration", {})
+
+        if not isinstance(calibration_config, dict):
+            raise ValueError("calibration セクションは辞書型である必要があります。")
+
+        # ブール値フラグ
+        for flag in ("use_distortion_correction", "use_intrinsics"):
+            value = calibration_config.get(flag)
+            if not isinstance(value, bool):
+                raise ValueError(f"calibration.{flag} はブール値である必要があります。")
+
+        threshold = calibration_config.get("reprojection_error_threshold")
+        if not isinstance(threshold, int | float) or threshold <= 0:
+            raise ValueError("calibration.reprojection_error_threshold は正の数値である必要があります。")
+
+        intrinsics = calibration_config.get("intrinsics")
+        if not isinstance(intrinsics, dict):
+            raise ValueError("calibration.intrinsics は辞書型である必要があります。")
+
+        intrinsic_fields = [
+            "focal_length_x",
+            "focal_length_y",
+            "principal_point_x",
+            "principal_point_y",
+            "image_width",
+            "image_height",
+        ]
+        for field in intrinsic_fields:
+            val = intrinsics.get(field)
+            if field.endswith(("width", "height")):
+                if not isinstance(val, int) or val <= 0:
+                    raise ValueError(f"calibration.intrinsics.{field} は正の整数である必要があります。")
+            else:
+                if not isinstance(val, int | float) or val <= 0:
+                    raise ValueError(f"calibration.intrinsics.{field} は正の数値である必要があります。")
+
+        distortion = calibration_config.get("distortion")
+        if not isinstance(distortion, dict):
+            raise ValueError("calibration.distortion は辞書型である必要があります。")
+
+        for coeff in ["k1", "k2", "k3", "p1", "p2"]:
+            val = distortion.get(coeff)
+            if not isinstance(val, int | float):
+                raise ValueError(f"calibration.distortion.{coeff} は数値である必要があります。")
 
     def _validate_output_config(self):
         """output セクションの検証"""
