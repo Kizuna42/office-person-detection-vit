@@ -789,6 +789,8 @@ output:
   directory: "output"
 camera:
   position_x: -10
+  position_y: 0
+  height_m: 2.0
 """
     config_path = tmp_path / "test_config.yaml"
     config_path.write_text(yaml_content, encoding="utf-8")
@@ -819,6 +821,9 @@ zones: []
 output:
   directory: "output"
 camera:
+  position_x: 0
+  position_y: 0
+  height_m: 2.0
   marker_color: [0, 0]
 """
     config_path.write_text(yaml_content, encoding="utf-8")
