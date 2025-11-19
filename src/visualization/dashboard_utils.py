@@ -49,14 +49,17 @@ class SessionDataLoader:
         if config_path.exists():
             try:
                 with open(config_path, encoding="utf-8") as f:
-                    return yaml.safe_load(f)
+                    result: dict[str, Any] = yaml.safe_load(f) or {}
+                    return result
             except Exception as e:
                 logger.warning(f"Failed to load config from {config_path}: {e}")
 
         # Fallback: Try to extract from metadata
         metadata = _self.load_metadata(session_id)
         if metadata and "config" in metadata:
-            return metadata["config"]
+            config_data: dict[str, Any] = metadata.get("config", {})
+            if isinstance(config_data, dict):
+                return config_data
 
         return {}
 
@@ -69,7 +72,8 @@ class SessionDataLoader:
         if metadata_path.exists():
             try:
                 with open(metadata_path, encoding="utf-8") as f:
-                    return json.load(f)
+                    result: dict[str, Any] = json.load(f)
+                    return result
             except Exception as e:
                 logger.warning(f"Failed to load metadata from {metadata_path}: {e}")
         return {}
@@ -83,7 +87,8 @@ class SessionDataLoader:
         if summary_path.exists():
             try:
                 with open(summary_path, encoding="utf-8") as f:
-                    return json.load(f)
+                    result: dict[str, Any] = json.load(f)
+                    return result
             except Exception as e:
                 logger.warning(f"Failed to load summary from {summary_path}: {e}")
         return {}
@@ -96,7 +101,8 @@ class SessionDataLoader:
         if metrics_path.exists():
             try:
                 with open(metrics_path, encoding="utf-8") as f:
-                    return json.load(f)
+                    result: dict[str, Any] = json.load(f)
+                    return result
             except Exception as e:
                 logger.warning(f"Failed to load baseline metrics from {metrics_path}: {e}")
         return {}
@@ -109,7 +115,8 @@ class SessionDataLoader:
         if metrics_path.exists():
             try:
                 with open(metrics_path, encoding="utf-8") as f:
-                    return json.load(f)
+                    result: dict[str, Any] = json.load(f)
+                    return result
             except Exception as e:
                 logger.warning(f"Failed to load mot metrics from {metrics_path}: {e}")
         return {}
@@ -122,7 +129,8 @@ class SessionDataLoader:
         if metrics_path.exists():
             try:
                 with open(metrics_path, encoding="utf-8") as f:
-                    return json.load(f)
+                    result: dict[str, Any] = json.load(f)
+                    return result
             except Exception as e:
                 logger.warning(f"Failed to load reprojection error from {metrics_path}: {e}")
         return {}
@@ -135,7 +143,8 @@ class SessionDataLoader:
         if metrics_path.exists():
             try:
                 with open(metrics_path, encoding="utf-8") as f:
-                    return json.load(f)
+                    result: dict[str, Any] = json.load(f)
+                    return result
             except Exception as e:
                 logger.warning(f"Failed to load performance metrics from {metrics_path}: {e}")
         return {}
@@ -146,7 +155,7 @@ class SessionDataLoader:
         session_dir = _self.get_session_path(session_id)
         phase_dir = session_dir / "phase1_extraction"
 
-        data = {"results": None, "frames": []}
+        data: dict[str, Any] = {"results": None, "frames": []}
 
         if not phase_dir.exists():
             return data
@@ -172,7 +181,7 @@ class SessionDataLoader:
         session_dir = _self.get_session_path(session_id)
         phase_dir = session_dir / "phase2_detection"
 
-        data = {"statistics": {}, "results": None, "images": []}
+        data: dict[str, Any] = {"statistics": {}, "results": None, "images": []}
 
         if not phase_dir.exists():
             return data
@@ -208,7 +217,7 @@ class SessionDataLoader:
         session_dir = _self.get_session_path(session_id)
         phase_dir = session_dir / "phase2.5_tracking"
 
-        data = {"tracks": [], "statistics": {}, "images": []}
+        data: dict[str, Any] = {"tracks": [], "statistics": {}, "images": []}
 
         if not phase_dir.exists():
             # Fallback for older structure or if phase dir is missing but tracks.json exists in root
@@ -254,7 +263,7 @@ class SessionDataLoader:
         session_dir = _self.get_session_path(session_id)
         phase_dir = session_dir / "phase3_transform"
 
-        data = {"transformations": []}
+        data: dict[str, Any] = {"transformations": []}
 
         if not phase_dir.exists():
             return data
@@ -303,7 +312,7 @@ class SessionDataLoader:
         session_dir = _self.get_session_path(session_id)
         phase_dir = session_dir / "phase5_visualization"
 
-        data = {"graphs": [], "floormaps": [], "videos": []}
+        data: dict[str, Any] = {"graphs": [], "floormaps": [], "videos": []}
 
         if not phase_dir.exists():
             return data
