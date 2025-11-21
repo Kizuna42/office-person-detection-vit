@@ -1,0 +1,76 @@
+# カメラパラメータ推奨設定例
+# 右下向き末広がり画角の設定
+
+# パターン1: 標準的な右下向き（推奨）
+# 用途: 一般的なオフィス環境、人物検出
+camera_params_pattern1:
+  height_m: 2.2
+  pitch_deg: -12.0        # 軽く下向き（人物を見下ろす）
+  yaw_deg: 45.0           # 右下方向（試行錯誤で30-60度の範囲で調整）
+  roll_deg: 0.0           # 水平
+  focal_length_x: 1250.0  # FOV約51度（末広がり効果）
+  focal_length_y: 1250.0
+  center_x: 640.0         # 画像中心（1280×720の場合）
+  center_y: 360.0         # 画像中心
+  position_x: 859         # カメラ位置（固定点）
+  position_y: 1040        # カメラ位置（固定点）
+
+# パターン2: より広い末広がり
+# 用途: 広いエリアをカバーしたい場合
+camera_params_pattern2:
+  height_m: 2.2
+  pitch_deg: -10.0        # より浅い俯角
+  yaw_deg: 40.0           # やや右寄り
+  roll_deg: 0.0
+  focal_length_x: 1100.0  # より広いFOV（約58度）
+  focal_length_y: 1100.0
+  center_x: 640.0
+  center_y: 360.0
+  position_x: 859
+  position_y: 1040
+
+# パターン3: より狭い集中型
+# 用途: 特定エリアを詳細に監視したい場合
+camera_params_pattern3:
+  height_m: 2.2
+  pitch_deg: -15.0        # より強い俯角
+  yaw_deg: 50.0           # やや下寄り
+  roll_deg: 0.0
+  focal_length_x: 1400.0  # より狭いFOV（約46度）
+  focal_length_y: 1400.0
+  center_x: 640.0
+  center_y: 360.0
+  position_x: 859
+  position_y: 1040
+
+# パターン4: テスト用（微調整前の初期値）
+# 用途: 座標変換の検証
+camera_params_pattern4:
+  height_m: 2.2
+  pitch_deg: -12.0
+  yaw_deg: 45.0           # この値を調整して右下方向を確認
+  roll_deg: 0.0
+  focal_length_x: 1250.0
+  focal_length_y: 1250.0
+  center_x: 640.0
+  center_y: 360.0
+  position_x: 859
+  position_y: 1040
+
+# 調整の指針:
+# 1. Yaw（方位角）: 30-60度の範囲で右下方向を実現
+#    - 右に広がりすぎ → 値を小さく（30-40度）
+#    - 下に広がりすぎ → 値を大きく（50-60度）
+#    - 反対方向を向く → 符号を反転（-45度など）
+#
+# 2. Pitch（俯角）: -10 〜 -15度が推奨
+#    - 遠くが見えない → 値を小さく（-8度）
+#    - 近すぎる → 値を大きく（-15度）
+#
+# 3. FOV（視野角）: 焦点距離で調整
+#    - 広がりが足りない → focal_lengthを小さく（1100px）
+#    - 広がりすぎ → focal_lengthを大きく（1400px）
+#
+# 4. 検証方法:
+#    - tools/test_camera_direction.py で方向を確認
+#    - tools/adjust_camera_params.py で視覚的に調整

@@ -42,13 +42,42 @@ SCRIPTS_DIR := scripts
 RUFF := $(shell command -v ruff 2>/dev/null || echo "")
 MYPY := $(shell command -v mypy 2>/dev/null || echo "")
 
-# カラー出力（ANSIエスケープシーケンス）
-COLOR_RESET := \033[0m
-COLOR_BOLD := \033[1m
-COLOR_CYAN := \033[36m
-COLOR_GREEN := \033[32m
-COLOR_YELLOW := \033[33m
-COLOR_RED := \033[31m
+# カラー出力（ANSIエスケープシーケンス） - ターミナル対応チェック付き
+# NO_COLOR環境変数が設定されている、またはターミナルがカラー非対応の場合は無効化
+NO_COLOR_ENV := $(shell echo $$NO_COLOR)
+TERM_SUPPORT := $(shell if [ -t 1 ] && [ -z "$(NO_COLOR_ENV)" ]; then echo "yes"; else echo "no"; fi)
+
+ifeq ($(TERM_SUPPORT),yes)
+	COLOR_RESET := \033[0m
+	COLOR_BOLD := \033[1m
+	COLOR_DIM := \033[2m
+	COLOR_CYAN := \033[36m
+	COLOR_GREEN := \033[32m
+	COLOR_YELLOW := \033[33m
+	COLOR_RED := \033[31m
+	COLOR_BLUE := \033[34m
+	COLOR_MAGENTA := \033[35m
+	ICON_SUCCESS := ✓
+	ICON_WARNING := ⚠
+	ICON_ERROR := ✗
+	ICON_INFO := ℹ
+	ICON_ARROW := →
+else
+	COLOR_RESET :=
+	COLOR_BOLD :=
+	COLOR_DIM :=
+	COLOR_CYAN :=
+	COLOR_GREEN :=
+	COLOR_YELLOW :=
+	COLOR_RED :=
+	COLOR_BLUE :=
+	COLOR_MAGENTA :=
+	ICON_SUCCESS := [OK]
+	ICON_WARNING := [WARN]
+	ICON_ERROR := [ERROR]
+	ICON_INFO := [INFO]
+	ICON_ARROW := ->
+endif
 
 # デフォルトターゲット
 .DEFAULT_GOAL := help
@@ -57,33 +86,56 @@ COLOR_RED := \033[31m
 # ユーティリティ関数
 # ========================================
 
-# セクション区切りを表示
+# セクション区切りを表示（改善版）
 define print_section
-	echo "$(COLOR_BOLD)==========================================$(COLOR_RESET)"
-	echo "$(COLOR_BOLD)$(1)$(COLOR_RESET)"
-	echo "$(COLOR_BOLD)==========================================$(COLOR_RESET)"
+	echo ""; \
+	echo "$(COLOR_BOLD)$(COLOR_CYAN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(COLOR_RESET)"; \
+	echo "$(COLOR_BOLD)$(COLOR_CYAN)  $(1)$(COLOR_RESET)"; \
+	echo "$(COLOR_BOLD)$(COLOR_CYAN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(COLOR_RESET)"; \
+	echo ""
 endef
 
-# 成功メッセージを表示
+# サブセクション表示
+define print_subsection
+	echo "$(COLOR_BOLD)$(COLOR_BLUE)$(ICON_ARROW)$(COLOR_RESET) $(COLOR_BOLD)$(1)$(COLOR_RESET)"
+endef
+
+# 成功メッセージを表示（改善版）
 define print_success
-	echo "$(COLOR_GREEN)✓$(COLOR_RESET) $(1)"
+	echo "$(COLOR_GREEN)$(ICON_SUCCESS)$(COLOR_RESET) $(COLOR_GREEN)$(1)$(COLOR_RESET)"
 endef
 
-# 警告メッセージを表示
+# 警告メッセージを表示（改善版）
 define print_warning
-	echo "$(COLOR_YELLOW)⚠$(COLOR_RESET) $(1)"
+	echo "$(COLOR_YELLOW)$(ICON_WARNING)$(COLOR_RESET) $(COLOR_YELLOW)$(1)$(COLOR_RESET)" >&2
 endef
 
-# エラーメッセージを表示
+# エラーメッセージを表示（改善版）
 define print_error
-	echo "$(COLOR_RED)❌$(COLOR_RESET) $(1)"
+	echo "$(COLOR_RED)$(ICON_ERROR)$(COLOR_RESET) $(COLOR_BOLD)$(COLOR_RED)$(1)$(COLOR_RESET)" >&2
+endef
+
+# 情報メッセージを表示
+define print_info
+	echo "$(COLOR_CYAN)$(ICON_INFO)$(COLOR_RESET) $(COLOR_DIM)$(1)$(COLOR_RESET)"
+endef
+
+# 進捗メッセージを表示
+define print_progress
+	echo "$(COLOR_BLUE)$(ICON_ARROW)$(COLOR_RESET) $(COLOR_DIM)$(1)$(COLOR_RESET)..."
+endef
+
+# ステップ表示（番号付き）
+define print_step
+	echo ""; \
+	echo "$(COLOR_BOLD)$(COLOR_MAGENTA)[$(1)/$(2)]$(COLOR_RESET) $(COLOR_BOLD)$(3)$(COLOR_RESET)"
 endef
 
 # コマンドの存在確認
 define check_command
 	@if ! command -v $(1) >/dev/null 2>&1; then \
 		$(call print_error,"$(1)がインストールされていません"); \
-		echo "  インストール: $(2)"; \
+		echo "  $(COLOR_DIM)インストール: $(2)$(COLOR_RESET)"; \
 		exit 1; \
 	fi
 endef
@@ -95,18 +147,32 @@ endef
 .PHONY: run
 run: ## 通常実行（メインパイプライン）
 	$(call print_section,"ワークフロー実行: 通常モード")
-	@$(PYTHON) main.py --config $(CONFIG)
+	@$(call print_info,"設定ファイル: $(CONFIG)")
+	@$(call print_info,"Python: $(PYTHON)")
+	@echo ""
+	@$(call print_progress,"パイプラインを実行中")
+	@$(PYTHON) main.py --config $(CONFIG) || \
+		($(call print_error,"パイプライン実行に失敗しました"); exit 1)
+	@echo ""
+	@$(call print_success,"パイプライン実行が完了しました")
 
 .PHONY: baseline
 baseline: ## ベースライン実行と評価を連鎖実行（run_baseline.py + evaluate_baseline.py）
 	@set -e; \
 	$(call print_section,"ベースライン実行と評価"); \
-	echo "ステップ1: パイプライン実行中..."; \
+	$(call print_info,"設定ファイル: $(CONFIG)"); \
+	$(if $(TAG),$(call print_info,"タグ: $(TAG)")); \
+	$(if $(GT),$(call print_info,"Ground Truth: $(GT)")); \
+	$(if $(POINTS),$(call print_info,"対応点: $(POINTS)")); \
+	echo ""; \
+	$(call print_step,1,3,"パイプライン実行"); \
+	$(call print_progress,"パイプラインを実行中"); \
 	$(PYTHON) $(SCRIPTS_DIR)/run_baseline.py --config $(CONFIG) $(if $(TAG),--tag $(TAG)) || \
 		($(call print_error,"パイプライン実行に失敗しました"); exit 1); \
 	$(call print_success,"パイプライン実行が完了しました"); \
 	echo ""; \
-	echo "ステップ2: セッションIDを取得中..."; \
+	$(call print_step,2,3,"セッションID取得"); \
+	$(call print_progress,"セッションIDを取得中"); \
 	SESSION_ID=""; \
 	if [ -L $(OUTPUT_DIR)/latest ] && [ -e $(OUTPUT_DIR)/latest ]; then \
 		SESSION_ID=$$(basename $$(readlink $(OUTPUT_DIR)/latest)) || true; \
@@ -116,21 +182,23 @@ baseline: ## ベースライン実行と評価を連鎖実行（run_baseline.py 
 	fi; \
 	if [ -z "$$SESSION_ID" ]; then \
 		$(call print_error,"セッションIDを取得できませんでした"); \
-		echo "  output/latest シンボリックリンクまたは output/sessions/ ディレクトリを確認してください"; \
+		echo "  $(COLOR_DIM)output/latest シンボリックリンクまたは output/sessions/ ディレクトリを確認してください$(COLOR_RESET)"; \
 		exit 1; \
 	fi; \
-	echo "セッションID: $$SESSION_ID"; \
+	echo "  $(COLOR_DIM)セッションID: $(COLOR_CYAN)$$SESSION_ID$(COLOR_RESET)"; \
 	$(call print_success,"セッションIDを取得しました"); \
 	echo ""; \
-	echo "ステップ3: 評価実行中..."; \
+	$(call print_step,3,3,"評価実行"); \
+	$(call print_progress,"評価を実行中"); \
 	$(PYTHON) $(SCRIPTS_DIR)/evaluate_baseline.py --session $$SESSION_ID --config $(CONFIG) \
 		$(if $(GT),--gt $(GT)) $(if $(POINTS),--points $(POINTS)) || \
 		($(call print_error,"評価実行に失敗しました"); exit 1); \
 	$(call print_success,"評価実行が完了しました"); \
 	echo ""; \
 	$(call print_section,"ベースライン実行と評価が完了しました"); \
-	echo "セッションID: $$SESSION_ID"; \
-	echo "評価結果: $(OUTPUT_DIR)/sessions/$$SESSION_ID/baseline_metrics.json"
+	echo "$(COLOR_BOLD)セッションID:$(COLOR_RESET) $(COLOR_CYAN)$$SESSION_ID$(COLOR_RESET)"; \
+	echo "$(COLOR_BOLD)評価結果:$(COLOR_RESET) $(COLOR_DIM)$(OUTPUT_DIR)/sessions/$$SESSION_ID/baseline_metrics.json$(COLOR_RESET)"; \
+	echo ""
 
 # ========================================
 # クリーンアップコマンド
@@ -138,9 +206,21 @@ baseline: ## ベースライン実行と評価を連鎖実行（run_baseline.py 
 
 .PHONY: clean
 clean: ## outputディレクトリ内の生成ファイルを削除（labels/result_fixed.json、calibration/、shared/は保持）
-	@$(call print_section,"outputディレクトリをクリーンアップ中...")
+	@$(call print_section,"outputディレクトリをクリーンアップ中")
 	@if [ -d $(OUTPUT_DIR) ]; then \
-		echo "生成ファイルを削除中..."; \
+		$(call print_progress,"生成ファイルを削除中"); \
+		FILE_COUNT=$$(find $(OUTPUT_DIR) -type f \( \
+			-name "*.jpg" -o -name "*.jpeg" -o -name "*.png" -o -name "*.gif" -o \
+			-name "*.bmp" -o -name "*.tiff" -o -name "*.webp" -o \
+			-name "*.mov" -o -name "*.mp4" -o -name "*.avi" -o -name "*.mkv" -o \
+			-name "*.webm" -o -name "*.flv" -o -name "*.wmv" -o \
+			-name "*.csv" -o -name "*.json" -o -name "*.log" -o -name "*.md" -o \
+			-name "*.tmp" -o -name "*.temp" -o -name "*.swp" -o -name "*.swo" -o \
+			-name "*~" -o -name "._*" \
+		\) \
+			! -path "*/labels/result_fixed.json" \
+			! -path "*/calibration/*" \
+			! -path "*/shared/*" 2>/dev/null | wc -l | tr -d ' '); \
 		find $(OUTPUT_DIR) -type f \( \
 			-name "*.jpg" -o -name "*.jpeg" -o -name "*.png" -o -name "*.gif" -o \
 			-name "*.bmp" -o -name "*.tiff" -o -name "*.webp" -o \
@@ -154,17 +234,29 @@ clean: ## outputディレクトリ内の生成ファイルを削除（labels/res
 			! -path "*/calibration/*" \
 			! -path "*/shared/*" \
 			-exec rm -f {} + 2>/dev/null || true; \
-		echo "シンボリックリンクを削除中..."; \
-		find $(OUTPUT_DIR) -type l -name "latest" -delete 2>/dev/null || true; \
-		echo "セッションディレクトリを削除中..."; \
-		if [ -d $(OUTPUT_DIR)/sessions ]; then \
-			find $(OUTPUT_DIR)/sessions -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} + 2>/dev/null || true; \
+		if [ "$$FILE_COUNT" -gt 0 ]; then \
+			echo "  $(COLOR_DIM)削除したファイル数: $$FILE_COUNT$(COLOR_RESET)"; \
 		fi; \
-		echo "空ディレクトリを削除中..."; \
+		$(call print_progress,"シンボリックリンクを削除中"); \
+		LINK_COUNT=$$(find $(OUTPUT_DIR) -type l -name "latest" 2>/dev/null | wc -l | tr -d ' '); \
+		find $(OUTPUT_DIR) -type l -name "latest" -delete 2>/dev/null || true; \
+		if [ "$$LINK_COUNT" -gt 0 ]; then \
+			echo "  $(COLOR_DIM)削除したシンボリックリンク数: $$LINK_COUNT$(COLOR_RESET)"; \
+		fi; \
+		$(call print_progress,"セッションディレクトリを削除中"); \
+		if [ -d $(OUTPUT_DIR)/sessions ]; then \
+			SESSION_COUNT=$$(find $(OUTPUT_DIR)/sessions -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' '); \
+			find $(OUTPUT_DIR)/sessions -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} + 2>/dev/null || true; \
+			if [ "$$SESSION_COUNT" -gt 0 ]; then \
+				echo "  $(COLOR_DIM)削除したセッション数: $$SESSION_COUNT$(COLOR_RESET)"; \
+			fi; \
+		fi; \
+		$(call print_progress,"空ディレクトリを削除中"); \
 		find $(OUTPUT_DIR) -type d -empty -delete 2>/dev/null || true; \
+		echo ""; \
 		$(call print_success,"outputディレクトリをクリーンアップしました"); \
 	else \
-		$(call print_success,"outputディレクトリが存在しません"); \
+		$(call print_info,"outputディレクトリが存在しません（スキップ）"); \
 	fi
 
 # ========================================
@@ -175,34 +267,38 @@ clean: ## outputディレクトリ内の生成ファイルを削除（labels/res
 test: ## テストを実行（TEST_MODE=coverage|verbose|fast、TEST_PARALLEL=auto|no|N を指定可能）
 	@set -e; \
 	PARALLEL_OPTS=""; \
+	PARALLEL_INFO=""; \
 	if [ "$(TEST_PARALLEL)" != "no" ]; then \
 		if $(VENV_PY) -c "import pytest_xdist" 2>/dev/null || $(PYTHON) -c "import pytest_xdist" 2>/dev/null; then \
 			if [ "$(TEST_PARALLEL)" = "auto" ]; then \
 				PARALLEL_OPTS="-n auto"; \
+				PARALLEL_INFO="（並列: 自動）"; \
 			else \
 				PARALLEL_OPTS="-n $(TEST_PARALLEL)"; \
+				PARALLEL_INFO="（並列: $(TEST_PARALLEL)プロセス）"; \
 			fi; \
 		fi; \
 	fi; \
 	if [ "$(TEST_MODE)" = "coverage" ]; then \
-		echo "$(COLOR_BOLD)==========================================$(COLOR_RESET)"; \
-		echo "$(COLOR_BOLD)カバレッジ付きテストを実行中...$(COLOR_RESET)"; \
-		echo "$(COLOR_BOLD)==========================================$(COLOR_RESET)"; \
+		$(call print_section,"カバレッジ付きテスト実行"); \
+		$(call print_info,"テストディレクトリ: $(TESTS_DIR)")$(if $$PARALLEL_INFO,$(call print_info,"並列実行: $$PARALLEL_INFO")); \
+		echo ""; \
 		$(VENV_PY) -m pytest $(TESTS_DIR)/ --cov=$(SRC_DIR) --cov-report=term -v $$PARALLEL_OPTS; \
 	elif [ "$(TEST_MODE)" = "verbose" ]; then \
-		echo "$(COLOR_BOLD)==========================================$(COLOR_RESET)"; \
-		echo "$(COLOR_BOLD)詳細出力付きテストを実行中...$(COLOR_RESET)"; \
-		echo "$(COLOR_BOLD)==========================================$(COLOR_RESET)"; \
+		$(call print_section,"詳細出力付きテスト実行"); \
+		$(call print_info,"テストディレクトリ: $(TESTS_DIR)")$(if $$PARALLEL_INFO,$(call print_info,"並列実行: $$PARALLEL_INFO")); \
+		echo ""; \
 		$(VENV_PY) -m pytest $(TESTS_DIR)/ -vv -s $$PARALLEL_OPTS; \
 	elif [ "$(TEST_MODE)" = "fast" ]; then \
-		echo "$(COLOR_BOLD)==========================================$(COLOR_RESET)"; \
-		echo "$(COLOR_BOLD)高速テストを実行中（並列実行）...$(COLOR_RESET)"; \
-		echo "$(COLOR_BOLD)==========================================$(COLOR_RESET)"; \
+		$(call print_section,"高速テスト実行"); \
+		$(call print_info,"テストディレクトリ: $(TESTS_DIR)")$(if $$PARALLEL_INFO,$(call print_info,"並列実行: $$PARALLEL_INFO")); \
+		$(call print_info,"スキップ: slowマーカー付きテスト"); \
+		echo ""; \
 		$(VENV_PY) -m pytest $(TESTS_DIR)/ -v -m "not slow" $$PARALLEL_OPTS; \
 	else \
-		echo "$(COLOR_BOLD)==========================================$(COLOR_RESET)"; \
-		echo "$(COLOR_BOLD)テストを実行中...$(COLOR_RESET)"; \
-		echo "$(COLOR_BOLD)==========================================$(COLOR_RESET)"; \
+		$(call print_section,"テスト実行"); \
+		$(call print_info,"テストディレクトリ: $(TESTS_DIR)")$(if $$PARALLEL_INFO,$(call print_info,"並列実行: $$PARALLEL_INFO")); \
+		echo ""; \
 		$(VENV_PY) -m pytest $(TESTS_DIR)/ -v $$PARALLEL_OPTS; \
 	fi
 
@@ -212,13 +308,17 @@ test: ## テストを実行（TEST_MODE=coverage|verbose|fast、TEST_PARALLEL=au
 
 .PHONY: setup
 setup: ## 開発環境を一括初期化（仮想環境 + 依存関係 + 動作確認）
-	$(call print_section,"開発環境セットアップを開始します")
+	@$(call print_section,"開発環境セットアップ")
+	@$(call print_info,"Python: $(PYTHON)")
+	@$(call print_info,"仮想環境: $(VENV_DIR)")
+	@echo ""
+	@$(call print_step,1,5,"仮想環境の確認・作成")
 	@if [ ! -d $(VENV_DIR) ]; then \
-		echo "仮想環境を作成中..."; \
+		$(call print_progress,"仮想環境を作成中"); \
 		$(PYTHON) -m venv $(VENV_DIR); \
 		$(call print_success,"仮想環境を作成しました"); \
 	else \
-		$(call print_success,"仮想環境は既に存在します"); \
+		$(call print_info,"仮想環境は既に存在します（スキップ）"); \
 	fi
 	@echo ""
 	@SETUP_PY="$(VENV_BIN)/python"; \
@@ -226,7 +326,8 @@ setup: ## 開発環境を一括初期化（仮想環境 + 依存関係 + 動作�
 		$(call print_warning,"仮想環境が見つからないためホストPythonを使用します: $(PYTHON)"); \
 		SETUP_PY="$(PYTHON)"; \
 	fi; \
-	echo "pipの状態を確認中..."; \
+	$(call print_step,2,5,"pipの確認・アップグレード"); \
+	$(call print_progress,"pipの状態を確認中"); \
 	if ! "$$SETUP_PY" -m pip --version >/dev/null 2>&1; then \
 		$(call print_warning,"pipが破損している可能性があります。仮想環境を再作成します..."); \
 		rm -rf $(VENV_DIR); \
@@ -234,7 +335,7 @@ setup: ## 開発環境を一括初期化（仮想環境 + 依存関係 + 動作�
 		SETUP_PY="$(VENV_BIN)/python"; \
 		$(call print_success,"仮想環境を再作成しました"); \
 	fi; \
-	echo "pipをアップグレード中..."; \
+	$(call print_progress,"pipをアップグレード中"); \
 	if ! "$$SETUP_PY" -m pip install --upgrade pip >/dev/null 2>&1; then \
 		$(call print_warning,"pipのアップグレードに失敗しました。get-pip.pyで再インストールを試みます..."); \
 		curl -sSL https://bootstrap.pypa.io/get-pip.py | "$$SETUP_PY" || \
@@ -244,56 +345,64 @@ setup: ## 開発環境を一括初期化（仮想環境 + 依存関係 + 動作�
 		 SETUP_PY="$(VENV_BIN)/python"; \
 		 "$$SETUP_PY" -m pip install --upgrade pip); \
 	fi; \
-	echo "依存関係をインストール中..."; \
-	echo "（初回はモデルダウンロードのため時間がかかる場合があります）"; \
-	"$$SETUP_PY" -m pip install -r $(REQUIREMENTS); \
+	$(call print_success,"pipの準備が完了しました"); \
 	echo ""; \
-	echo "システム依存関係を確認しています..."; \
+	$(call print_step,3,5,"依存関係のインストール"); \
+	$(call print_progress,"依存関係をインストール中"); \
+	$(call print_info,"初回はモデルダウンロードのため時間がかかる場合があります"); \
+	"$$SETUP_PY" -m pip install -r $(REQUIREMENTS) || \
+		($(call print_error,"依存関係のインストールに失敗しました"); exit 1); \
+	$(call print_success,"依存関係のインストールが完了しました"); \
+	echo ""; \
+	$(call print_step,4,5,"システム依存関係の確認"); \
 	if command -v tesseract >/dev/null 2>&1; then \
-		$(call print_success,"Tesseract OCR が利用可能です: $$(tesseract --version | head -1)"); \
+		TESSERACT_VERSION=$$(tesseract --version | head -1); \
+		$(call print_success,"Tesseract OCR が利用可能です: $$TESSERACT_VERSION"); \
 	else \
 		$(call print_error,"Tesseract OCR が見つかりません"); \
-		echo "   例: brew install tesseract tesseract-lang"; \
+		echo "  $(COLOR_DIM)インストール例: brew install tesseract tesseract-lang$(COLOR_RESET)"; \
 	fi; \
 	echo ""; \
+	$(call print_step,5,5,"Python依存関係の検証"); \
 	if [ -f $(SCRIPTS_DIR)/check_dependencies.py ]; then \
-		echo "Python依存関係を検証しています..."; \
-		"$$SETUP_PY" $(SCRIPTS_DIR)/check_dependencies.py; \
+		$(call print_progress,"Python依存関係を検証中"); \
+		"$$SETUP_PY" $(SCRIPTS_DIR)/check_dependencies.py || \
+			($(call print_warning,"依存関係の検証で警告がありました"); true); \
 	else \
 		$(call print_warning,"$(SCRIPTS_DIR)/check_dependencies.py が見つからないためスキップしました"); \
 	fi; \
 	echo ""; \
-	$(call print_section,"セットアップが完了しました！"); \
+	$(call print_section,"セットアップが完了しました"); \
 	echo ""; \
-	echo "次のステップ:"; \
-	echo "  1. 仮想環境を有効化: source $(VENV_ACTIVATE)"; \
-	echo "  2. 実行: make run"; \
+	echo "$(COLOR_BOLD)次のステップ:$(COLOR_RESET)"; \
+	echo "  $(COLOR_CYAN)1.$(COLOR_RESET) 仮想環境を有効化: $(COLOR_DIM)source $(VENV_ACTIVATE)$(COLOR_RESET)"; \
+	echo "  $(COLOR_CYAN)2.$(COLOR_RESET) 実行: $(COLOR_DIM)make run$(COLOR_RESET)"; \
 	echo ""
 
 .PHONY: help
 help: ## 利用可能なコマンド一覧を表示
-	$(call print_section,"オフィス人物検出システム - Makefile")
+	@$(call print_section,"オフィス人物検出システム - Makefile")
 	@echo ""
-	@echo "利用可能なコマンド:"
+	@echo "$(COLOR_BOLD)利用可能なコマンド:$(COLOR_RESET)"
 	@echo ""
 	@awk 'BEGIN {FS = ":.*?## "}; /^[a-zA-Z_-]+:.*?## / { \
 		command = $$1; \
 		description = $$2; \
 		gsub(/^[ \t]+|[ \t]+$$/, "", command); \
 		gsub(/^[ \t]+|[ \t]+$$/, "", description); \
-		printf "  $(COLOR_CYAN)%-25s$(COLOR_RESET) %s\n", command, description \
+		printf "  $(COLOR_CYAN)$(ICON_ARROW)$(COLOR_RESET) $(COLOR_BOLD)$(COLOR_CYAN)%-20s$(COLOR_RESET) %s\n", command, description \
 	}' $(MAKEFILE_LIST)
 	@echo ""
-	@echo "使用例:"
-	@echo "  $(COLOR_CYAN)make setup$(COLOR_RESET)                  # 開発環境の初期化"
-	@echo "  $(COLOR_CYAN)make test$(COLOR_RESET)                   # テスト実行"
-	@echo "  $(COLOR_CYAN)make test TEST_MODE=coverage$(COLOR_RESET)  # カバレッジ付きテスト"
-	@echo "  $(COLOR_CYAN)make run$(COLOR_RESET)                    # 通常実行"
-	@echo "  $(COLOR_CYAN)make baseline$(COLOR_RESET)               # ベースライン実行と評価"
-	@echo "  $(COLOR_CYAN)make baseline GT=data/gt_tracks_auto.json$(COLOR_RESET)  # オプション指定"
-	@echo "  $(COLOR_CYAN)make clean$(COLOR_RESET)                  # outputクリーンアップ"
-	@echo "  $(COLOR_CYAN)make lint$(COLOR_RESET)                   # Lintチェック"
-	@echo "  $(COLOR_CYAN)make format$(COLOR_RESET)                # コードフォーマット"
+	@echo "$(COLOR_BOLD)使用例:$(COLOR_RESET)"
+	@echo "  $(COLOR_CYAN)make setup$(COLOR_RESET)                  $(COLOR_DIM)# 開発環境の初期化$(COLOR_RESET)"
+	@echo "  $(COLOR_CYAN)make test$(COLOR_RESET)                   $(COLOR_DIM)# テスト実行$(COLOR_RESET)"
+	@echo "  $(COLOR_CYAN)make test TEST_MODE=coverage$(COLOR_RESET)  $(COLOR_DIM)# カバレッジ付きテスト$(COLOR_RESET)"
+	@echo "  $(COLOR_CYAN)make run$(COLOR_RESET)                    $(COLOR_DIM)# 通常実行$(COLOR_RESET)"
+	@echo "  $(COLOR_CYAN)make baseline$(COLOR_RESET)               $(COLOR_DIM)# ベースライン実行と評価$(COLOR_RESET)"
+	@echo "  $(COLOR_CYAN)make baseline GT=data/gt_tracks_auto.json$(COLOR_RESET)  $(COLOR_DIM)# オプション指定$(COLOR_RESET)"
+	@echo "  $(COLOR_CYAN)make clean$(COLOR_RESET)                  $(COLOR_DIM)# outputクリーンアップ$(COLOR_RESET)"
+	@echo "  $(COLOR_CYAN)make lint$(COLOR_RESET)                   $(COLOR_DIM)# Lintチェック$(COLOR_RESET)"
+	@echo "  $(COLOR_CYAN)make format$(COLOR_RESET)                $(COLOR_DIM)# コードフォーマット$(COLOR_RESET)"
 	@echo ""
 
 # ========================================
@@ -307,38 +416,52 @@ MYPY_CMD := $(shell if [ -f $(VENV_BIN)/mypy ]; then echo "$(VENV_BIN)/mypy"; el
 .PHONY: lint
 lint: ## Lintチェック（ruff + mypy）
 	@set -e; \
-	$(call print_section,"Lintチェック実行中..."); \
+	$(call print_section,"Lintチェック"); \
 	if [ -z "$(RUFF_CMD)" ]; then \
 		$(call print_error,"ruffがインストールされていません"); \
-		echo "  インストール: pip install ruff"; \
+		echo "  $(COLOR_DIM)インストール: pip install ruff$(COLOR_RESET)"; \
 		exit 1; \
 	fi; \
-	$(call print_success,"ruffチェック中..."); \
+	$(call print_subsection,"ruffチェック"); \
+	$(call print_progress,"ruffでコードをチェック中"); \
 	$(RUFF_CMD) check . || exit 1; \
+	$(call print_success,"ruffチェックが完了しました"); \
+	echo ""; \
 	if [ -n "$(MYPY_CMD)" ]; then \
-		$(call print_success,"mypyチェック中..."); \
+		$(call print_subsection,"mypyチェック"); \
+		$(call print_progress,"mypyで型チェック中"); \
 		$(MYPY_CMD) $(SRC_DIR)/ --ignore-missing-imports || \
 		($(call print_warning,"mypyチェックで警告がありました（続行）"); true); \
+		$(call print_success,"mypyチェックが完了しました"); \
 	else \
 		$(call print_warning,"mypyがインストールされていません（スキップ）"); \
+		echo "  $(COLOR_DIM)インストール: pip install mypy$(COLOR_RESET)"; \
 	fi; \
+	echo ""; \
 	$(call print_success,"Lintチェックが完了しました")
 
 .PHONY: format
 format: ## コードフォーマット（ruff format + ruff check --fix）
 	@set -e; \
-	$(call print_section,"コードフォーマット実行中..."); \
+	$(call print_section,"コードフォーマット"); \
 	if [ -z "$(RUFF_CMD)" ]; then \
 		$(call print_error,"ruffがインストールされていません"); \
-		echo "  インストール: pip install ruff"; \
+		echo "  $(COLOR_DIM)インストール: pip install ruff$(COLOR_RESET)"; \
 		exit 1; \
 	fi; \
-	$(call print_success,"ruff format実行中..."); \
+	$(call print_step,1,3,"ruff format実行"); \
+	$(call print_progress,"コードをフォーマット中"); \
 	$(RUFF_CMD) format . || exit 1; \
-	$(call print_success,"ruff check --fix実行中..."); \
-	$(RUFF_CMD) check . --fix --unsafe-fixes || exit 1; \
 	$(call print_success,"フォーマットが完了しました"); \
 	echo ""; \
-	$(call print_success,"残りのエラーがないか確認中..."); \
+	$(call print_step,2,3,"ruff check --fix実行"); \
+	$(call print_progress,"自動修正可能な問題を修正中"); \
+	$(RUFF_CMD) check . --fix --unsafe-fixes || exit 1; \
+	$(call print_success,"自動修正が完了しました"); \
+	echo ""; \
+	$(call print_step,3,3,"残りのエラー確認"); \
+	$(call print_progress,"残りのエラーがないか確認中"); \
 	$(RUFF_CMD) check . || \
-	($(call print_warning,"修正できないエラーが残っています。手動で修正してください。"); exit 1)
+	($(call print_warning,"修正できないエラーが残っています。手動で修正してください。"); exit 1); \
+	$(call print_success,"フォーマットが完了しました"); \
+	echo ""

@@ -399,3 +399,179 @@ class CoordinateTransformer:
             "x_mm_per_pixel": self.x_mm_per_pixel,
             "y_mm_per_pixel": self.y_mm_per_pixel,
         }
+
+    @staticmethod
+    def compute_homography_from_params(
+        camera_params: dict,
+        floormap_config: dict | None = None,
+    ) -> np.ndarray:
+        """カメラパラメータからホモグラフィ行列を計算する
+
+        Args:
+            camera_params: カメラパラメータ辞書
+                - height_m: カメラ高さ (m)
+                - pitch_deg: 俯角 (度、負=下向き、正=上向き)
+                - yaw_deg: 方位角 (度、0=右下方向、正=時計回り/右方向、負=反時計回り/左方向)
+                - roll_deg: 回転角 (度、0=水平)
+                - focal_length_x: 焦点距離X (px)
+                - focal_length_y: 焦点距離Y (px)
+                - center_x: 画像中心X (px)
+                - center_y: 画像中心Y (px)
+                - position_x: カメラ位置X (px、フロアマップ座標)
+                - position_y: カメラ位置Y (px、フロアマップ座標)
+            floormap_config: フロアマップ設定（オプション）
+                - image_x_mm_per_pixel: X軸スケール (mm/px)
+                - image_y_mm_per_pixel: Y軸スケール (mm/px)
+                - image_origin_x: 原点X (px)
+                - image_origin_y: 原点Y (px)
+
+        Returns:
+            3x3 ホモグラフィ行列 (Camera -> FloorMap)
+
+        Note:
+            仕様: yaw=0, roll=0 の時にフロアマップ座標系で右下方向を向く。
+            yawを調整することで、右下方向から左右にパンできる。
+            - 正の値: 時計回り（右方向に回転）
+            - 負の値: 反時計回り（左方向に回転）
+        """
+        # パラメータの取得
+        h = float(camera_params.get("height_m", 2.2))
+        pitch = np.radians(float(camera_params.get("pitch_deg", 45.0)))
+        yaw = np.radians(float(camera_params.get("yaw_deg", 0.0)))
+        roll = np.radians(float(camera_params.get("roll_deg", 0.0)))
+
+        fx = float(camera_params.get("focal_length_x", 1000.0))
+        fy = float(camera_params.get("focal_length_y", 1000.0))
+        cx = float(camera_params.get("center_x", 640.0))
+        cy = float(camera_params.get("center_y", 360.0))
+
+        # カメラ内部パラメータ行列 K
+        K = np.array([[fx, 0, cx], [0, fy, cy], [0, 0, 1]], dtype=np.float64)
+
+        # 回転行列 R (World -> Camera)
+        # World座標系: X右, Y奥, Z上 (右手系)
+        # Camera座標系: X右, Y下, Z奥 (右手系)
+
+        # 基本回転 (World -> Camera aligned with World)
+        # World X -> Camera X
+        # World Y -> Camera Z (Forward) -> Camera Z is depth
+        # World Z -> Camera -Y (Up is -Down)
+        # しかし、一般的な定義では:
+        # Camera looking down -Z axis of World?
+        # ここではシンプルに、カメラ座標系で回転を考える
+
+        # 回転行列の構築 (RX * RY * RZ)
+        # Pitch: X軸周り回転（正=下向き、負=上向き）
+        Rx = np.array([[1, 0, 0], [0, np.cos(pitch), -np.sin(pitch)], [0, np.sin(pitch), np.cos(pitch)]])
+
+        # Yaw: Y軸周り回転（正=時計回り/右方向、負=反時計回り/左方向）
+        # 符号を反転して直感的な操作を実現（正の値で右方向に回転）
+        Ry = np.array([[np.cos(yaw), 0, -np.sin(yaw)], [0, 1, 0], [np.sin(yaw), 0, np.cos(yaw)]])
+
+        # Roll: Z軸周り回転（正=時計回り、負=反時計回り）
+        Rz = np.array([[np.cos(roll), -np.sin(roll), 0], [np.sin(roll), np.cos(roll), 0], [0, 0, 1]])
+
+        # 座標変換行列 (World -> Camera) を構築する
+        # World: X=Right, Y=Forward, Z=Up
+        # Camera: X=Right, Y=Down, Z=Forward
+        # Floormap: X=Right, Y=Down, Z=Up
+        #
+        # 仕様: yaw=0, roll=0 の時にフロアマップ座標系で右下方向を向く
+        # フロアマップ座標系での右下方向 = +X方向（右）かつ +Y方向（下）
+        # World座標系では、X+方向（右）と-Z方向（下）の組み合わせ
+
+        # World -> Camera Base Transformation (Look Down-Right)
+        # yaw=0, roll=0 の時にフロアマップ座標系で右下方向（+X, +Y）を向くように設定
+        # フロアマップの右下方向は、World座標系では (X+方向, -Z方向) = 45度回転
+        # ただし、実際の座標系変換を考慮して調整が必要
+
+        # 基底変換: World座標系からCamera座標系への変換
+        # さらに、yaw=0の時に右下方向を向くように45度回転を加える
+        R_base_world_to_cam = np.array(
+            [
+                [1, 0, 0],
+                [0, 0, -1],  # Y_camera = -Z_world (下方向)
+                [0, 1, 0],  # Z_camera = Y_world (前方)
+            ]
+        )
+
+        # 右下方向を向くための追加回転
+        # フロアマップ座標系での右下方向 = +X方向（右）かつ +Y方向（下）
+        # World座標系では、X軸（右）と-Z軸（下）の組み合わせ
+        #
+        # R_base_world_to_cam は「前方（World Y軸）を見る」状態
+        # 右下方向を見るには、Y軸周りに+120度回転を適用
+        # 座標系変換を考慮して調整
+        yaw_offset_rad = np.radians(110.0)  # 右下方向へのオフセット
+        R_yaw_offset = np.array(
+            [
+                [np.cos(yaw_offset_rad), 0, np.sin(yaw_offset_rad)],
+                [0, 1, 0],
+                [-np.sin(yaw_offset_rad), 0, np.cos(yaw_offset_rad)],
+            ]
+        )
+
+        # ユーザー指定の回転 (Pitch, Yaw, Roll)
+        # Pitch: 俯角（正=下向き、負=上向き）
+        # Yaw: 方位角（正=時計回り/右方向、負=反時計回り/左方向）
+        #      yaw=0 で右下方向を向く
+        # Roll: 回転角（正=時計回り、負=反時計回り）
+
+        R_user = Rz @ Ry @ Rx  # 適用順序: Roll → Yaw → Pitch
+
+        # 最終的な回転行列 R (World -> Camera)
+        # yaw=0, roll=0 の時に右下方向を向くように、オフセット回転を適用
+        R = R_user @ R_yaw_offset @ R_base_world_to_cam
+
+        # 並進ベクトル t (World origin in Camera frame)
+        # Camera position C in World: [0, 0, h]
+        C = np.array([0, 0, h])
+        t = -R @ C
+
+        # 平面ホモグラフィ (Floor Z=0 -> Camera)
+        # P = K [R|t]
+        # p_c ~ P [X, Y, 0, 1]^T = K [r1 r2 t] [X, Y, 1]^T
+        # H_floor2cam = K [r1 r2 t]
+
+        r1 = R[:, 0]
+        r2 = R[:, 1]
+
+        H_floor2cam = K @ np.column_stack((r1, r2, t))
+
+        # ホモグラフィの逆変換 (Camera -> Floor Metric)
+        try:
+            H_cam2floor_metric = np.linalg.inv(H_floor2cam)
+        except np.linalg.LinAlgError:
+            logger.error("ホモグラフィ行列の逆行列計算に失敗しました")
+            return np.eye(3)
+
+        # Floor Metric -> Floor Pixel 変換
+        # Metric (m) -> Pixel
+        # X_pix = X_metric * (1000 / mm_per_pixel_x) + position_x
+        # Y_pix = Y_metric * (1000 / mm_per_pixel_y) + position_y
+
+        floormap_config = floormap_config or {}
+        mm_per_pixel_x = floormap_config.get("image_x_mm_per_pixel", 1.0)
+        mm_per_pixel_y = floormap_config.get("image_y_mm_per_pixel", 1.0)
+
+        # カメラ位置（ピクセル）を原点として使用
+        # camera_paramsにposition_x/yが含まれていればそれを使用し、
+        # なければfloormap_configのoriginを使用（後方互換性）
+        pos_x = camera_params.get("position_x")
+        pos_y = camera_params.get("position_y")
+
+        if pos_x is None:
+            pos_x = floormap_config.get("image_origin_x", 0)
+        if pos_y is None:
+            pos_y = floormap_config.get("image_origin_y", 0)
+
+        scale_x = 1000.0 / mm_per_pixel_x
+        scale_y = 1000.0 / mm_per_pixel_y
+
+        # S = [[sx, 0, ox], [0, sy, oy], [0, 0, 1]]
+        S = np.array([[scale_x, 0, pos_x], [0, scale_y, pos_y], [0, 0, 1]])
+
+        # 最終的なホモグラフィ H = S * H_cam2floor_metric
+        H_final = S @ H_cam2floor_metric
+
+        return H_final

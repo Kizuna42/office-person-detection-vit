@@ -32,12 +32,35 @@ class TransformPhase(BasePhase):
         """座標変換器とゾーン分類器を初期化"""
         self.log_phase_start("フェーズ3: 座標変換とゾーン判定")
 
-        # CoordinateTransformerの初期化
-        homography_matrix = self.config.get("homography.matrix")
+        # ホモグラフィ行列の取得方法を決定
+        # 1. 対応点ベース（homography.matrixを直接使用）
+        # 2. カメラパラメータベース（camera_paramsから計算）
+        homography_source = self.config.get("homography.source", "correspondence_points")
         floormap_config = self.config.get("floormap")
 
-        if homography_matrix is None:
-            raise ValueError("ホモグラフィ行列が設定されていません")
+        if homography_source == "camera_params":
+            # カメラパラメータからホモグラフィ行列を計算
+            camera_params = self.config.get("camera_params")
+            if camera_params is None:
+                raise ValueError(
+                    "camera_paramsが設定されていません。homography.source=camera_paramsを使用する場合は必須です。"
+                )
+
+            self.logger.info("カメラパラメータからホモグラフィ行列を計算します")
+            homography_matrix = CoordinateTransformer.compute_homography_from_params(camera_params, floormap_config)
+            self.logger.info(
+                f"カメラパラメータ: height={camera_params.get('height_m')}m, "
+                f"pitch={camera_params.get('pitch_deg')}deg, "
+                f"yaw={camera_params.get('yaw_deg')}deg, "
+                f"position=({camera_params.get('position_x')}, {camera_params.get('position_y')})"
+            )
+        else:
+            # 対応点ベース（デフォルト）
+            homography_matrix = self.config.get("homography.matrix")
+            if homography_matrix is None:
+                raise ValueError("ホモグラフィ行列が設定されていません")
+
+            self.logger.info("対応点から計算されたホモグラフィ行列を使用します")
 
         self.coordinate_transformer = CoordinateTransformer(homography_matrix, floormap_config)
         self.logger.info("CoordinateTransformer initialized")
