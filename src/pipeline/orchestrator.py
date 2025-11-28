@@ -18,7 +18,7 @@ from src.pipeline.phases import (
     TransformPhase,
     VisualizationPhase,
 )
-from src.utils import OutputManager, PerformanceMonitor, cleanup_resources, setup_output_directories
+from src.utils import CheckpointManager, OutputManager, PerformanceMonitor, cleanup_resources, setup_output_directories
 from src.video import VideoProcessor
 
 
@@ -38,6 +38,7 @@ class PipelineOrchestrator:
         self.session_dir: Path | None = None
         self.output_path: Path = Path(config.get("output.directory", "output"))
         self.performance_monitor = PerformanceMonitor()
+        self.checkpoint_manager: CheckpointManager | None = None
 
     def setup_output_directories(self, use_session_management: bool, args: dict | None = None) -> None:
         """出力ディレクトリをセットアップ
@@ -56,6 +57,9 @@ class PipelineOrchestrator:
             args_dict = vars(args) if args else {}
             self.output_manager.save_metadata(self.session_dir, config_dict, args_dict)
             self.output_path = self.session_dir
+
+            # チェックポイントマネージャーを初期化
+            self.checkpoint_manager = CheckpointManager(self.session_dir)
         else:
             self.logger.info("セッション管理は無効です（従来の出力構造を使用）")
             # 従来のディレクトリ構造を作成
@@ -162,14 +166,24 @@ class PipelineOrchestrator:
         Returns:
             検出用フレームのリスト [(frame_idx, timestamp, frame), ...]
         """
+        import cv2
+
         sample_frames = []
         video_processor = None
 
         try:
             for result in tqdm(extraction_results, desc="フレーム準備中"):
                 frame = result.get("frame")
+
+                # フレームがない場合、frame_pathから読み込みを試行
                 if frame is None:
-                    # フレームが保存されていない場合は動画から再取得
+                    frame_path = result.get("frame_path")
+                    if frame_path and Path(frame_path).exists():
+                        frame = cv2.imread(frame_path)
+                        self.logger.debug(f"フレームをディスクから読み込み: {frame_path}")
+
+                # それでもない場合は動画から再取得
+                if frame is None:
                     if video_processor is None:
                         video_processor = VideoProcessor(video_path)
                         video_processor.open()
@@ -210,18 +224,27 @@ class PipelineOrchestrator:
             detection_results = detection_phase.execute(sample_frames)
             detection_phase.log_statistics(detection_results, output_dir)
 
+            # チェックポイント保存
+            if self.checkpoint_manager:
+                self.checkpoint_manager.save_checkpoint(
+                    "phase2_detection",
+                    {"total_detections": sum(len(dets) for _, _, dets in detection_results)},
+                )
+
             return detection_results, detection_phase
 
     def run_tracking(
         self,
         detection_results: list[tuple[int, str, list[Detection]]],
         sample_frames: list[tuple[int, str, np.ndarray]],
+        detection_phase: DetectionPhase | None = None,
     ) -> tuple[list[tuple[int, str, list[Detection]]], TrackingPhase]:
         """追跡処理を実行
 
         Args:
             detection_results: 検出結果のリスト
             sample_frames: サンプルフレームのリスト [(frame_num, timestamp, frame), ...]
+            detection_phase: 検出フェーズインスタンス（検出器共有用、オプション）
 
         Returns:
             (track_idが割り当てられた検出結果のリスト, TrackingPhaseインスタンス)
@@ -235,6 +258,12 @@ class PipelineOrchestrator:
 
         with self.performance_monitor.measure("phase2.5_tracking"):
             tracking_phase = TrackingPhase(self.config, self.logger)
+
+            # 検出フェーズから検出器を共有（メモリ効率化）
+            if detection_phase is not None and detection_phase.detector is not None:
+                tracking_phase.set_detector(detection_phase.detector)
+                self.logger.info("検出器をPhase 2からPhase 2.5に共有しました")
+
             tracking_phase.initialize()
 
             output_dir = self.get_phase_output_dir("phase2.5_tracking")
@@ -245,6 +274,13 @@ class PipelineOrchestrator:
 
             # 結果をエクスポート
             tracking_phase.export_results(output_dir)
+
+            # チェックポイント保存
+            if self.checkpoint_manager:
+                self.checkpoint_manager.save_checkpoint(
+                    "phase2.5_tracking",
+                    {"total_tracks": len(tracking_phase.get_tracks())},
+                )
 
             return tracked_results, tracking_phase
 
@@ -267,6 +303,13 @@ class PipelineOrchestrator:
             frame_results = transform_phase.execute(detection_results)
             transform_phase.export_results(frame_results, output_dir)
 
+            # チェックポイント保存
+            if self.checkpoint_manager:
+                self.checkpoint_manager.save_checkpoint(
+                    "phase3_transform",
+                    {"frames_processed": len(frame_results)},
+                )
+
             return frame_results, transform_phase
 
     def run_aggregation(self, frame_results: list[FrameResult]) -> tuple[AggregationPhase, Aggregator]:
@@ -283,6 +326,13 @@ class PipelineOrchestrator:
             output_dir = self.get_phase_output_dir("phase4_aggregation")
             aggregator = aggregation_phase.execute(frame_results, output_dir)
 
+            # チェックポイント保存
+            if self.checkpoint_manager:
+                self.checkpoint_manager.save_checkpoint(
+                    "phase4_aggregation",
+                    {"zones_count": len(aggregator.get_statistics())},
+                )
+
             return aggregation_phase, aggregator
 
     def run_visualization(self, aggregator: Aggregator, frame_results: list[FrameResult]) -> None:
@@ -296,6 +346,13 @@ class PipelineOrchestrator:
             visualization_phase = VisualizationPhase(self.config, self.logger)
             output_dir = self.get_phase_output_dir("phase5_visualization")
             visualization_phase.execute(aggregator, frame_results, output_dir)
+
+            # チェックポイント保存
+            if self.checkpoint_manager:
+                self.checkpoint_manager.save_checkpoint(
+                    "phase5_visualization",
+                    {"floormaps_generated": len(frame_results)},
+                )
 
     def save_session_summary(
         self,

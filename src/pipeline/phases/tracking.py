@@ -30,9 +30,20 @@ class TrackingPhase(BasePhase):
         super().__init__(config, logger)
         self.tracker: Tracker | None = None
         self.detector: ViTDetector | None = None  # 特徴量抽出用
+        self._detector_shared: bool = False  # 検出器が共有されているかどうか
         self.tracks: list[Track] = []
         self.tracked_results: list[tuple[int, str, list[Detection]]] = []  # 画像出力用
         self.sample_frames: list[tuple[int, str, np.ndarray]] = []  # 画像出力用
+
+    def set_detector(self, detector: ViTDetector) -> None:
+        """検出器を外部から設定（共有用）
+
+        Args:
+            detector: 共有する検出器インスタンス
+        """
+        self.detector = detector
+        self._detector_shared = True
+        self.logger.info("検出器が外部から共有されました（メモリ効率化）")
 
     def initialize(self) -> None:
         """トラッカーを初期化"""
@@ -63,14 +74,17 @@ class TrackingPhase(BasePhase):
         self.logger.info(f"  appearance_weight={appearance_weight}, motion_weight={motion_weight}")
 
         # 特徴量抽出用の検出器を初期化（既存の検出器があれば再利用）
-        # ここでは新規に作成（検出フェーズとは別インスタンス）
-        model_name = self.config.get("detection.model_name")
-        confidence_threshold = self.config.get("detection.confidence_threshold")
-        device = self.config.get("detection.device")
+        if self.detector is not None:
+            self.logger.info("検出器は既にセットされています（共有モード）")
+        else:
+            # 検出器が未設定の場合のみ新規作成
+            model_name = self.config.get("detection.model_name")
+            confidence_threshold = self.config.get("detection.confidence_threshold")
+            device = self.config.get("detection.device")
 
-        self.detector = ViTDetector(model_name, confidence_threshold, device)
-        self.detector.load_model()
-        self.logger.info("特徴量抽出用の検出器を初期化しました")
+            self.detector = ViTDetector(model_name, confidence_threshold, device)
+            self.detector.load_model()
+            self.logger.info("特徴量抽出用の検出器を新規初期化しました")
 
     def execute(
         self,
@@ -249,6 +263,11 @@ class TrackingPhase(BasePhase):
 
     def cleanup(self) -> None:
         """リソースのクリーンアップ"""
-        if self.detector:
-            # 検出器のクリーンアップ（必要に応じて）
-            pass
+        # 共有された検出器は削除しない（所有者が管理する）
+        if self.detector and not self._detector_shared:
+            del self.detector
+            self.detector = None
+        elif self._detector_shared:
+            # 共有された検出器は参照を解除するだけ
+            self.detector = None
+            self._detector_shared = False
