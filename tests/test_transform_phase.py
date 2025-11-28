@@ -186,10 +186,14 @@ def test_export_results(sample_config, sample_logger, sample_detection_results, 
     with open(json_path, encoding="utf-8") as f:
         data = json.load(f)
 
-    assert len(data) == 2
-    assert data[0]["frame_number"] == 0
-    assert "detections" in data[0]
-    assert len(data[0]["detections"]) == 2
+    # 新しい形式: メタデータ + frames
+    assert "transform_method" in data
+    assert "transformer_info" in data
+    assert "frames" in data
+    assert len(data["frames"]) == 2
+    assert data["frames"][0]["frame_number"] == 0
+    assert "detections" in data["frames"][0]
+    assert len(data["frames"][0]["detections"]) == 2
 
 
 def test_export_results_empty(sample_config, sample_logger, tmp_path):
@@ -211,7 +215,10 @@ def test_export_results_empty(sample_config, sample_logger, tmp_path):
     with open(json_path, encoding="utf-8") as f:
         data = json.load(f)
 
-    assert len(data) == 0
+    # 新しい形式: メタデータ + frames
+    assert "transform_method" in data
+    assert "frames" in data
+    assert len(data["frames"]) == 0
 
 
 def test_export_results_with_missing_coords(sample_config, sample_logger, tmp_path):
@@ -252,9 +259,12 @@ def test_export_results_with_missing_coords(sample_config, sample_logger, tmp_pa
     with open(json_path, encoding="utf-8") as f:
         data = json.load(f)
 
-    assert len(data) == 1
-    assert "floor_coords_px" not in data[0]["detections"][0]
-    assert "floor_coords_mm" not in data[0]["detections"][0]
+    # 新しい形式: メタデータ + frames
+    assert "transform_method" in data
+    assert "frames" in data
+    assert len(data["frames"]) == 1
+    assert "floor_coords_px" not in data["frames"][0]["detections"][0]
+    assert "floor_coords_mm" not in data["frames"][0]["detections"][0]
 
 
 def test_cleanup(sample_config, sample_logger):

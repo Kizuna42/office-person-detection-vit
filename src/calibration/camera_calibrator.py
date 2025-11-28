@@ -79,7 +79,7 @@ class CameraCalibrator:
             gray.shape[::-1],
             None,
             None,
-        )  # type: ignore[call-overload]
+        )
 
         self.camera_matrix = camera_matrix
         self.dist_coeffs = dist_coeffs

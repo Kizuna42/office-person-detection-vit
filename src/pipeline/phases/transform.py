@@ -1,34 +1,52 @@
 """Transform and zone classification phase of the pipeline.
 
-Phase 3: ホモグラフィ変換によるカメラ座標→フロアマップ座標変換とゾーン判定
+Phase 3: 座標変換（PWA/TPS/ホモグラフィ）によるカメラ座標→フロアマップ座標変換とゾーン判定
+
+オプションでレンズ歪み補正を適用できます。
 """
 
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Any
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 from tqdm import tqdm
 
+from src.calibration import LensDistortionCorrector
 from src.models import Detection, FrameResult
 from src.pipeline.phases.base import BasePhase
-from src.transform import FloorMapConfig, HomographyTransformer, TransformResult
+from src.transform import (
+    FloorMapConfig,
+    HomographyTransformer,
+    PiecewiseAffineTransformer,
+    PWATransformResult,
+    ThinPlateSplineTransformer,
+    TransformResult,
+)
 from src.zone import ZoneClassifier
 
 if TYPE_CHECKING:
     import logging
-    from pathlib import Path
 
     from src.config import ConfigManager
+
+
+# 座標変換器の型エイリアス
+TransformerType = HomographyTransformer | PiecewiseAffineTransformer | ThinPlateSplineTransformer
 
 
 class TransformPhase(BasePhase):
     """座標変換とゾーン判定フェーズ。
 
-    ホモグラフィ行列を使用して、カメラ座標からフロアマップ座標への変換を実行し、
-    各検出結果にゾーン情報を付与します。
+    複数の変換手法をサポート:
+    - homography: 単一ホモグラフィ行列（高速、精度低）
+    - piecewise_affine: Piecewise Affine変換（高精度、推奨）
+    - thin_plate_spline: TPS変換（最高精度、計算コスト高）
     """
+
+    SUPPORTED_METHODS = ("homography", "piecewise_affine", "thin_plate_spline")
 
     def __init__(self, config: ConfigManager, logger: logging.Logger):
         """初期化。
@@ -38,16 +56,78 @@ class TransformPhase(BasePhase):
             logger: ロガー
         """
         super().__init__(config, logger)
-        self.transformer: HomographyTransformer | None = None
+        self.transformer: TransformerType | None = None
         self.zone_classifier: ZoneClassifier | None = None
+        self.transform_method: str = "homography"
+        self.distortion_corrector: LensDistortionCorrector | None = None
 
-    def initialize(self) -> None:
-        """座標変換器とゾーン分類器を初期化。"""
-        self.log_phase_start("フェーズ3: 座標変換とゾーン判定 (homography)")
+    def _init_distortion_corrector(self) -> LensDistortionCorrector | None:
+        """レンズ歪み補正器を初期化
 
-        # フロアマップ設定を読み込み
+        config.yaml の transform.lens_distortion セクションから設定を読み込みます。
+
+        Returns:
+            LensDistortionCorrector または None（無効時）
+        """
+        transform_config = self.config.get("transform", {})
+        distortion_config = transform_config.get("lens_distortion", {})
+
+        if not distortion_config.get("enabled", False):
+            self.logger.info("Lens distortion correction is disabled")
+            return None
+
+        try:
+            # 歪み係数を取得
+            k1 = float(distortion_config.get("k1", 0.0))
+            k2 = float(distortion_config.get("k2", 0.0))
+            k3 = float(distortion_config.get("k3", 0.0))
+            p1 = float(distortion_config.get("p1", 0.0))
+            p2 = float(distortion_config.get("p2", 0.0))
+
+            # カメラ行列パラメータ
+            camera_config = self.config.get("camera_params", {})
+            fx = float(distortion_config.get("focal_length_x", camera_config.get("focal_length", 1250.0)))
+            fy = float(distortion_config.get("focal_length_y", camera_config.get("focal_length", 1250.0)))
+            cx = float(distortion_config.get("center_x", 640.0))
+            cy = float(distortion_config.get("center_y", 360.0))
+
+            # 画像サイズ
+            image_width = int(distortion_config.get("image_width", 1280))
+            image_height = int(distortion_config.get("image_height", 720))
+
+            from src.calibration import CameraIntrinsics, DistortionParams
+
+            intrinsics = CameraIntrinsics(
+                fx=fx,
+                fy=fy,
+                cx=cx,
+                cy=cy,
+                width=image_width,
+                height=image_height,
+                distortion=DistortionParams(k1=k1, k2=k2, k3=k3, p1=p1, p2=p2),
+            )
+
+            corrector = LensDistortionCorrector(intrinsics)
+
+            if corrector.enabled:
+                self.logger.info("Lens distortion correction enabled:")
+                self.logger.info(f"  k1={k1:.6f}, k2={k2:.6f}, k3={k3:.6f}")
+                self.logger.info(f"  p1={p1:.6f}, p2={p2:.6f}")
+                self.logger.info(f"  Camera: fx={fx:.1f}, fy={fy:.1f}, cx={cx:.1f}, cy={cy:.1f}")
+            else:
+                self.logger.info("Lens distortion correction: all coefficients are zero (disabled)")
+                return None
+
+            return corrector
+
+        except Exception as e:
+            self.logger.warning(f"Failed to initialize lens distortion corrector: {e}")
+            return None
+
+    def _create_floormap_config(self) -> FloorMapConfig:
+        """フロアマップ設定を作成"""
         floormap_config = self.config.get("floormap", {})
-        fm_config = FloorMapConfig(
+        return FloorMapConfig(
             width_px=int(floormap_config.get("image_width", 1878)),
             height_px=int(floormap_config.get("image_height", 1369)),
             origin_x_px=float(floormap_config.get("image_origin_x", 7.0)),
@@ -56,7 +136,8 @@ class TransformPhase(BasePhase):
             scale_y_mm_per_px=float(floormap_config.get("image_y_mm_per_pixel", 28.241430700447)),
         )
 
-        # ホモグラフィ変換器を初期化
+    def _init_homography_transformer(self, fm_config: FloorMapConfig) -> HomographyTransformer:
+        """ホモグラフィ変換器を初期化"""
         homography_config = self.config.get("homography", {})
         matrix = homography_config.get("matrix")
 
@@ -67,11 +148,105 @@ class TransformPhase(BasePhase):
         if H.shape != (3, 3):
             raise ValueError(f"ホモグラフィ行列は3x3である必要があります: {H.shape}")
 
-        self.transformer = HomographyTransformer(H, fm_config)
+        transformer = HomographyTransformer(H, fm_config)
         self.logger.info("HomographyTransformer initialized")
         self.logger.info(f"  Matrix:\n{H}")
 
-        # Initialize Zone Classifier
+        return transformer
+
+    def _init_pwa_transformer(self, fm_config: FloorMapConfig) -> PiecewiseAffineTransformer:
+        """PWA変換器を初期化"""
+        transform_config = self.config.get("transform", {})
+        model_path = transform_config.get("model_path")
+        correspondence_file = self.config.get("calibration", {}).get("correspondence_file")
+
+        # モデルファイルがあれば読み込み、なければ対応点から作成
+        if model_path and Path(model_path).exists():
+            self.logger.info(f"Loading PWA model from {model_path}")
+            transformer = PiecewiseAffineTransformer.load(
+                model_path,
+                fm_config,
+                distortion_corrector=self.distortion_corrector,
+            )
+        elif correspondence_file and Path(correspondence_file).exists():
+            self.logger.info(f"Creating PWA transformer from {correspondence_file}")
+            transformer = PiecewiseAffineTransformer.from_correspondence_file(
+                correspondence_file,
+                fm_config,
+                distortion_corrector=self.distortion_corrector,
+            )
+            # モデルを保存
+            if model_path:
+                Path(model_path).parent.mkdir(parents=True, exist_ok=True)
+                transformer.save(model_path)
+                self.logger.info(f"PWA model saved to {model_path}")
+        else:
+            raise ValueError("PWA変換には model_path または correspondence_file が必要です")
+
+        # 訓練誤差を表示
+        info = transformer.get_info()
+        training_error = info.get("training_error", {})
+        self.logger.info(
+            f"PiecewiseAffineTransformer initialized: {info['num_points']} points, {info['num_triangles']} triangles"
+        )
+        self.logger.info(
+            f"  Training RMSE: {training_error.get('rmse', 0):.2f}px, Max: {training_error.get('max_error', 0):.2f}px"
+        )
+
+        return transformer
+
+    def _init_tps_transformer(self, fm_config: FloorMapConfig) -> ThinPlateSplineTransformer:
+        """TPS変換器を初期化"""
+        correspondence_file = self.config.get("calibration", {}).get("correspondence_file")
+
+        if not correspondence_file or not Path(correspondence_file).exists():
+            raise ValueError("TPS変換には correspondence_file が必要です")
+
+        self.logger.info(f"Creating TPS transformer from {correspondence_file}")
+        transformer = ThinPlateSplineTransformer.from_correspondence_file(
+            correspondence_file,
+            fm_config,
+            regularization=0.0,
+            distortion_corrector=self.distortion_corrector,
+        )
+
+        info = transformer.get_info()
+        training_error = info.get("training_error", {})
+        self.logger.info(f"ThinPlateSplineTransformer initialized: {info['num_points']} points")
+        self.logger.info(
+            f"  Training RMSE: {training_error.get('rmse', 0):.2f}px, Max: {training_error.get('max_error', 0):.2f}px"
+        )
+
+        return transformer
+
+    def initialize(self) -> None:
+        """座標変換器とゾーン分類器を初期化。"""
+        # 変換方式を取得
+        transform_config = self.config.get("transform", {})
+        self.transform_method = transform_config.get("method", "homography")
+
+        if self.transform_method not in self.SUPPORTED_METHODS:
+            self.logger.warning(f"Unknown transform method '{self.transform_method}', falling back to 'homography'")
+            self.transform_method = "homography"
+
+        self.log_phase_start(f"フェーズ3: 座標変換とゾーン判定 ({self.transform_method})")
+
+        # レンズ歪み補正器を初期化（PWA/TPSでのみ有効）
+        if self.transform_method in ["piecewise_affine", "thin_plate_spline"]:
+            self.distortion_corrector = self._init_distortion_corrector()
+
+        # フロアマップ設定
+        fm_config = self._create_floormap_config()
+
+        # 変換器を初期化
+        if self.transform_method == "piecewise_affine":
+            self.transformer = self._init_pwa_transformer(fm_config)
+        elif self.transform_method == "thin_plate_spline":
+            self.transformer = self._init_tps_transformer(fm_config)
+        else:
+            self.transformer = self._init_homography_transformer(fm_config)
+
+        # ゾーン分類器を初期化
         zones = self.config.get("zones", [])
         if not zones:
             self.logger.warning("ゾーン定義が設定されていません")
@@ -99,6 +274,7 @@ class TransformPhase(BasePhase):
         transform_errors = 0
         out_of_bounds_count = 0
         zone_classification_count = 0
+        extrapolated_count = 0
 
         for frame_num, timestamp, detections in tqdm(detection_results, desc="座標変換・ゾーン判定中"):
             total_detections += len(detections)
@@ -106,9 +282,12 @@ class TransformPhase(BasePhase):
             # バッチ処理で変換
             if detections:
                 bboxes = [d.bbox for d in detections]
-                results = self.transformer.transform_batch(bboxes)
+                batch_results = cast(
+                    list[TransformResult | PWATransformResult],
+                    self.transformer.transform_batch(bboxes),
+                )
 
-                for detection, result in zip(detections, results, strict=True):
+                for detection, result in zip(detections, batch_results, strict=True):
                     self._apply_transform_result(detection, result)
 
                     if result.is_valid:
@@ -116,6 +295,10 @@ class TransformPhase(BasePhase):
 
                         if not result.is_within_bounds:
                             out_of_bounds_count += 1
+
+                        # PWAの外挿をカウント
+                        if hasattr(result, "is_extrapolated") and result.is_extrapolated:
+                            extrapolated_count += 1
 
                         # ゾーン判定
                         if result.floor_coords_px is not None:
@@ -141,11 +324,16 @@ class TransformPhase(BasePhase):
             transform_errors,
             out_of_bounds_count,
             zone_classification_count,
+            extrapolated_count,
         )
 
         return frame_results
 
-    def _apply_transform_result(self, detection: Detection, result: TransformResult) -> None:
+    def _apply_transform_result(
+        self,
+        detection: Detection,
+        result: TransformResult | PWATransformResult,
+    ) -> None:
         """変換結果を Detection に適用。
 
         Args:
@@ -171,6 +359,7 @@ class TransformPhase(BasePhase):
         errors: int,
         out_of_bounds: int,
         zone_classified: int,
+        extrapolated: int = 0,
     ) -> None:
         """統計情報をログ出力。
 
@@ -180,15 +369,18 @@ class TransformPhase(BasePhase):
             errors: エラー数
             out_of_bounds: 範囲外数
             zone_classified: ゾーン分類数
+            extrapolated: 外挿数（PWA/TPS）
         """
         if total > 0:
             self.logger.info("=" * 80)
-            self.logger.info("Phase 3 Statistics:")
+            self.logger.info(f"Phase 3 Statistics ({self.transform_method}):")
             self.logger.info(f"  Total Detections: {total}")
             self.logger.info(f"  Transform Success: {success} ({success / total * 100:.1f}%)")
             self.logger.info(f"  Transform Errors: {errors} ({errors / total * 100:.1f}%)")
             self.logger.info(f"  Out of Bounds: {out_of_bounds} ({out_of_bounds / total * 100:.1f}%)")
             self.logger.info(f"  Zone Classified: {zone_classified} ({zone_classified / total * 100:.1f}%)")
+            if extrapolated > 0:
+                self.logger.info(f"  Extrapolated (PWA): {extrapolated} ({extrapolated / total * 100:.1f}%)")
             self.logger.info("=" * 80)
 
     def export_results(self, frame_results: list[FrameResult], output_path: Path) -> None:
@@ -245,10 +437,17 @@ class TransformPhase(BasePhase):
 
             coordinate_data.append(frame_data)
 
+        # メタデータを追加
+        output_data = {
+            "transform_method": self.transform_method,
+            "transformer_info": self.transformer.get_info() if self.transformer else {},
+            "frames": coordinate_data,
+        }
+
         coordinate_output_path = output_path / "coordinate_transformations.json"
         try:
             with open(coordinate_output_path, "w", encoding="utf-8") as f:
-                json.dump(coordinate_data, f, indent=2, ensure_ascii=False)
+                json.dump(output_data, f, indent=2, ensure_ascii=False, default=str)
             self.logger.info(f"Saved coordinate transformations to {coordinate_output_path}")
         except Exception as e:
             self.logger.error(f"Failed to save JSON: {e}")

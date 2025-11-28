@@ -57,10 +57,29 @@ tracking:
 # ==============================================================================
 # 4. 座標変換設定 (Transform - Phase 3)
 # ==============================================================================
-# 変換方式: "piecewise_affine" (最高精度) / "homography" (2D→2D) / "pinhole" (3D)
+# 変換方式: "piecewise_affine" (最高精度) / "homography" (2D→2D) / "thin_plate_spline" (TPS)
 transform:
   method: "piecewise_affine" # "piecewise_affine" 推奨（RMSE 0px on training data）
   model_path: "output/calibration/pwa_model.pkl"
+
+  # レンズ歪み補正（PWA/TPS変換時のみ有効）
+  # チェスボードキャリブレーションで取得した歪み係数を設定
+  lens_distortion:
+    enabled: false # true にすると歪み補正を適用
+    # 放射歪み係数（バレル歪み: k1<0、ピンクッション歪み: k1>0）
+    k1: 0.0
+    k2: 0.0
+    k3: 0.0
+    # 接線歪み係数
+    p1: 0.0
+    p2: 0.0
+    # カメラ内部パラメータ（camera_paramsと同期）
+    focal_length_x: 1250.0
+    focal_length_y: 1250.0
+    center_x: 640.0
+    center_y: 360.0
+    image_width: 1280
+    image_height: 720
 
 # ホモグラフィ行列（カメラ座標→フロアマップ座標への直接変換）
 # フィルタリング済み8点から推定、RMSE=1.72px
