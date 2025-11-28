@@ -415,16 +415,37 @@ class SideBySideVideoExporter:
             # バウンディングボックスを描画（track_id色）
             cv2.rectangle(result_image, (x, y), (x + w, y + h), color, 3)
 
-            # track_idと信頼度を表示
-            label = f"ID:{detection.track_id} {detection.confidence:.2f}"
+            # track_idのみを表示（元の「Person 信頼度」ラベルを上書き）
+            label = f"ID:{detection.track_id}"
+
+            # ラベルのサイズを計算
+            font_scale = 0.6
+            thickness = 2
+            (text_width, text_height), baseline = cv2.getTextSize(
+                label, cv2.FONT_HERSHEY_SIMPLEX, font_scale, thickness
+            )
+
+            # 背景矩形を描画（元のラベルを上書き）
+            label_x = x
+            label_y = y - 10
+            padding = 3
+            cv2.rectangle(
+                result_image,
+                (label_x - padding, label_y - text_height - padding),
+                (label_x + text_width + padding, label_y + baseline + padding),
+                color,
+                -1,  # 塗りつぶし
+            )
+
+            # ラベルテキストを描画（白文字）
             cv2.putText(
                 result_image,
                 label,
-                (x, y - 10),
+                (label_x, label_y),
                 cv2.FONT_HERSHEY_SIMPLEX,
-                0.6,
-                color,
-                2,
+                font_scale,
+                (255, 255, 255),  # 白文字で可読性を向上
+                thickness,
             )
 
             # 足元座標を描画

@@ -1,45 +1,160 @@
 # オフィス人物検出システム設定ファイル
 # Office Person Detection System Configuration File
 
-# 動画入力設定
+# ==============================================================================
+# 1. 入力設定 (Input)
+# ==============================================================================
 video:
   # 入力動画ファイルのパス
   input_path: "input/merged_moviefiles.mov"
-
   # タイムラプス動画かどうか
   is_timelapse: true
-
   # フレーム抽出間隔（分）
   frame_interval_minutes: 5
-
   # タイムスタンプ許容誤差（秒）
-  tolerance_seconds: 60
-
+  tolerance_seconds: 30
   # 範囲限定スキャン時のマージン時間（分）
   scan_margin_minutes: 5
-
   # フレームレート（fps）
   fps: 30
 
-# 人物検出設定
+# ==============================================================================
+# 2. 検出設定 (Detection - Phase 2)
+# ==============================================================================
 detection:
   # 使用するViTモデル名
   model_name: "facebook/detr-resnet-50"
-
   # 検出信頼度閾値（0.0-1.0）
   confidence_threshold: 0.5
-
   # NMS（Non-Maximum Suppression）閾値（0.0-1.0）
   nms_threshold: 0.4
-
   # パッチサイズ（ViTの入力パッチサイズ）
   patch_size: 16
-
-  # 使用デバイス
+  # 使用デバイス ("mps", "cuda", "cpu")
   device: "mps"
-
   # バッチサイズ（複数フレームの同時処理数）
   batch_size: 4
+
+# ==============================================================================
+# 3. 追跡設定 (Tracking - Phase 2.5)
+# ==============================================================================
+tracking:
+  # 追跡機能を有効にするか
+  enabled: true
+  # 追跡アルゴリズム ("deepsort" 推奨)
+  algorithm: "deepsort"
+  # IDが消失してから削除するまでの最大フレーム数
+  max_age: 30
+  # 追跡確立に必要な最小検出回数
+  min_hits: 3
+  # IoU閾値（マッチング用）
+  iou_threshold: 0.3
+  # 外観特徴量の重み（0.0-1.0）
+  appearance_weight: 0.7
+  # 位置情報の重み（0.0-1.0）
+  motion_weight: 0.3
+
+# ==============================================================================
+# 4. 座標変換設定 (Transform - Phase 3)
+# ==============================================================================
+# 変換方式: "piecewise_affine" (最高精度) / "homography" (2D→2D) / "pinhole" (3D)
+transform:
+  method: "piecewise_affine" # "piecewise_affine" 推奨（RMSE 0px on training data）
+  model_path: "output/calibration/pwa_model.pkl"
+
+# ホモグラフィ行列（カメラ座標→フロアマップ座標への直接変換）
+# フィルタリング済み8点から推定、RMSE=1.72px
+homography:
+  matrix:
+    - [-0.8795888447, -2.8974379541, 417.8510123786]
+    - [-1.5459702925, -3.4570021203, 1054.0107447082]
+    - [-0.0011928509, -0.0035480452, 1.0000000000]
+
+# ピンホールカメラモデル（バックアップ/将来使用）
+camera_params:
+  # --- 外部パラメータ (Extrinsics) ---
+  # カメラ設置高さ（メートル）
+  height_m: 2.2
+
+  # 俯角（度）: 0=水平, 正=下向き
+  # カメラが床を見下ろす角度。例: 45度
+  pitch_deg: 12.0
+
+  # 方位角（度）: 0=前方(Y+方向)、正=右回転
+  yaw_deg: 20.0
+
+  # 回転角（度）: 0=水平
+  roll_deg: 0.0
+
+  # カメラ位置（World座標系）[メートル]
+  # カメラ直下を原点とする相対位置
+  camera_x_m: 0.0
+  camera_y_m: 0.0
+
+  # --- カメラ位置（フロアマップ座標系）[ピクセル] ---
+  # フロアマップ上でカメラがどこにあるか
+  position_x_px: 859.0
+  position_y_px: 1040.0
+
+  # --- 内部パラメータ (Intrinsics) ---
+  # 焦点距離（ピクセル）
+  # 推定式: f_pixel = (image_width / 2) / tan(FOV / 2)
+  focal_length_x: 1250.0
+  focal_length_y: 1250.0
+
+  # 画像中心（ピクセル）
+  center_x: 640.0
+  center_y: 360.0
+
+  # 入力画像サイズ
+  image_width: 1280
+  image_height: 720
+
+  # 歪み係数 (Distortion Coefficients)
+  # [k1, k2, p1, p2, k3]
+  # 魚眼レンズや広角レンズの場合に設定
+  dist_coeffs: [0.0, 0.0, 0.0, 0.0, 0.0]
+
+# カメラ表示設定（フロアマップ上でのカメラアイコン表示用）
+camera:
+  position_x: 859
+  position_y: 1040
+  height_m: 2.2
+  show_on_floormap: true
+  marker_color: [0, 0, 255]
+  marker_size: 15
+
+# キャリブレーション設定
+calibration:
+  # キャリブレーションモード: "auto" | "manual" | "hybrid"
+  mode: "hybrid"
+  # 対応点ファイルのパス
+  correspondence_file: "output/calibration/correspondence_points_new.json"
+  # 歪み補正を使用するか
+  use_distortion_correction: false
+  # 内部パラメータを使用するか
+  use_intrinsics: true
+  # 再投影誤差の閾値 [pixels]
+  reprojection_error_threshold: 10.0
+  # 内部パラメータ（camera_paramsと同期）
+  intrinsics:
+    focal_length_x: 1250.0
+    focal_length_y: 1250.0
+    principal_point_x: 640.0
+    principal_point_y: 360.0
+    image_width: 1280
+    image_height: 720
+  # 歪み係数
+  distortion:
+    k1: 0.0
+    k2: 0.0
+    k3: 0.0
+    p1: 0.0
+    p2: 0.0
+  # 最適化設定
+  optimization:
+    max_iterations: 100
+    tolerance: 1.0e-6
 
 # フロアマップ設定
 floormap:
@@ -50,289 +165,78 @@ floormap:
   image_width: 1878
   image_height: 1369
 
-  # 原点オフセット（ピクセル）
+  # 原点オフセット（ピクセル）: 固定値（フロアマップ仕様）
+  # 注意: これらの値は固定値であり、カメラ位置とは異なります
   image_origin_x: 7
   image_origin_y: 9
 
-  # スケール（mm/pixel）
+  # スケール（mm/pixel）: 1ピクセルが何mmに相当するか（固定値、精度重要）
   image_x_mm_per_pixel: 28.1926406926406
   image_y_mm_per_pixel: 28.241430700447
 
-# ホモグラフィ変換設定
-homography:
-  matrix:
-    - [-1.1038224674947523, -2.810895019481083, 255.04548360466703]
-    - [-1.9979851256149266, -3.326007092446015, 1058.7326341111943]
-    - [-0.0015438396905741447, -0.003432697883053918, 1.0]
-
-# カメラ設定（可視化用）
-# このセクションはフロアマップ上でのカメラ表示に使用されます。
-# ホモグラフィ計算には camera_params セクションを使用してください。
-camera:
-  # カメラ位置（フロアマップ上の座標、ピクセル単位）
-  # フロアマップ上での表示位置を指定します
-  position_x: 859
-  position_y: 1040
-
-  # カメラ高さ（メートル単位）
-  # 表示用（将来の拡張用）
-  height_m: 2.2
-
-  # カメラ位置をフロアマップ上に表示するか
-  show_on_floormap: true
-
-  # カメラアイコンの色（BGR形式）
-  marker_color: [0, 0, 255] # 赤色
-
-  # カメラアイコンのサイズ（ピクセル）
-  marker_size: 15
-
-# カメラ物理パラメータ（ホモグラフィ計算用）
-# このセクションは座標変換の計算に使用されます。
-# 可視化設定は camera セクションを参照してください。
-camera_params:
-  # カメラ設置高さ（メートル）
-  height_m: 2.2
-  # 俯角（度）: 0=水平, 負=下向き, 正=上向き
-  # 人物を見下ろすために負の値を推奨（例: -10 〜 -15度）
-  pitch_deg: -19.0
-  # 方位角（度）: 0=右下方向（フロアマップ座標系）
-  # 正の値: 時計回り（右方向に回転）
-  # 負の値: 反時計回り（左方向に回転）
-  # 仕様: yaw=0, roll=0 でフロアマップ座標系の右下方向を向く
-  # 例: 0=右下, 45=右, -45=下, 90=右上, -90=左下
-  yaw_deg: 0.0
-  # 回転角（度）: 0=水平
-  roll_deg: 0.0
-  # 焦点距離（ピクセル）: 推定値
-  focal_length_x: 1250.0
-  focal_length_y: 1250.0
-  # 画像中心（ピクセル）
-  center_x: 640.0
-  center_y: 360.0
-  # カメラ位置（フロアマップ上の座標、ピクセル単位）
-  # ホモグラフィ計算の基準点として使用されます
-  position_x: 859
-  position_y: 1040
-
 # ゾーン定義
-# 座標はフロアマップ上のピクセル座標
 zones:
-  # ゾーン1: 左エリア
   - id: "zone_1"
     name: "ゾーン1（左）"
-    polygon:
-      - [859, 912]
-      - [1095, 912]
-      - [1095, 1350]
-      - [859, 1350]
+    polygon: [[859, 912], [1095, 912], [1095, 1350], [859, 1350]]
     priority: 1
-
-  # ゾーン2: 中央エリア
   - id: "zone_2"
     name: "ゾーン2（中央）"
-    polygon:
-      - [1095, 912]
-      - [1331, 912]
-      - [1331, 1350]
-      - [1095, 1350]
+    polygon: [[1095, 912], [1331, 912], [1331, 1350], [1095, 1350]]
     priority: 2
-
-  # ゾーン3: 右エリア
   - id: "zone_3"
     name: "ゾーン3（右）"
-    polygon:
-      - [1331, 912]
-      - [1567, 912]
-      - [1567, 1350]
-      - [1331, 1350]
+    polygon: [[1331, 912], [1567, 912], [1567, 1350], [1331, 1350]]
     priority: 3
 
-# 出力設定
+# ==============================================================================
+# 5. 出力設定 (Output)
+# ==============================================================================
 output:
-  # 出力ディレクトリ
   directory: "output"
-
-  # セッション管理を有効化するか
   use_session_management: true
-
-  # 検出結果画像を保存するか
   save_detection_images: true
-
-  # ID付き検出画像を保存するか（phase2.5のトラッキング結果、IDごとに色分け）
   save_tracking_images: true
-
-  # フロアマップ画像を保存するか
   save_floormap_images: true
-
-  # Side-by-side動画を生成するか（追跡機能が有効な場合のみ）
   save_side_by_side_video: true
-
-  # Side-by-side動画のFPS（デフォルト: 1.0、5分刻みフレームに合わせる）
   side_by_side_video_fps: 1.0
-
-  # デバッグモード
   debug_mode: false
-
-  # セッション管理設定
   session:
-    # アーカイブ対象の日数（この日数以上古いセッションをアーカイブ）
     archive_days: 30
-    # アーカイブ削除対象の日数（この日数以上古いアーカイブを削除）
     delete_archive_days: 90
 
+# ==============================================================================
+# 6. その他設定 (Timestamp, OCR, Evaluation)
+# ==============================================================================
 timestamp:
   extraction:
-    # 信頼度閾値（0.0-1.0）
     confidence_threshold: 0.5
-
-    # リトライ回数
     retry_count: 3
-
-    # 改善機能の有効化
-    # TemporalValidatorV2: 適応的許容範囲と異常値リカバリー
-    # タイムラプス動画の特性（時間圧縮率約313.4倍）に対応するため有効化
     use_improved_validator: true
-    # 重み付けスキーム: エンジン別の重み付けによるコンセンサス（デフォルト: false）
-    # 複数エンジン使用時に有効化を推奨
-    use_weighted_consensus: false
-    # 投票ロジック: 2/3以上のエンジンが一致した結果を採用（デフォルト: false）
-    # 複数エンジン使用時に有効化を推奨
-    use_voting_consensus: false
-
     validator:
-      # ベース許容範囲（秒）
-      # 適応的許容範囲により動的に調整される
       base_tolerance_seconds: 300.0
-      # 履歴サイズ（過去N個のフレーム間隔を保持）
       history_size: 10
-      # Z-score閾値（外れ値検出用、大きいほど厳格）
-      # タイムラプス動画の変動を考慮して緩和
       z_score_threshold: 3.0
-
-    # ROI設定（画像の右上領域）
     roi:
-      x_ratio: 0.70 # 右から35%の位置から
-      y_ratio: 0.045 # 上端から
-      width_ratio: 0.28 # 幅35%
-      height_ratio: 0.06 # 高さ8%
-
-  # フレーム抽出モード
-  # "auto_targets": 自動目標タイムスタンプ生成モード
-  #   指定範囲のフレームからタイムスタンプを全て抽出し、
-  #   5分刻みの目標タイムスタンプを自動生成して各目標に最も近いフレームを選択
-  # "manual_targets": 手動目標タイムスタンプ指定モード（デフォルト）
-  #   設定ファイルで指定した目標タイムスタンプに最も近いフレームを抽出
-  extraction_mode: "auto_targets" # "auto_targets" または "manual_targets"
-
-  # 自動目標タイムスタンプ生成モード用の設定
+      x_ratio: 0.70
+      y_ratio: 0.045
+      width_ratio: 0.28
+      height_ratio: 0.06
+  extraction_mode: "auto_targets"
   auto_targets:
-    # 最大処理フレーム数（Noneの場合は全フレームを処理）
-    # テスト用に先頭100フレームのみ処理する場合は 100 を指定
-    # 本番環境では null に設定して全フレームを処理
-    max_frames: 100 # テスト用: 100, 本番用: null
-    # タイムスタンプ検証を無効化するか（タイムラプス動画では推奨）
+    max_frames: 50
     disable_validation: true
-
-  # サンプリング設定
-  # タイムラプス動画の特性を考慮（時間圧縮率: 約313.4倍）
-  # 動画の1秒 = 実際の約313秒（約5.2分）
-  # 1フレーム = 実際の約10.4秒
   sampling:
-    # 粗サンプリング間隔（秒）
     coarse_interval_seconds: 1.0
-    # 精密サンプリング間隔（秒）
-    # 1秒 → 0.1秒に変更（実際の約31秒間隔、より精密な探索）
     fine_interval_seconds: 0.033
-    # 精密サンプリングの探索ウィンドウ（秒）
     search_window_seconds: 0.1
 
-  # 目標タイムスタンプ設定
-  target:
-    # 開始日時（YYYY-MM-DD HH:MM:SS形式）
-    start_datetime: "2025-08-26 16:05:00"
-    # 終了日時（YYYY-MM-DD HH:MM:SS形式）
-    end_datetime: "2025-08-29 13:45:00"
-    # 抽出間隔（分）
-    interval_minutes: 5
-    # 許容誤差（秒）
-    tolerance_seconds: 10
-
-# OCR設定
 ocr:
-  # 使用するOCRエンジンのリスト
-  engines:
-    - tesseract
-  # Tesseract設定
+  engines: ["tesseract"]
   tesseract:
-    config: "--psm 8 --oem 3" # PSM 8: 単一の単語（最適化テストの結果、PSM 8が最も正確）
+    config: "--psm 8 --oem 3"
     whitelist: "0123456789/:  "
 
-# 精度評価設定
 evaluation:
-  # Ground Truthデータのパス
   ground_truth_path: "output/labels/result_fixed.json"
-
-  # IoU閾値（True Positiveの判定基準）
   iou_threshold: 0.5
-
-# 追跡設定
-tracking:
-  # 追跡機能を有効にするか
-  enabled: true
-
-  # 追跡アルゴリズム
-  # "deepsort": DeepSORTベースの実装（推奨）
-  # "simple_iou": シンプルなIoUベースの実装
-  algorithm: "deepsort"
-
-  # IDが消失してから削除するまでの最大フレーム数
-  max_age: 30
-
-  # 追跡確立に必要な最小検出回数
-  min_hits: 3
-
-  # IoU閾値（マッチング用）
-  iou_threshold: 0.3
-
-  # 外観特徴量の重み（0.0-1.0）
-  appearance_weight: 0.7
-
-  # 位置情報の重み（0.0-1.0）
-  motion_weight: 0.3
-
-# カメラキャリブレーション設定
-calibration:
-  # 歪み補正を使用するか
-  use_distortion_correction: false
-
-  # カメラ内部パラメータを使用するか
-  use_intrinsics: false
-
-  # 再投影誤差の閾値（ピクセル単位）
-  reprojection_error_threshold: 2.0
-
-  # カメラ内部パラメータ
-  intrinsics:
-    # 焦点距離（ピクセル単位）
-    focal_length_x: 800.0
-    focal_length_y: 800.0
-
-    # 主点座標（画像中心）
-    principal_point_x: 640.0
-    principal_point_y: 360.0
-
-    # 画像サイズ
-    image_width: 1280
-    image_height: 720
-
-  # 歪み係数
-  distortion:
-    # 放射歪み係数
-    k1: 0.0
-    k2: 0.0
-    k3: 0.0
-
-    # 接線歪み係数
-    p1: 0.0
-    p2: 0.0

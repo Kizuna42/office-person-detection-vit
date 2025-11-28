@@ -1,19 +1,49 @@
-# 座標変換・キャリブレーション設定テンプレート
+# 座標変換・キャリブレーション設定テンプレート（高精度版）
 #
 # 使い方:
-#   1. このファイルを `config/calibration_template.yaml` からコピーして現場ごとの値で埋める
-#   2. 必要な項目を `config.yaml` に貼り付けるか、`ConfigManager` で読み込む
+#   1. このファイルを参考に config.yaml の camera_params セクションを設定
+#   2. カメラパラメータは tools/calibration_tool.py で自動推定または手動調整
+#
+# 注意: 旧システムの homography セクションは不要になりました。
+#       新しいシステムでは camera_params を使用します。
 
-camera:
-  # フロアマップ上でカメラを表示する座標（ピクセル）
-  position_x: 859
-  position_y: 1040
-  # カメラの設置高さ（メートル）
-  height_m: 2.2
-  show_on_floormap: true
-  marker_color: [0, 0, 255]  # BGR
-  marker_size: 15
+# カメラパラメータ（高精度ピンホールカメラモデル）
+camera_params:
+  # --- 外部パラメータ (Extrinsics) ---
+  height_m: 2.2          # カメラの設置高さ [メートル]
+  pitch_deg: 45.0        # 俯角 [度] (0=水平, 正=下向き)
+  yaw_deg: 0.0           # 方位角 [度] (0=前方, 正=右回転)
+  roll_deg: 0.0          # 回転角 [度] (通常は0)
 
+  # カメラ位置（World座標系）[メートル]
+  camera_x_m: 0.0        # カメラ直下を原点とする相対位置X
+  camera_y_m: 0.0        # カメラ直下を原点とする相対位置Y
+
+  # カメラ位置（フロアマップ座標系）[ピクセル]
+  position_x_px: 1200.0  # フロアマップ上でのカメラX位置
+  position_y_px: 800.0   # フロアマップ上でのカメラY位置
+
+  # --- 内部パラメータ (Intrinsics) ---
+  focal_length_x: 1250.0  # 焦点距離X [ピクセル]
+  focal_length_y: 1250.0  # 焦点距離Y [ピクセル]
+  center_x: 640.0         # 主点X [ピクセル] (通常は画像幅/2)
+  center_y: 360.0         # 主点Y [ピクセル] (通常は画像高さ/2)
+  image_width: 1280       # 画像幅 [ピクセル]
+  image_height: 720       # 画像高さ [ピクセル]
+
+  # 歪み係数 [k1, k2, p1, p2, k3]
+  # 通常のレンズ: [0, 0, 0, 0, 0]
+  dist_coeffs: [0.0, 0.0, 0.0, 0.0, 0.0]
+
+# キャリブレーション設定
+calibration:
+  mode: "hybrid"  # "auto" | "manual" | "hybrid"
+  correspondence_file: "output/calibration/correspondence_points_cam01.json"
+  optimization:
+    max_iterations: 100
+    tolerance: 1.0e-6
+
+# フロアマップ設定
 floormap:
   image_path: "data/floormap.png"
   image_width: 1878
@@ -23,31 +53,7 @@ floormap:
   image_x_mm_per_pixel: 28.1926406926406
   image_y_mm_per_pixel: 28.241430700447
 
-homography:
-  # カメラ座標 -> フロアマップ座標を表す 3x3 行列
-  matrix:
-    - [1.0, 0.0, 0.0]
-    - [0.0, 1.0, 0.0]
-    - [0.0, 0.0, 1.0]
-
-calibration:
-  use_distortion_correction: false
-  use_intrinsics: false
-  reprojection_error_threshold: 2.0
-  intrinsics:
-    focal_length_x: 800.0
-    focal_length_y: 800.0
-    principal_point_x: 640.0
-    principal_point_y: 360.0
-    image_width: 1280
-    image_height: 720
-  distortion:
-    k1: 0.0
-    k2: 0.0
-    k3: 0.0
-    p1: 0.0
-    p2: 0.0
-
+# ゾーン定義
 zones:
   - id: "zone_1"
     name: "左エリア"
