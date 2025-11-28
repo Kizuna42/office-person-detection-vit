@@ -6,11 +6,39 @@
 
 ## パイプライン概要
 
-- **テスト**: `pytest -v --cov=src`（カバレッジ 80% 以上が目標）
-- **Lint**: `flake8 src/ tests/` と `mypy src/`
-- **フォーマット**: `black src/ tests/` と `isort src/ tests/`
-- **Makefile**: `make test`, `make lint`, `make format`, `make run`
-- **CI (想定)**: GitHub Actions の `python -m pip install -r requirements.txt` → lint → test の直列実行
+### GitHub Actions CI
+
+3つの並列ジョブで構成:
+
+1. **lint**: Ruff による静的解析とフォーマットチェック
+2. **type-check**: mypy による型チェック
+3. **test**: pytest + カバレッジ（Python 3.10, 3.11 マトリックス）
+
+```yaml
+# .github/workflows/ci.yml
+jobs:
+  lint:        # ruff check + ruff format --check
+  type-check:  # mypy src/
+  test:        # pytest --cov=src (Python 3.10, 3.11)
+```
+
+### ローカルツール
+
+- **Lint**: `ruff check .` + `mypy src/`
+- **フォーマット**: `ruff format .`
+- **テスト**: `pytest --cov=src`（カバレッジ 70% 以上を要求）
+- **Makefile**: `make lint`, `make format`, `make format-check`, `make test`, `make test-cov`
+
+### pre-commit フック
+
+コミット時:
+- trailing-whitespace, end-of-file-fixer
+- check-yaml, check-json, check-toml
+- ruff check --fix, ruff format
+- mypy src/
+
+プッシュ時:
+- pytest
 
 ---
 
@@ -18,11 +46,8 @@
 
 1. `pip install -r requirements.txt`
 2. `make lint` （静的解析を通過させる）
-3. `make test` （ユニットテスト + カバレッジ計測）
-4. 主要スクリプトのスポットチェック
-   - `scripts/evaluate_reprojection_error.py`
-   - `scripts/evaluate_mot_metrics.py`
-   - `scripts/visualize_features.py`
+3. `make test` または `make test-cov` （ユニットテスト + カバレッジ計測）
+4. `make format-check` （フォーマットチェック）
 5. セッション管理有効時の出力確認
    - 最新結果は `output/latest/` シンボリックリンクで参照可能
 
@@ -38,10 +63,10 @@
   - 環境変数 `PYTORCH_ENABLE_MPS_FALLBACK=1` を設定して CPU フォールバック
 - **CI で依存関係が解決できない**
   - `requirements.txt` を更新し、`pip install --upgrade pip` を実行
-  - キャッシュ削除後に再実行（GitHub Actions なら `actions/cache` のキー変更）
+  - pip キャッシュは `actions/setup-python` の `cache: "pip"` で自動管理
 - **出力ディレクトリの肥大化**
   - `docs/guides/output_cleanup.md` のクリーンアップ手順を適用
-  - `tools/cleanup_output.py` で不要セッションを削除
+  - `make clean` で不要セッションを削除
 
 詳細なベストプラクティスと過去の検証ログ:
 `docs/archive/ci_cd_improvements.md`, `docs/archive/ci_cd_summary.md`, `docs/archive/ci_troubleshooting.md`
@@ -51,5 +76,6 @@
 ## 運用Tips
 
 - Pull Request は `feature/*`, `fix/*` ブランチで作成し、`develop` へマージ
-- コミット前に `pre-commit` を実行する場合は `.cursor/rules/config-management.mdc` に従う
+- コミット前に `pre-commit` を実行: `make precommit-run`
+- 開発環境セットアップ: `make setup-dev` (pre-commit フック含む)
 - 出力先セッションを共有する際は `output/latest/metadata.json` を添付するとレビューが容易

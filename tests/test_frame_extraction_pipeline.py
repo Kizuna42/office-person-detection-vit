@@ -741,6 +741,25 @@ def test_run_with_auto_targets(
     ]
     mock_extractor_class.return_value = mock_extractor
 
+    def extract_batch_side_effect(frames, **kwargs):
+        results = []
+        for idx, _ in frames:
+            if idx % 10 == 0:
+                results.append(
+                    {
+                        "timestamp": base_time + timedelta(seconds=idx * 10),
+                        "frame_idx": idx,
+                        "confidence": 0.9,
+                        "ocr_text": (base_time + timedelta(seconds=idx * 10)).strftime("%Y/%m/%d %H:%M:%S"),
+                        "roi_coords": (832, 0, 448, 58),
+                    }
+                )
+            else:
+                results.append(None)
+        return results
+
+    mock_extractor.extract_batch_parallel.side_effect = extract_batch_side_effect
+
     pipeline = FrameExtractionPipeline(
         video_path=str(mock_video_path),
         output_dir=str(sample_output_dir),
@@ -801,6 +820,26 @@ def test_run_with_auto_targets_max_frames(
     ]
     mock_extractor_class.return_value = mock_extractor
 
+    def extract_batch_side_effect(frames, **kwargs):
+        results = []
+        for idx, _ in frames:
+            if idx % 10 == 0:
+                results.append(
+                    {
+                        "timestamp": base_time + timedelta(seconds=idx * 10),
+                        "frame_idx": idx,
+                        "confidence": 0.9,
+                        "ocr_text": (base_time + timedelta(seconds=idx * 10)).strftime("%Y/%m/%d %H:%M:%S"),
+                        "roi_coords": (832, 0, 448, 58),
+                    }
+                )
+            else:
+                results.append(None)
+        return results
+
+    mock_extractor.extract_batch_parallel.side_effect = extract_batch_side_effect
+    mock_extractor_class.return_value = mock_extractor
+
     pipeline = FrameExtractionPipeline(
         video_path=str(mock_video_path),
         output_dir=str(sample_output_dir),
@@ -858,6 +897,22 @@ def test_run_with_auto_targets_disable_validation(
         "roi_coords": (832, 0, 448, 58),
     }
     mock_extractor_class.return_value = mock_extractor
+
+    def extract_batch_side_effect(frames, **kwargs):
+        results = []
+        for idx, _ in frames:
+            results.append(
+                {
+                    "timestamp": base_time,
+                    "frame_idx": idx,
+                    "confidence": 0.9,
+                    "ocr_text": base_time.strftime("%Y/%m/%d %H:%M:%S"),
+                    "roi_coords": (832, 0, 448, 58),
+                }
+            )
+        return results
+
+    mock_extractor.extract_batch_parallel.side_effect = extract_batch_side_effect
 
     pipeline = FrameExtractionPipeline(
         video_path=str(mock_video_path),

@@ -19,9 +19,10 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: "pip"
 
-      - name: Set up Ruff
-        uses: astral-sh/setup-ruff@v1
+      - name: Install Ruff
+        run: pip install ruff
 
       - name: Run Ruff check
         run: ruff check .
@@ -85,7 +86,6 @@ jobs:
         uses: codecov/codecov-action@v4
         with:
           files: coverage.xml
+          token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
           verbose: true
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}

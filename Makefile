@@ -395,14 +395,18 @@ help: ## 利用可能なコマンド一覧を表示
 	@echo ""
 	@echo "$(COLOR_BOLD)使用例:$(COLOR_RESET)"
 	@echo "  $(COLOR_CYAN)make setup$(COLOR_RESET)                  $(COLOR_DIM)# 開発環境の初期化$(COLOR_RESET)"
+	@echo "  $(COLOR_CYAN)make setup-dev$(COLOR_RESET)              $(COLOR_DIM)# 開発環境の初期化（pre-commit含む）$(COLOR_RESET)"
 	@echo "  $(COLOR_CYAN)make test$(COLOR_RESET)                   $(COLOR_DIM)# テスト実行$(COLOR_RESET)"
-	@echo "  $(COLOR_CYAN)make test TEST_MODE=coverage$(COLOR_RESET)  $(COLOR_DIM)# カバレッジ付きテスト$(COLOR_RESET)"
+	@echo "  $(COLOR_CYAN)make test-cov$(COLOR_RESET)               $(COLOR_DIM)# カバレッジ付きテスト$(COLOR_RESET)"
+	@echo "  $(COLOR_CYAN)make test TEST_MODE=coverage$(COLOR_RESET)  $(COLOR_DIM)# カバレッジ付きテスト（別形式）$(COLOR_RESET)"
 	@echo "  $(COLOR_CYAN)make run$(COLOR_RESET)                    $(COLOR_DIM)# 通常実行$(COLOR_RESET)"
 	@echo "  $(COLOR_CYAN)make baseline$(COLOR_RESET)               $(COLOR_DIM)# ベースライン実行と評価$(COLOR_RESET)"
 	@echo "  $(COLOR_CYAN)make baseline GT=data/gt_tracks_auto.json$(COLOR_RESET)  $(COLOR_DIM)# オプション指定$(COLOR_RESET)"
 	@echo "  $(COLOR_CYAN)make clean$(COLOR_RESET)                  $(COLOR_DIM)# outputクリーンアップ$(COLOR_RESET)"
 	@echo "  $(COLOR_CYAN)make lint$(COLOR_RESET)                   $(COLOR_DIM)# Lintチェック$(COLOR_RESET)"
-	@echo "  $(COLOR_CYAN)make format$(COLOR_RESET)                $(COLOR_DIM)# コードフォーマット$(COLOR_RESET)"
+	@echo "  $(COLOR_CYAN)make format$(COLOR_RESET)                 $(COLOR_DIM)# コードフォーマット$(COLOR_RESET)"
+	@echo "  $(COLOR_CYAN)make format-check$(COLOR_RESET)           $(COLOR_DIM)# フォーマットチェック$(COLOR_RESET)"
+	@echo "  $(COLOR_CYAN)make precommit-run$(COLOR_RESET)          $(COLOR_DIM)# pre-commit実行（全ファイル）$(COLOR_RESET)"
 	@echo ""
 
 # ========================================
@@ -465,3 +469,78 @@ format: ## コードフォーマット（ruff format + ruff check --fix）
 	($(call print_warning,"修正できないエラーが残っています。手動で修正してください。"); exit 1); \
 	$(call print_success,"フォーマットが完了しました"); \
 	echo ""
+
+.PHONY: format-check
+format-check: ## フォーマットチェック（変更なし）
+	@set -e; \
+	$(call print_section,"フォーマットチェック"); \
+	if [ -z "$(RUFF_CMD)" ]; then \
+		$(call print_error,"ruffがインストールされていません"); \
+		echo "  $(COLOR_DIM)インストール: pip install ruff$(COLOR_RESET)"; \
+		exit 1; \
+	fi; \
+	$(call print_progress,"フォーマットをチェック中"); \
+	$(RUFF_CMD) format --check . || \
+		($(call print_error,"フォーマットの問題があります。make format を実行してください。"); exit 1); \
+	$(call print_success,"フォーマットチェックが完了しました")
+
+.PHONY: test-cov
+test-cov: ## カバレッジ付きテスト（詳細レポート）
+	@$(call print_section,"カバレッジ付きテスト実行")
+	@$(call print_info,"テストディレクトリ: $(TESTS_DIR)")
+	@$(call print_info,"ソースディレクトリ: $(SRC_DIR)")
+	@echo ""
+	@$(VENV_PY) -m pytest $(TESTS_DIR)/ --cov=$(SRC_DIR) --cov-report=term-missing --cov-report=html -v
+	@echo ""
+	@$(call print_success,"カバレッジレポートを生成しました: htmlcov/index.html")
+
+# ========================================
+# 開発環境コマンド
+# ========================================
+
+.PHONY: setup-dev
+setup-dev: setup ## 開発環境セットアップ（pre-commit 含む）
+	@$(call print_section,"開発環境セットアップ（拡張）")
+	@$(call print_step,1,2,"pre-commitのインストール")
+	@$(call print_progress,"pre-commitをインストール中")
+	@$(VENV_PY) -m pip install pre-commit
+	@$(call print_success,"pre-commitをインストールしました")
+	@echo ""
+	@$(call print_step,2,2,"pre-commitフックの設定")
+	@$(call print_progress,"Gitフックを設定中")
+	@$(VENV_BIN)/pre-commit install
+	@$(VENV_BIN)/pre-commit install --hook-type pre-push
+	@$(call print_success,"pre-commitフックを設定しました")
+	@echo ""
+	@$(call print_section,"開発環境セットアップが完了しました")
+
+.PHONY: precommit-install
+precommit-install: ## pre-commit フックをインストール
+	@$(call print_section,"pre-commitフックのインストール")
+	@$(call print_progress,"pre-commitフックをインストール中")
+	@pre-commit install
+	@pre-commit install --hook-type pre-push
+	@$(call print_success,"pre-commitフックをインストールしました")
+
+.PHONY: precommit-run
+precommit-run: ## pre-commit を全ファイルに実行
+	@$(call print_section,"pre-commit実行（全ファイル）")
+	@$(call print_progress,"pre-commitを実行中")
+	@pre-commit run --all-files
+	@$(call print_success,"pre-commitが完了しました")
+
+# ========================================
+# 依存関係管理コマンド
+# ========================================
+
+.PHONY: sync-requirements
+sync-requirements: ## pyproject.toml から requirements.txt を生成
+	@$(call print_section,"依存関係の同期")
+	@$(call print_progress,"pip-tools をインストール中")
+	@$(VENV_PY) -m pip install pip-tools
+	@$(call print_progress,"requirements.txt を生成中")
+	@$(VENV_BIN)/pip-compile pyproject.toml -o requirements.txt --resolver=backtracking
+	@$(call print_success,"requirements.txt を生成しました")
+	@echo ""
+	@$(call print_info,"開発依存関係も含める場合:")
+	@echo "  $(COLOR_DIM)pip-compile pyproject.toml --extra dev -o requirements-dev.txt$(COLOR_RESET)"
