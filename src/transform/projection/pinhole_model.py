@@ -12,7 +12,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Self
+
+try:
+    from typing import Self
+except ImportError:
+    from typing import Self
 
 import numpy as np
 
