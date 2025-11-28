@@ -4,7 +4,7 @@ import numpy as np
 
 from src.models.data_models import Detection
 from src.tracking.tracker import Tracker
-from src.transform.coordinate_transformer import CoordinateTransformer
+from src.transform import FloorMapConfig, HomographyTransformer
 from src.visualization.floormap_visualizer import FloormapVisualizer
 
 
@@ -114,17 +114,16 @@ class TestTrackingPipeline:
     def test_tracking_with_coordinate_transformation(self, tmp_path):
         """座標変換を含む追跡テスト"""
         # ホモグラフィ行列（単位行列）
-        homography_matrix = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+        homography_matrix = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
 
-        transformer = CoordinateTransformer(
-            homography_matrix,
-            floormap_config={
-                "image_width": 1000,
-                "image_height": 1000,
-                "image_origin_x": 0,
-                "image_origin_y": 0,
-            },
+        floormap_config = FloorMapConfig(
+            width_px=1000,
+            height_px=1000,
+            origin_x_px=0.0,
+            origin_y_px=0.0,
         )
+
+        transformer = HomographyTransformer(homography_matrix, floormap_config)
 
         tracker = Tracker()
 
@@ -140,13 +139,14 @@ class TestTrackingPipeline:
         detection.features = detection.features / np.linalg.norm(detection.features)
 
         # 座標変換
-        floor_coords = transformer.transform(detection.camera_coords)
-        detection.floor_coords = floor_coords
+        result = transformer.transform_pixel(detection.camera_coords)
+        if result.is_valid and result.floor_coords_px:
+            detection.floor_coords = result.floor_coords_px
 
         # 追跡
-        result = tracker.update([detection])
-        assert len(result) == 1
-        assert result[0].floor_coords is not None
+        tracked = tracker.update([detection])
+        assert len(tracked) == 1
+        assert tracked[0].floor_coords is not None
 
     def test_tracking_visualization(self, tmp_path):
         """追跡可視化のテスト"""
