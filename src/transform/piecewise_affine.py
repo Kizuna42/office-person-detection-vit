@@ -6,7 +6,6 @@ Delaunay三角形分割を使用した高精度座標変換。
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import cast
 
 import numpy as np
 from scipy.spatial import Delaunay
@@ -123,4 +122,6 @@ def load_model(path: str) -> PiecewiseAffineModel:
     import pickle
 
     with open(path, "rb") as f:
-        return cast("PiecewiseAffineModel", pickle.load(f))
+        model = pickle.load(f)
+        assert isinstance(model, PiecewiseAffineModel), "Invalid model type"
+        return model

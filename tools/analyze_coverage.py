@@ -151,7 +151,7 @@ def visualize_coverage(
     cv2.putText(frame, "Red: Detection foot points", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 
     # フロアマップ上に対応点を描画
-    for pt in dst_pts:
+    for _i, pt in enumerate(dst_pts):
         cv2.circle(floormap, (int(pt[0]), int(pt[1])), 8, (0, 255, 0), 2)
 
     # リサイズして結合

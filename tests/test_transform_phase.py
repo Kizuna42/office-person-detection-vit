@@ -20,14 +20,6 @@ def sample_config(tmp_path: Path) -> ConfigManager:
     """テスト用のConfigManager"""
     config = ConfigManager("nonexistent_config.yaml")
 
-    # 変換方式をpinholeに設定（ホモグラフィ行列が不要）
-    config.set(
-        "transform",
-        {
-            "method": "pinhole",
-        },
-    )
-
     # カメラパラメータ（新設計）
     config.set(
         "camera_params",
@@ -69,6 +61,8 @@ def sample_config(tmp_path: Path) -> ConfigManager:
             }
         ],
     )
+    # 変換方式をpinholeに設定（homography.matrixが不要）
+    config.set("transform", {"method": "pinhole"})
     return config
 
 
@@ -160,7 +154,7 @@ def test_execute_success(sample_config, sample_logger, sample_detection_results)
         # 地平線より下の点なので変換成功するはず
         if detection.floor_coords is not None:
             assert detection.floor_coords_mm is not None
-            assert isinstance(detection.zone_ids, list)
+        assert isinstance(detection.zone_ids, list)
 
 
 def test_execute_without_initialize(sample_config, sample_logger, sample_detection_results):

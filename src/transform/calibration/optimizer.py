@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import logging
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 import cv2
 import numpy as np
@@ -126,7 +126,6 @@ class CorrespondenceCalibrator:
         Returns:
             CalibrationResult インスタンス
         """
-
         # 画像点とフロアマップ点を分離
         image_points = np.array([p[0] for p in point_pairs], dtype=np.float64)
         floormap_points = np.array([p[1] for p in point_pairs], dtype=np.float64)
@@ -316,17 +315,18 @@ class CorrespondenceCalibrator:
                 projected[nan_mask] = image_points[nan_mask] + 1000.0
 
             # 残差を計算
-            residuals = (projected - image_points).flatten()
+            residuals: np.ndarray = (projected - image_points).flatten()
 
             # 最終的なNaNチェック
             if not np.all(np.isfinite(residuals)):
-                residuals = np.array(np.where(np.isfinite(residuals), residuals, 1e4), dtype=np.float64)
+                residuals = np.where(np.isfinite(residuals), residuals, 1e4).astype(np.float64)
 
-            return cast("np.ndarray", residuals)
+            return residuals
 
         except Exception as e:
             logger.warning(f"Error in residual function: {e}")
-            return np.full(image_points.size, 1e4, dtype=np.float64)
+            result: np.ndarray = np.full(image_points.size, 1e4, dtype=np.float64)
+            return result
 
     def _project_points(
         self,
