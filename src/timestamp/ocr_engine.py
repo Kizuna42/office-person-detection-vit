@@ -419,7 +419,7 @@ class MultiEngineOCR:
         try:
             from Levenshtein import ratio
 
-            return cast(float, ratio(text1, text2))
+            return cast("float", ratio(text1, text2))
         except ImportError:
             # Levenshteinがインストールされていない場合は簡易版
             logger.warning("python-Levenshtein not installed, using simple similarity")
