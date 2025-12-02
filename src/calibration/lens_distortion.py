@@ -214,7 +214,7 @@ class LensDistortionCorrector:
             return image
 
         h, w = image.shape[:2]
-        new_camera_matrix, roi = cv2.getOptimalNewCameraMatrix(
+        new_camera_matrix, _roi = cv2.getOptimalNewCameraMatrix(
             self.camera_matrix,
             self.dist_coeffs,
             (w, h),
@@ -446,7 +446,7 @@ def calibrate_from_chessboard_images(
     )
 
     # 再投影誤差を計算
-    total_error = 0
+    total_error = 0.0
     for i in range(len(objpoints)):
         projected, _ = cv2.projectPoints(objpoints[i], rvecs[i], tvecs[i], camera_matrix, dist_coeffs)
         error = cv2.norm(imgpoints[i], projected, cv2.NORM_L2) / len(projected)

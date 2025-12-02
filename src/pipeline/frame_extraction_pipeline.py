@@ -1,6 +1,5 @@
 """Frame extraction pipeline for 5-minute interval timestamp-based sampling."""
 
-import contextlib
 import csv
 from datetime import datetime, timedelta
 import logging
@@ -525,13 +524,13 @@ class FrameExtractionPipeline:
 
                     logger.debug(f"保存: {output_path_frame.name}")
 
-            # 一時ファイルのクリーンアップ（選択されなかったフレームを削除）
+            # 注意: _temp_framesディレクトリは後でcleanup_temp_files設定に基づいて削除される
+            # ここでは選択されなかった一時ファイルのみ削除し、ディレクトリは残す
+            # （デバッグ用途で一時ファイルを確認したい場合があるため）
             if temp_frames_dir.exists():
                 for temp_file in temp_frames_dir.glob("temp_*.jpg"):
                     if str(temp_file) not in selected_paths:
                         temp_file.unlink()
-                with contextlib.suppress(OSError):
-                    temp_frames_dir.rmdir()
 
             # 結果をCSV保存
             self._save_results_csv(results)

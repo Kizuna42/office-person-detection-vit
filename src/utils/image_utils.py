@@ -76,9 +76,9 @@ def save_detection_image(
                 cv2.circle(result_image, (int(foot_x), int(foot_y)), 5, (0, 0, 255), -1)
 
             # ファイル名を生成（タイムスタンプの特殊文字を置換）
-            # ファイル名として無効な文字を全て除去
-            # / と : と スペースを _ に置換し、Pathオブジェクトで安全に処理
-            timestamp_clean = timestamp.replace("/", "_").replace(":", "").replace(" ", "_")
+            # 形式: YYYYMMDD_HHMMSS（例: 20250826_160456）
+            # 入力例: "2025/08/26 16:04:56" -> "20250826_160456"
+            timestamp_clean = timestamp.replace("/", "").replace(":", "").replace(" ", "_")
             # 念のため、残っている可能性のある特殊文字も除去
             # Windows/Mac/Linuxで無効な文字: / \ : * ? " < > |
             timestamp_clean = "".join(c for c in timestamp_clean if c.isalnum() or c in "_-.")
@@ -282,7 +282,8 @@ def save_tracked_detection_image(
                 cv2.circle(result_image, (int(foot_x), int(foot_y)), 5, color, -1)
 
             # ファイル名を生成（タイムスタンプの特殊文字を置換）
-            timestamp_clean = timestamp.replace("/", "_").replace(":", "").replace(" ", "_")
+            # 形式: YYYYMMDD_HHMMSS（例: 20250826_160456）
+            timestamp_clean = timestamp.replace("/", "").replace(":", "").replace(" ", "_")
             timestamp_clean = "".join(c for c in timestamp_clean if c.isalnum() or c in "_-.")
             filename = f"tracking_{timestamp_clean}.jpg"
 

@@ -220,6 +220,14 @@ output:
   save_side_by_side_video: true
   side_by_side_video_fps: 1.0
   debug_mode: false
+  # 一時ファイルの自動削除設定
+  cleanup_temp_files: true  # パイプライン完了時に_temp_framesを削除
+  # JSON出力最適化設定
+  json_optimization:
+    enabled: true              # 最適化を有効化
+    coordinate_precision: 1    # 座標の小数点以下桁数（1=小数第1位）
+    compact_keys: true         # キー名を短縮（bbox→bb, confidence→conf等）
+    exclude_px_coords: true    # floor_coords_pxを除外（mmのみ出力）
   session:
     archive_days: 30
     delete_archive_days: 90
@@ -243,7 +251,7 @@ timestamp:
       height_ratio: 0.06
   extraction_mode: "auto_targets"
   auto_targets:
-    max_frames: 50
+    max_frames: 100
     disable_validation: true
   sampling:
     coarse_interval_seconds: 1.0

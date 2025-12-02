@@ -4,7 +4,7 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
 import re
-from typing import Any, cast
+from typing import Any
 import warnings
 
 import numpy as np
@@ -419,7 +419,7 @@ class MultiEngineOCR:
         try:
             from Levenshtein import ratio
 
-            return cast("float", ratio(text1, text2))
+            return float(ratio(text1, text2))
         except ImportError:
             # Levenshteinがインストールされていない場合は簡易版
             logger.warning("python-Levenshtein not installed, using simple similarity")

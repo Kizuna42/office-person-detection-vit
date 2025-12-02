@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/metadata.schema.json",
+  "title": "Session Metadata",
+  "description": "パイプライン実行セッションのメタデータスキーマ",
+  "type": "object",
+  "required": ["session_id", "timestamp", "config"],
+  "properties": {
+    "session_id": {
+      "type": "string",
+      "description": "セッションID（YYYYMMDD_HHMMSS形式）",
+      "pattern": "^[0-9]{8}_[0-9]{6}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "description": "メタデータ作成日時（ISO 8601形式）",
+      "format": "date-time"
+    },
+    "reproducibility": {
+      "type": "object",
+      "description": "再現性のための環境情報",
+      "properties": {
+        "python_version": {
+          "type": "string",
+          "description": "Python バージョン文字列"
+        },
+        "python_version_info": {
+          "type": "object",
+          "properties": {
+            "major": { "type": "integer" },
+            "minor": { "type": "integer" },
+            "micro": { "type": "integer" }
+          }
+        },
+        "platform": {
+          "type": "string",
+          "description": "プラットフォーム情報"
+        },
+        "platform_system": {
+          "type": "string",
+          "description": "OS名（Darwin, Linux, Windows等）"
+        },
+        "platform_machine": {
+          "type": "string",
+          "description": "マシンアーキテクチャ（arm64, x86_64等）"
+        },
+        "git_commit": {
+          "type": ["string", "null"],
+          "description": "Gitコミットハッシュ"
+        },
+        "git_branch": {
+          "type": ["string", "null"],
+          "description": "Gitブランチ名"
+        },
+        "git_dirty": {
+          "type": ["boolean", "null"],
+          "description": "未コミットの変更があるか"
+        }
+      }
+    },
+    "config": {
+      "type": "object",
+      "description": "パイプライン設定（config.yamlの内容）"
+    },
+    "arguments": {
+      "type": "object",
+      "description": "コマンドライン引数"
+    }
+  }
+}

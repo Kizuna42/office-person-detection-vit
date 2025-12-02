@@ -75,7 +75,9 @@ class VisualizationPhase(BasePhase):
                         # 各スレッドで独自のVisualizerインスタンスを使用
                         visualizer = FloormapVisualizer(floormap_path, floormap_config, zones, camera_config)
                         floormap_image = visualizer.visualize_frame(frame_result, draw_zones=True, draw_labels=True)
-                        floormap_output = floormaps_dir / f"floormap_{frame_result.timestamp.replace(':', '')}.png"
+                        # ファイル名形式: floormap_YYYYMMDD_HHMMSS.png（例: floormap_20250826_160456.png）
+                        timestamp_clean = frame_result.timestamp.replace("/", "").replace(":", "").replace(" ", "_")
+                        floormap_output = floormaps_dir / f"floormap_{timestamp_clean}.png"
                         visualizer.save_visualization(floormap_image, str(floormap_output))
                         return str(floormap_output)
                     except Exception as e:
@@ -106,9 +108,9 @@ class VisualizationPhase(BasePhase):
         if save_side_by_side_video and tracking_enabled and frame_results:
             try:
                 # 検出画像ディレクトリとフロアマップ画像ディレクトリのパスを取得
-                # output_pathはphase5_visualizationディレクトリ
-                # 検出画像はphase2_detection/images/にある
-                detection_images_dir = output_path.parent / "phase2_detection" / "images"
+                # output_pathは06_visualizationディレクトリ
+                # 検出画像は02_detection/images/にある
+                detection_images_dir = output_path.parent / "02_detection" / "images"
                 floormap_images_dir = output_path / "floormaps"
 
                 if not detection_images_dir.exists():

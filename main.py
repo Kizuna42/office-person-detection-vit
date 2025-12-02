@@ -82,7 +82,7 @@ def main():
             logger.info("=" * 80)
             logger.info("タイムスタンプOCR処理が正常に完了しました")
             logger.info(f"抽出フレーム数: {len(extraction_results)}")
-            logger.info(f"出力ディレクトリ: {orchestrator.get_phase_output_dir('phase1_extraction').absolute()}")
+            logger.info(f"出力ディレクトリ: {orchestrator.get_phase_output_dir('01_extraction').absolute()}")
             logger.info("=" * 80)
             return 0
 

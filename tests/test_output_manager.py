@@ -42,12 +42,13 @@ def test_create_session(output_manager: OutputManager):
 
     assert session_dir.exists()
     assert session_dir.name.startswith(datetime.now().strftime("%Y%m%d"))
-    assert (session_dir / "phase1_extraction" / "frames").exists()
-    assert (session_dir / "phase2_detection" / "images").exists()
-    assert (session_dir / "phase3_transform").exists()
-    assert (session_dir / "phase4_aggregation").exists()
-    assert (session_dir / "phase5_visualization" / "graphs").exists()
-    assert (session_dir / "phase5_visualization" / "floormaps").exists()
+    assert (session_dir / "01_extraction" / "frames").exists()
+    assert (session_dir / "02_detection" / "images").exists()
+    assert (session_dir / "03_tracking").exists()
+    assert (session_dir / "04_transform").exists()
+    assert (session_dir / "05_aggregation").exists()
+    assert (session_dir / "06_visualization" / "graphs").exists()
+    assert (session_dir / "06_visualization" / "floormaps").exists()
 
 
 def test_save_metadata(output_manager: OutputManager, tmp_path: Path):

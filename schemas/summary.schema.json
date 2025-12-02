@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/summary.schema.json",
+  "title": "Session Summary",
+  "description": "パイプライン実行結果のサマリースキーマ",
+  "type": "object",
+  "required": ["session_id", "timestamp", "status"],
+  "properties": {
+    "session_id": {
+      "type": "string",
+      "description": "セッションID（YYYYMMDD_HHMMSS形式）",
+      "pattern": "^[0-9]{8}_[0-9]{6}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "description": "サマリー作成日時（ISO 8601形式）",
+      "format": "date-time"
+    },
+    "status": {
+      "type": "string",
+      "description": "パイプライン実行ステータス",
+      "enum": ["completed", "failed", "cancelled"]
+    },
+    "statistics": {
+      "type": "object",
+      "description": "実行統計",
+      "properties": {
+        "frames_extracted": {
+          "type": "integer",
+          "description": "抽出されたフレーム数",
+          "minimum": 0
+        },
+        "total_detections": {
+          "type": "integer",
+          "description": "総検出数",
+          "minimum": 0
+        },
+        "avg_detections_per_frame": {
+          "type": "number",
+          "description": "フレームあたり平均検出数",
+          "minimum": 0
+        },
+        "frames_processed": {
+          "type": "integer",
+          "description": "処理されたフレーム数",
+          "minimum": 0
+        },
+        "zones_count": {
+          "type": "integer",
+          "description": "ゾーン数",
+          "minimum": 0
+        },
+        "floormaps_generated": {
+          "type": "integer",
+          "description": "生成されたフロアマップ数",
+          "minimum": 0
+        }
+      }
+    },
+    "performance": {
+      "type": "object",
+      "description": "パフォーマンスメトリクス",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "total_time": {
+            "type": "number",
+            "description": "総処理時間（秒）"
+          },
+          "count": {
+            "type": "integer",
+            "description": "実行回数"
+          },
+          "avg_time": {
+            "type": "number",
+            "description": "平均処理時間（秒）"
+          },
+          "min_time": {
+            "type": "number",
+            "description": "最小処理時間（秒）"
+          },
+          "max_time": {
+            "type": "number",
+            "description": "最大処理時間（秒）"
+          }
+        }
+      }
+    }
+  }
+}

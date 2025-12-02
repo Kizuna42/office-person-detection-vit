@@ -99,14 +99,14 @@ class CheckpointManager:
         checkpoint = self._load_or_create_checkpoint()
         phases = checkpoint.get("phases", {})
 
-        # フェーズの順序を定義
+        # フェーズの順序を定義（番号プレフィックス形式）
         phase_order = [
-            "phase1_extraction",
-            "phase2_detection",
-            "phase2.5_tracking",
-            "phase3_transform",
-            "phase4_aggregation",
-            "phase5_visualization",
+            "01_extraction",
+            "02_detection",
+            "03_tracking",
+            "04_transform",
+            "05_aggregation",
+            "06_visualization",
         ]
 
         last_completed = None
@@ -126,14 +126,14 @@ class CheckpointManager:
         if last_completed is None:
             return None
 
-        # フェーズの順序を定義
+        # フェーズの順序を定義（番号プレフィックス形式）
         phase_order = [
-            "phase1_extraction",
-            "phase2_detection",
-            "phase2.5_tracking",
-            "phase3_transform",
-            "phase4_aggregation",
-            "phase5_visualization",
+            "01_extraction",
+            "02_detection",
+            "03_tracking",
+            "04_transform",
+            "05_aggregation",
+            "06_visualization",
         ]
 
         try:
@@ -181,12 +181,22 @@ class CheckpointManager:
             except (json.JSONDecodeError, OSError) as e:
                 logger.warning(f"チェックポイント読み込みエラー: {e}")
 
+        # 全フェーズをpendingステータスで初期化
+        initial_phases: dict[str, dict[str, Any]] = {
+            "01_extraction": {"status": "pending", "timestamp": None, "data": {}},
+            "02_detection": {"status": "pending", "timestamp": None, "data": {}},
+            "03_tracking": {"status": "pending", "timestamp": None, "data": {}},
+            "04_transform": {"status": "pending", "timestamp": None, "data": {}},
+            "05_aggregation": {"status": "pending", "timestamp": None, "data": {}},
+            "06_visualization": {"status": "pending", "timestamp": None, "data": {}},
+        }
+
         return {
             "session_dir": str(self.session_dir),
             "created_at": datetime.now().isoformat(),
             "last_updated": None,
             "last_phase": None,
-            "phases": {},
+            "phases": initial_phases,
         }
 
     def _save_checkpoint(self, checkpoint: dict[str, Any]) -> None:

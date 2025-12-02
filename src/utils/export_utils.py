@@ -325,10 +325,10 @@ class SideBySideVideoExporter:
             timestamp: タイムスタンプ文字列（例: "2025/08/26 16:04:56"）
 
         Returns:
-            正規化されたタイムスタンプ（例: "2025_08_26_160456"）
+            正規化されたタイムスタンプ（例: "20250826_160456"）
         """
-        # / と : と スペースを _ に置換
-        normalized = timestamp.replace("/", "_").replace(":", "").replace(" ", "_")
+        # 形式: YYYYMMDD_HHMMSS（スラッシュとコロンを削除、スペースをアンダースコアに）
+        normalized = timestamp.replace("/", "").replace(":", "").replace(" ", "_")
         return normalized
 
     def _find_detection_image(self, detection_images_dir: Path, timestamp: str) -> Path | None:
@@ -342,16 +342,23 @@ class SideBySideVideoExporter:
             検出画像のパス（見つからない場合はNone）
         """
         normalized_ts = self._normalize_timestamp(timestamp)
-        # 検出画像のファイル名パターン: detection_2025_08_26_160456.jpg
+        # 検出画像のファイル名パターン: detection_20250826_160456.jpg
         pattern = f"detection_{normalized_ts}.jpg"
         detection_path = detection_images_dir / pattern
 
         if detection_path.exists():
             return detection_path
 
+        # 後方互換性: 旧形式のファイル名パターンも検索（detection_2025_08_26_160456.jpg）
+        old_format_ts = timestamp.replace("/", "_").replace(":", "").replace(" ", "_")
+        old_pattern = f"detection_{old_format_ts}.jpg"
+        old_detection_path = detection_images_dir / old_pattern
+        if old_detection_path.exists():
+            return old_detection_path
+
         # パターンマッチングで検索（タイムスタンプの形式が異なる場合）
         for img_path in detection_images_dir.glob("detection_*.jpg"):
-            if normalized_ts in img_path.stem:
+            if normalized_ts in img_path.stem or old_format_ts in img_path.stem:
                 return img_path
 
         return None
@@ -366,23 +373,27 @@ class SideBySideVideoExporter:
         Returns:
             フロアマップ画像のパス（見つからない場合はNone）
         """
-        # フロアマップ画像のパスパターン: floormaps/floormap_2025/08/26 160456.png
-        # タイムスタンプからファイル名を生成
-        # timestamp: "2025/08/26 16:04:56" -> "2025/08/26 160456"
-        timestamp_no_colon = timestamp.replace(":", "")
-
-        # パターン1: floormap_2025/08/26 160456.png（階層構造）
-        pattern1 = f"floormap_{timestamp_no_colon}.png"
-        floormap_path1 = floormap_images_dir / pattern1
-        if floormap_path1.exists():
-            return floormap_path1
-
-        # パターン2: 再帰的に検索（階層構造の場合）
+        # 新形式: floormap_20250826_160456.png（フラット構造）
         normalized_ts = self._normalize_timestamp(timestamp)
+        new_pattern = f"floormap_{normalized_ts}.png"
+        floormap_path_new = floormap_images_dir / new_pattern
+        if floormap_path_new.exists():
+            return floormap_path_new
+
+        # 後方互換性: 旧形式のパスパターンも検索
+        # 旧形式: floormaps/floormap_2025/08/26 160456.png（階層構造、スペースあり）
+        timestamp_no_colon = timestamp.replace(":", "")
+        old_pattern = f"floormap_{timestamp_no_colon}.png"
+        floormap_path_old = floormap_images_dir / old_pattern
+        if floormap_path_old.exists():
+            return floormap_path_old
+
+        # 再帰的に検索（旧階層構造の場合）
+        old_format_ts = timestamp.replace("/", "_").replace(":", "").replace(" ", "_")
         for img_path in floormap_images_dir.rglob("floormap_*.png"):
             # タイムスタンプがファイル名またはパスに含まれているか確認
             path_str = str(img_path)
-            if normalized_ts in path_str or timestamp_no_colon in path_str:
+            if normalized_ts in path_str or timestamp_no_colon in path_str or old_format_ts in path_str:
                 return img_path
 
         return None

@@ -283,7 +283,7 @@ class TransformPhase(BasePhase):
             if detections:
                 bboxes = [d.bbox for d in detections]
                 batch_results = cast(
-                    list[TransformResult | PWATransformResult],
+                    "list[TransformResult | PWATransformResult]",
                     self.transformer.transform_batch(bboxes),
                 )
 
@@ -383,6 +383,18 @@ class TransformPhase(BasePhase):
                 self.logger.info(f"  Extrapolated (PWA): {extrapolated} ({extrapolated / total * 100:.1f}%)")
             self.logger.info("=" * 80)
 
+    def _round_coord(self, value: float, precision: int) -> float:
+        """座標値を指定精度で丸める。
+
+        Args:
+            value: 座標値
+            precision: 小数点以下の桁数
+
+        Returns:
+            丸められた座標値
+        """
+        return round(value, precision)
+
     def export_results(self, frame_results: list[FrameResult], output_path: Path) -> None:
         """座標変換結果をJSON形式で出力。
 
@@ -390,64 +402,130 @@ class TransformPhase(BasePhase):
             frame_results: フレーム結果のリスト
             output_path: 出力ディレクトリパス
         """
+        # JSON最適化設定を取得
+        json_opt = self.config.get("output.json_optimization", {})
+        opt_enabled = json_opt.get("enabled", False)
+        precision = json_opt.get("coordinate_precision", 1) if opt_enabled else 6
+        compact_keys = json_opt.get("compact_keys", False) and opt_enabled
+        exclude_px_coords = json_opt.get("exclude_px_coords", False) and opt_enabled
+
         coordinate_data = []
         for frame_result in frame_results:
+            # フレームキー名
+            frame_key = "idx" if compact_keys else "frame_number"
+            ts_key = "ts" if compact_keys else "timestamp"
+            det_key = "det" if compact_keys else "detections"
+
             frame_data: dict[str, Any] = {
-                "frame_number": frame_result.frame_number,
-                "timestamp": frame_result.timestamp,
-                "detections": [],
+                frame_key: frame_result.frame_number,
+                ts_key: frame_result.timestamp,
+                det_key: [],
             }
 
             for detection in frame_result.detections:
-                detection_data: dict[str, Any] = {
-                    "bbox": {
-                        "x": float(detection.bbox[0]),
-                        "y": float(detection.bbox[1]),
-                        "width": float(detection.bbox[2]),
-                        "height": float(detection.bbox[3]),
-                    },
-                    "confidence": float(detection.confidence),
-                }
+                # キー名の決定
+                bbox_key = "bb" if compact_keys else "bbox"
+                conf_key = "conf" if compact_keys else "confidence"
+                cam_key = "cam" if compact_keys else "camera_coords"
+                floor_px_key = "floor_px" if compact_keys else "floor_coords_px"
+                floor_mm_key = "floor_mm" if compact_keys else "floor_coords_mm"
+                zone_key = "zones" if compact_keys else "zone_ids"
+                id_key = "id" if compact_keys else "track_id"
+
+                # bbox: 配列形式でコンパクトに
+                if compact_keys:
+                    detection_data: dict[str, Any] = {
+                        bbox_key: [
+                            self._round_coord(detection.bbox[0], precision),
+                            self._round_coord(detection.bbox[1], precision),
+                            self._round_coord(detection.bbox[2], precision),
+                            self._round_coord(detection.bbox[3], precision),
+                        ],
+                        conf_key: self._round_coord(detection.confidence, 2),
+                    }
+                else:
+                    detection_data = {
+                        bbox_key: {
+                            "x": self._round_coord(detection.bbox[0], precision),
+                            "y": self._round_coord(detection.bbox[1], precision),
+                            "width": self._round_coord(detection.bbox[2], precision),
+                            "height": self._round_coord(detection.bbox[3], precision),
+                        },
+                        conf_key: self._round_coord(detection.confidence, 3),
+                    }
 
                 if detection.camera_coords is not None:
-                    detection_data["camera_coords"] = {
-                        "x": float(detection.camera_coords[0]),
-                        "y": float(detection.camera_coords[1]),
-                    }
+                    if compact_keys:
+                        detection_data[cam_key] = [
+                            self._round_coord(detection.camera_coords[0], precision),
+                            self._round_coord(detection.camera_coords[1], precision),
+                        ]
+                    else:
+                        detection_data[cam_key] = {
+                            "x": self._round_coord(detection.camera_coords[0], precision),
+                            "y": self._round_coord(detection.camera_coords[1], precision),
+                        }
 
-                if detection.floor_coords is not None:
-                    detection_data["floor_coords_px"] = {
-                        "x": float(detection.floor_coords[0]),
-                        "y": float(detection.floor_coords[1]),
-                    }
+                # floor_coords_px（オプションで除外可能）
+                if detection.floor_coords is not None and not exclude_px_coords:
+                    if compact_keys:
+                        detection_data[floor_px_key] = [
+                            self._round_coord(detection.floor_coords[0], precision),
+                            self._round_coord(detection.floor_coords[1], precision),
+                        ]
+                    else:
+                        detection_data[floor_px_key] = {
+                            "x": self._round_coord(detection.floor_coords[0], precision),
+                            "y": self._round_coord(detection.floor_coords[1], precision),
+                        }
 
                 if detection.floor_coords_mm is not None:
-                    detection_data["floor_coords_mm"] = {
-                        "x": float(detection.floor_coords_mm[0]),
-                        "y": float(detection.floor_coords_mm[1]),
-                    }
+                    if compact_keys:
+                        detection_data[floor_mm_key] = [
+                            self._round_coord(detection.floor_coords_mm[0], precision),
+                            self._round_coord(detection.floor_coords_mm[1], precision),
+                        ]
+                    else:
+                        detection_data[floor_mm_key] = {
+                            "x": self._round_coord(detection.floor_coords_mm[0], precision),
+                            "y": self._round_coord(detection.floor_coords_mm[1], precision),
+                        }
 
                 if detection.zone_ids:
-                    detection_data["zone_ids"] = detection.zone_ids
+                    detection_data[zone_key] = detection.zone_ids
 
                 if hasattr(detection, "track_id") and detection.track_id is not None:
-                    detection_data["track_id"] = detection.track_id
+                    detection_data[id_key] = detection.track_id
 
-                frame_data["detections"].append(detection_data)
+                frame_data[det_key].append(detection_data)
 
             coordinate_data.append(frame_data)
 
         # メタデータを追加
+        method_key = "method" if compact_keys else "transform_method"
+        info_key = "info" if compact_keys else "transformer_info"
+
+        # transformer_infoから訓練誤差の詳細を除外してコンパクトに
+        transformer_info = self.transformer.get_info() if self.transformer else {}
+        if compact_keys and transformer_info:
+            transformer_info = {
+                "method": transformer_info.get("method", self.transform_method),
+                "points": transformer_info.get("num_points", 0),
+                "triangles": transformer_info.get("num_triangles", 0),
+            }
+
         output_data = {
-            "transform_method": self.transform_method,
-            "transformer_info": self.transformer.get_info() if self.transformer else {},
+            method_key: self.transform_method,
+            info_key: transformer_info,
             "frames": coordinate_data,
         }
 
         coordinate_output_path = output_path / "coordinate_transformations.json"
         try:
+            # コンパクトモードではインデントを減らす
+            indent = None if compact_keys else 2
             with open(coordinate_output_path, "w", encoding="utf-8") as f:
-                json.dump(output_data, f, indent=2, ensure_ascii=False, default=str)
+                json.dump(output_data, f, indent=indent, ensure_ascii=False, default=str)
             self.logger.info(f"Saved coordinate transformations to {coordinate_output_path}")
         except Exception as e:
             self.logger.error(f"Failed to save JSON: {e}")
