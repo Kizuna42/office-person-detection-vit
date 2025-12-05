@@ -111,9 +111,11 @@ class MultiEngineOCR:
 
     def _init_easyocr(self) -> Callable[[np.ndarray], str]:
         """EasyOCR: 高精度、やや遅い"""
-        import easyocr
+        easyocr_module = globals().get("easyocr")
+        if easyocr_module is None:
+            raise RuntimeError("easyocr module is not available")
 
-        reader = easyocr.Reader(["en"], gpu=False, quantize=False)  # GPU利用は環境に応じて調整
+        reader = easyocr_module.Reader(["en"], gpu=False, quantize=False)  # GPU利用は環境に応じて調整
 
         def easyocr_func(img: np.ndarray) -> str:
             results = reader.readtext(img)
