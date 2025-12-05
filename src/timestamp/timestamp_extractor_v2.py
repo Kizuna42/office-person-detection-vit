@@ -20,9 +20,11 @@ logger = logging.getLogger(__name__)
 class TimestampValidator(Protocol):
     """タイムスタンプ検証のためのプロトコル。"""
 
-    def validate(self, timestamp: datetime, frame_idx: int) -> tuple[bool, float, str]: ...
+    def validate(self, timestamp: datetime, frame_idx: int) -> tuple[bool, float, str]:
+        ...
 
-    def reset(self) -> None: ...
+    def reset(self) -> None:
+        ...
 
 
 class TimestampExtractorV2:
