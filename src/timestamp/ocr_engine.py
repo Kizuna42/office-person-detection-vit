@@ -41,10 +41,11 @@ except ImportError:
     logger.warning("pytesseract is not available")
 
 try:
-    import easyocr  # noqa: F401
+    import easyocr
 
     EASYOCR_AVAILABLE = True
 except ImportError:
+    easyocr = None
     logger.debug("easyocr is not available")
 
 try:

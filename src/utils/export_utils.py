@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+from datetime import datetime
 import json
 import logging
 from pathlib import Path
@@ -325,11 +326,18 @@ class SideBySideVideoExporter:
             timestamp: タイムスタンプ文字列（例: "2025/08/26 16:04:56"）
 
         Returns:
-            正規化されたタイムスタンプ（例: "20250826_160456"）
+            正規化されたタイムスタンプ（例: "2025_08_26_160456"）
         """
-        # 形式: YYYYMMDD_HHMMSS（スラッシュとコロンを削除、スペースをアンダースコアに）
-        normalized = timestamp.replace("/", "").replace(":", "").replace(" ", "_")
-        return normalized
+        digits = "".join(ch for ch in timestamp if ch.isdigit())
+        if len(digits) >= 14:
+            try:
+                dt = datetime.strptime(digits[:14], "%Y%m%d%H%M%S")
+                return dt.strftime("%Y_%m_%d_%H%M%S")
+            except ValueError:
+                pass
+
+        normalized = timestamp.replace("/", "_").replace("-", "_").replace(":", "").replace(" ", "_")
+        return "".join(c for c in normalized if c.isalnum() or c in "_-.")
 
     def _find_detection_image(self, detection_images_dir: Path, timestamp: str) -> Path | None:
         """検出画像のパスを検索
@@ -342,23 +350,24 @@ class SideBySideVideoExporter:
             検出画像のパス（見つからない場合はNone）
         """
         normalized_ts = self._normalize_timestamp(timestamp)
-        # 検出画像のファイル名パターン: detection_20250826_160456.jpg
+        # 検出画像のファイル名パターン: detection_2025_08_26_160456.jpg
         pattern = f"detection_{normalized_ts}.jpg"
         detection_path = detection_images_dir / pattern
 
         if detection_path.exists():
             return detection_path
 
-        # 後方互換性: 旧形式のファイル名パターンも検索（detection_2025_08_26_160456.jpg）
-        old_format_ts = timestamp.replace("/", "_").replace(":", "").replace(" ", "_")
-        old_pattern = f"detection_{old_format_ts}.jpg"
-        old_detection_path = detection_images_dir / old_pattern
-        if old_detection_path.exists():
-            return old_detection_path
+        # 後方互換性: 旧形式のファイル名パターンも検索（compact: detection_20250826_160456.jpg）
+        compact_ts = timestamp.replace("/", "").replace(":", "").replace(" ", "_")
+        compact_ts = "".join(c for c in compact_ts if c.isalnum() or c in "_-.")
+        compact_pattern = f"detection_{compact_ts}.jpg"
+        compact_detection_path = detection_images_dir / compact_pattern
+        if compact_detection_path.exists():
+            return compact_detection_path
 
         # パターンマッチングで検索（タイムスタンプの形式が異なる場合）
         for img_path in detection_images_dir.glob("detection_*.jpg"):
-            if normalized_ts in img_path.stem or old_format_ts in img_path.stem:
+            if normalized_ts in img_path.stem or compact_ts in img_path.stem:
                 return img_path
 
         return None
