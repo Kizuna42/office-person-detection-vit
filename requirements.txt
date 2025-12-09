@@ -173,7 +173,8 @@ scikit-image==0.25.2
     # via office-person-detection (pyproject.toml)
 scikit-learn==1.7.2
     # via office-person-detection (pyproject.toml)
-scipy==1.16.3
+scipy==1.11.4; python_version < "3.11"
+scipy==1.16.3; python_version >= "3.11"
     # via
     #   scikit-image
     #   scikit-learn
