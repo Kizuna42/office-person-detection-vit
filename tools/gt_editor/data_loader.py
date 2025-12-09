@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
     import numpy as np
 
-    from src.transform.coordinate_transformer import CoordinateTransformer
+    from src.transform import HomographyTransformer
 
 
 logger = logging.getLogger(__name__)
@@ -250,7 +250,7 @@ class TrackGenerator:
         self,
         session_tracks: dict[int, dict],
         gt_frame_to_frame_index: dict[int, int],
-        coordinate_transformer: CoordinateTransformer,
+        coordinate_transformer: HomographyTransformer | None,
     ):
         """初期化
 
@@ -293,17 +293,15 @@ class TrackGenerator:
                     camera_y = point.get("y", 0)
 
                     try:
-                        floor_coords = self.coordinate_transformer.transform(
-                            (camera_x, camera_y),
-                            apply_origin_offset=True,
-                        )
-                        gt_trajectory.append(
-                            {
-                                "x": float(floor_coords[0]),
-                                "y": float(floor_coords[1]),
-                                "frame": gt_frame,
-                            }
-                        )
+                        result = self.coordinate_transformer.transform_pixel((camera_x, camera_y))
+                        if result.is_valid and result.floor_coords_px:
+                            gt_trajectory.append(
+                                {
+                                    "x": float(result.floor_coords_px[0]),
+                                    "y": float(result.floor_coords_px[1]),
+                                    "frame": gt_frame,
+                                }
+                            )
                     except Exception as e:
                         logger.warning(f"トラックID {track_id}, フレーム {gt_frame}: 座標変換エラー - {e}")
 

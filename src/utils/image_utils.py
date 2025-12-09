@@ -1,5 +1,6 @@
 """Image processing and saving utilities."""
 
+from datetime import datetime
 import logging
 from pathlib import Path
 
@@ -23,6 +24,24 @@ def get_track_id_color(track_id: int) -> tuple[int, int, int]:
     color_hsv = np.array([[[hue, 255, 255]]], dtype=np.uint8)
     color_bgr = cv2.cvtColor(color_hsv, cv2.COLOR_HSV2BGR)[0][0]
     return (int(color_bgr[0]), int(color_bgr[1]), int(color_bgr[2]))
+
+
+def _sanitize_timestamp(timestamp: str) -> str:
+    """タイムスタンプ文字列をファイル名安全な形式に正規化する。
+
+    期待形式: YYYY/MM/DD HH:MM:SS など。どのセパレータでも、数字を抽出して
+    `YYYY_MM_DD_HHMMSS` に整形する。
+    """
+    digits = "".join(ch for ch in timestamp if ch.isdigit())
+    if len(digits) >= 14:
+        try:
+            dt = datetime.strptime(digits[:14], "%Y%m%d%H%M%S")
+            return dt.strftime("%Y_%m_%d_%H%M%S")
+        except ValueError:
+            pass
+    # フォールバック: 従来の置換ロジック（必ずアンダースコアを入れる）
+    ts = timestamp.replace("/", "_").replace("-", "_").replace(":", "").replace(" ", "_")
+    return "".join(c for c in ts if c.isalnum() or c in "_-.")
 
 
 def save_detection_image(
@@ -76,12 +95,7 @@ def save_detection_image(
                 cv2.circle(result_image, (int(foot_x), int(foot_y)), 5, (0, 0, 255), -1)
 
             # ファイル名を生成（タイムスタンプの特殊文字を置換）
-            # ファイル名として無効な文字を全て除去
-            # / と : と スペースを _ に置換し、Pathオブジェクトで安全に処理
-            timestamp_clean = timestamp.replace("/", "_").replace(":", "").replace(" ", "_")
-            # 念のため、残っている可能性のある特殊文字も除去
-            # Windows/Mac/Linuxで無効な文字: / \ : * ? " < > |
-            timestamp_clean = "".join(c for c in timestamp_clean if c.isalnum() or c in "_-.")
+            timestamp_clean = _sanitize_timestamp(timestamp)
             filename = f"detection_{timestamp_clean}.jpg"
 
             # Pathオブジェクトで安全に結合（ファイル名に/が含まれていても正しく処理）
@@ -282,8 +296,7 @@ def save_tracked_detection_image(
                 cv2.circle(result_image, (int(foot_x), int(foot_y)), 5, color, -1)
 
             # ファイル名を生成（タイムスタンプの特殊文字を置換）
-            timestamp_clean = timestamp.replace("/", "_").replace(":", "").replace(" ", "_")
-            timestamp_clean = "".join(c for c in timestamp_clean if c.isalnum() or c in "_-.")
+            timestamp_clean = _sanitize_timestamp(timestamp)
             filename = f"tracking_{timestamp_clean}.jpg"
 
             # Pathオブジェクトで安全に結合

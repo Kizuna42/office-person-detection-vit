@@ -28,12 +28,13 @@ python main.py
 ### 1. 依存関係のインストール
 
 ```bash
-# 仮想環境作成
-make setup-venv
+# 開発環境セットアップ（仮想環境 + 依存関係 + pre-commit）
+make setup-dev
 source venv/bin/activate
 
-# 依存関係インストール
-make setup-deps
+# または基本セットアップのみ
+make setup
+source venv/bin/activate
 
 # Tesseract OCR インストール（必須）
 brew install tesseract tesseract-lang  # macOS
@@ -184,10 +185,10 @@ python -c "import torch; print(torch.backends.mps.is_available())"
 ### セットアップ
 
 ```bash
-# 依存関係インストール（開発ツール含む）
-make setup-deps
+# 開発環境セットアップ（依存関係 + pre-commit フック）
+make setup-dev
 
-# Pre-commitフレームワークのセットアップ
+# または手動でpre-commitをインストール
 make precommit-install
 ```
 
@@ -261,8 +262,3 @@ Push 前に自動的に以下が実行されます：
 ## ライセンス
 
 MIT License
-
-
-カメラの画角や向き、物理パラメータなどカメラに関する全てのパラメータの編集権限を与えます。@correspondence_points_cam01.jsonこのキャリブレーション対応点を実行したデータを使って物理パラメータなどカメラ、画角、フロアマップ変換に関する精度を向上させるための自動optimaツールを開発し、実行すること。
-成果物は output/latest/phase5_visualization/side_by_side_tracking.mp4と同様の形式で私に提示すること。
-あらゆることを許可します。遠慮せずに全力を尽くしてください。

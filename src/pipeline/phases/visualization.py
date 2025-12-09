@@ -1,5 +1,6 @@
 """Visualization phase of the pipeline."""
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
 from pathlib import Path
 
@@ -61,22 +62,39 @@ class VisualizationPhase(BasePhase):
             floormap_config = self.config.get("floormap")
             zones = self.config.get("zones", [])
             camera_config = self.config.get("camera", {})
+            parallel_workers = self.config.get("output.visualization_workers", 4)
 
             try:
-                floormap_visualizer = FloormapVisualizer(floormap_path, floormap_config, zones, camera_config)
+                # フロアマップディレクトリを事前に作成
+                floormaps_dir = output_path / "floormaps"
+                floormaps_dir.mkdir(parents=True, exist_ok=True)
 
-                # 各フレームのフロアマップ画像を生成
-                for frame_result in tqdm(frame_results, desc="フロアマップ可視化中"):
-                    # フロアマップ上に描画
-                    floormap_image = floormap_visualizer.visualize_frame(
-                        frame_result, draw_zones=True, draw_labels=True
-                    )
+                def generate_floormap(frame_result: FrameResult) -> str | None:
+                    """単一フレームのフロアマップを生成"""
+                    try:
+                        # 各スレッドで独自のVisualizerインスタンスを使用
+                        visualizer = FloormapVisualizer(floormap_path, floormap_config, zones, camera_config)
+                        floormap_image = visualizer.visualize_frame(frame_result, draw_zones=True, draw_labels=True)
+                        # ファイル名形式: floormap_YYYYMMDD_HHMMSS.png（例: floormap_20250826_160456.png）
+                        timestamp_clean = frame_result.timestamp.replace("/", "").replace(":", "").replace(" ", "_")
+                        floormap_output = floormaps_dir / f"floormap_{timestamp_clean}.png"
+                        visualizer.save_visualization(floormap_image, str(floormap_output))
+                        return str(floormap_output)
+                    except Exception as e:
+                        self.logger.warning(f"フロアマップ生成エラー（{frame_result.timestamp}）: {e}")
+                        return None
 
-                    # 保存
-                    floormap_output = (
-                        output_path / "floormaps" / f"floormap_{frame_result.timestamp.replace(':', '')}.png"
-                    )
-                    floormap_visualizer.save_visualization(floormap_image, str(floormap_output))
+                # 並列生成
+                completed_count = 0
+                with ThreadPoolExecutor(max_workers=parallel_workers) as executor:
+                    futures = {executor.submit(generate_floormap, fr): fr for fr in frame_results}
+
+                    for future in tqdm(as_completed(futures), total=len(futures), desc="フロアマップ可視化中（並列）"):
+                        result = future.result()
+                        if result:
+                            completed_count += 1
+
+                self.logger.info(f"フロアマップ画像を {completed_count}/{len(frame_results)} 枚生成しました")
 
             except FileNotFoundError as e:
                 self.logger.warning(f"フロアマップ画像が見つかりません: {e}")
@@ -90,9 +108,9 @@ class VisualizationPhase(BasePhase):
         if save_side_by_side_video and tracking_enabled and frame_results:
             try:
                 # 検出画像ディレクトリとフロアマップ画像ディレクトリのパスを取得
-                # output_pathはphase5_visualizationディレクトリ
-                # 検出画像はphase2_detection/images/にある
-                detection_images_dir = output_path.parent / "phase2_detection" / "images"
+                # output_pathは06_visualizationディレクトリ
+                # 検出画像は02_detection/images/にある
+                detection_images_dir = output_path.parent / "02_detection" / "images"
                 floormap_images_dir = output_path / "floormaps"
 
                 if not detection_images_dir.exists():

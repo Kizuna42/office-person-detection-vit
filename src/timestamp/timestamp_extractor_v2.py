@@ -1,8 +1,10 @@
 """Integrated timestamp extraction module (V2)."""
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 import hashlib
 import logging
+import threading
 from typing import Any, Protocol
 
 import numpy as np
@@ -18,9 +20,11 @@ logger = logging.getLogger(__name__)
 class TimestampValidator(Protocol):
     """タイムスタンプ検証のためのプロトコル。"""
 
-    def validate(self, timestamp: datetime, frame_idx: int) -> tuple[bool, float, str]: ...
+    def validate(self, timestamp: datetime, frame_idx: int) -> tuple[bool, float, str]:
+        ...
 
-    def reset(self) -> None: ...
+    def reset(self) -> None:
+        ...
 
 
 class TimestampExtractorV2:
@@ -92,6 +96,7 @@ class TimestampExtractorV2:
         self._ocr_cache: dict[str, tuple[str | None, float]] = {}
         self._cache_hits = 0
         self._cache_misses = 0
+        self._cache_lock = threading.Lock()  # スレッドセーフなキャッシュアクセス用
 
     def _compute_frame_hash(self, roi: np.ndarray) -> str:
         """ROI画像のハッシュ値を計算（キャッシュキー用）
@@ -133,15 +138,20 @@ class TimestampExtractorV2:
         # キャッシュキーを計算
         roi_hash = self._compute_frame_hash(roi)
 
-        # キャッシュからOCR結果を取得
-        cached_result = self._ocr_cache.get(roi_hash)
-        if cached_result is not None:
-            ocr_text, ocr_confidence = cached_result
-            self._cache_hits += 1
-            logger.debug(f"Frame {frame_idx}: OCR結果をキャッシュから取得 (hash={roi_hash[:8]}...)")
-        else:
+        # キャッシュからOCR結果を取得（スレッドセーフ）
+        with self._cache_lock:
+            cached_result = self._ocr_cache.get(roi_hash)
+            if cached_result is not None:
+                ocr_text, ocr_confidence = cached_result
+                self._cache_hits += 1
+                logger.debug(f"Frame {frame_idx}: OCR結果をキャッシュから取得 (hash={roi_hash[:8]}...)")
+            else:
+                cached_result = None
+
+        if cached_result is None:
             # キャッシュにない場合はOCR実行
-            self._cache_misses += 1
+            with self._cache_lock:
+                self._cache_misses += 1
             ocr_text, ocr_confidence = None, 0.0
 
             for attempt in range(retry_count):
@@ -152,18 +162,21 @@ class TimestampExtractorV2:
                     # OCR実行
                     ocr_text, ocr_confidence = self.ocr_engine.extract_with_consensus(preprocessed)
 
-                    # キャッシュに保存（成功した場合のみ）
+                    # キャッシュに保存（成功した場合のみ、スレッドセーフ）
                     if ocr_text is not None:
-                        self._ocr_cache[roi_hash] = (ocr_text, ocr_confidence)
-                        # キャッシュサイズを制限（LRU方式で古いものを削除）
-                        if len(self._ocr_cache) > 256:
-                            # 最も古いエントリを削除（簡易的なLRU）
-                            oldest_key = next(iter(self._ocr_cache))
-                            del self._ocr_cache[oldest_key]
+                        with self._cache_lock:
+                            self._ocr_cache[roi_hash] = (ocr_text, ocr_confidence)
+                            # キャッシュサイズを制限（LRU方式で古いものを削除）
+                            if len(self._ocr_cache) > 256:
+                                # 最も古いエントリを削除（簡易的なLRU）
+                                oldest_key = next(iter(self._ocr_cache))
+                                del self._ocr_cache[oldest_key]
                         break
                 except Exception as e:
                     logger.error(f"Frame {frame_idx}: OCR error (attempt {attempt + 1}/{retry_count}): {e}")
                     continue
+        else:
+            ocr_text, ocr_confidence = cached_result
 
         # OCR結果が取得できた場合、パースと時系列検証を実行
         if ocr_text is None:
@@ -229,11 +242,51 @@ class TimestampExtractorV2:
         Returns:
             キャッシュ統計情報の辞書
         """
-        total_requests = self._cache_hits + self._cache_misses
-        hit_rate = (self._cache_hits / total_requests * 100) if total_requests > 0 else 0.0
-        return {
-            "cache_size": len(self._ocr_cache),
-            "cache_hits": self._cache_hits,
-            "cache_misses": self._cache_misses,
-            "hit_rate": hit_rate,
-        }
+        with self._cache_lock:
+            total_requests = self._cache_hits + self._cache_misses
+            hit_rate = (self._cache_hits / total_requests * 100) if total_requests > 0 else 0.0
+            return {
+                "cache_size": len(self._ocr_cache),
+                "cache_hits": self._cache_hits,
+                "cache_misses": self._cache_misses,
+                "hit_rate": hit_rate,
+            }
+
+    def extract_batch_parallel(
+        self,
+        frames: list[tuple[int, np.ndarray]],
+        max_workers: int = 4,
+        retry_count: int = 3,
+    ) -> list[dict[str, Any] | None]:
+        """複数フレームからタイムスタンプを並列抽出
+
+        Args:
+            frames: (frame_idx, frame) のリスト
+            max_workers: 並列ワーカー数（デフォルト: 4）
+            retry_count: リトライ回数
+
+        Returns:
+            抽出結果のリスト（入力順）。失敗した場合はNone
+        """
+        results: list[dict[str, Any] | None] = [None] * len(frames)
+
+        def extract_single(idx_frame_tuple: tuple[int, tuple[int, np.ndarray]]) -> tuple[int, dict[str, Any] | None]:
+            """単一フレームを抽出（インデックス付き）"""
+            list_idx, (frame_idx, frame) = idx_frame_tuple
+            result = self.extract(frame, frame_idx, retry_count=retry_count)
+            return list_idx, result
+
+        # 並列実行
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(extract_single, (i, frame_tuple)): i for i, frame_tuple in enumerate(frames)}
+
+            for future in as_completed(futures):
+                try:
+                    list_idx, result = future.result()
+                    results[list_idx] = result
+                except Exception as e:
+                    list_idx = futures[future]
+                    logger.error(f"並列抽出エラー（インデックス {list_idx}）: {e}")
+                    results[list_idx] = None
+
+        return results

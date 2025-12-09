@@ -82,7 +82,7 @@ def main():
             logger.info("=" * 80)
             logger.info("タイムスタンプOCR処理が正常に完了しました")
             logger.info(f"抽出フレーム数: {len(extraction_results)}")
-            logger.info(f"出力ディレクトリ: {orchestrator.get_phase_output_dir('phase1_extraction').absolute()}")
+            logger.info(f"出力ディレクトリ: {orchestrator.get_phase_output_dir('01_extraction').absolute()}")
             logger.info("=" * 80)
             return 0
 
@@ -90,8 +90,10 @@ def main():
         sample_frames = orchestrator.prepare_frames_for_detection(extraction_results, video_path)
         detection_results, detector_phase = orchestrator.run_detection(sample_frames)
 
-        # 追跡フェーズ（オプション）
-        tracked_results, tracking_phase = orchestrator.run_tracking(detection_results, sample_frames)
+        # 追跡フェーズ（オプション）- 検出器を共有してメモリ効率化
+        tracked_results, tracking_phase = orchestrator.run_tracking(
+            detection_results, sample_frames, detection_phase=detector_phase
+        )
 
         frame_results, _ = orchestrator.run_transform(tracked_results)
         _, aggregator = orchestrator.run_aggregation(frame_results)

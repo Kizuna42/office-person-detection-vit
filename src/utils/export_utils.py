@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+from datetime import datetime
 import json
 import logging
 from pathlib import Path
@@ -227,7 +228,7 @@ class TrajectoryExporter:
 
         # 動画ライターを初期化
         h, w = floormap_image.shape[:2]
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # type: ignore[attr-defined]
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
         writer = cv2.VideoWriter(str(output_path), fourcc, fps, (w, h))
 
         try:
@@ -327,9 +328,16 @@ class SideBySideVideoExporter:
         Returns:
             正規化されたタイムスタンプ（例: "2025_08_26_160456"）
         """
-        # / と : と スペースを _ に置換
-        normalized = timestamp.replace("/", "_").replace(":", "").replace(" ", "_")
-        return normalized
+        digits = "".join(ch for ch in timestamp if ch.isdigit())
+        if len(digits) >= 14:
+            try:
+                dt = datetime.strptime(digits[:14], "%Y%m%d%H%M%S")
+                return dt.strftime("%Y_%m_%d_%H%M%S")
+            except ValueError:
+                pass
+
+        normalized = timestamp.replace("/", "_").replace("-", "_").replace(":", "").replace(" ", "_")
+        return "".join(c for c in normalized if c.isalnum() or c in "_-.")
 
     def _find_detection_image(self, detection_images_dir: Path, timestamp: str) -> Path | None:
         """検出画像のパスを検索
@@ -349,9 +357,17 @@ class SideBySideVideoExporter:
         if detection_path.exists():
             return detection_path
 
+        # 後方互換性: 旧形式のファイル名パターンも検索（compact: detection_20250826_160456.jpg）
+        compact_ts = timestamp.replace("/", "").replace(":", "").replace(" ", "_")
+        compact_ts = "".join(c for c in compact_ts if c.isalnum() or c in "_-.")
+        compact_pattern = f"detection_{compact_ts}.jpg"
+        compact_detection_path = detection_images_dir / compact_pattern
+        if compact_detection_path.exists():
+            return compact_detection_path
+
         # パターンマッチングで検索（タイムスタンプの形式が異なる場合）
         for img_path in detection_images_dir.glob("detection_*.jpg"):
-            if normalized_ts in img_path.stem:
+            if normalized_ts in img_path.stem or compact_ts in img_path.stem:
                 return img_path
 
         return None
@@ -366,23 +382,27 @@ class SideBySideVideoExporter:
         Returns:
             フロアマップ画像のパス（見つからない場合はNone）
         """
-        # フロアマップ画像のパスパターン: floormaps/floormap_2025/08/26 160456.png
-        # タイムスタンプからファイル名を生成
-        # timestamp: "2025/08/26 16:04:56" -> "2025/08/26 160456"
-        timestamp_no_colon = timestamp.replace(":", "")
-
-        # パターン1: floormap_2025/08/26 160456.png（階層構造）
-        pattern1 = f"floormap_{timestamp_no_colon}.png"
-        floormap_path1 = floormap_images_dir / pattern1
-        if floormap_path1.exists():
-            return floormap_path1
-
-        # パターン2: 再帰的に検索（階層構造の場合）
+        # 新形式: floormap_20250826_160456.png（フラット構造）
         normalized_ts = self._normalize_timestamp(timestamp)
+        new_pattern = f"floormap_{normalized_ts}.png"
+        floormap_path_new = floormap_images_dir / new_pattern
+        if floormap_path_new.exists():
+            return floormap_path_new
+
+        # 後方互換性: 旧形式のパスパターンも検索
+        # 旧形式: floormaps/floormap_2025/08/26 160456.png（階層構造、スペースあり）
+        timestamp_no_colon = timestamp.replace(":", "")
+        old_pattern = f"floormap_{timestamp_no_colon}.png"
+        floormap_path_old = floormap_images_dir / old_pattern
+        if floormap_path_old.exists():
+            return floormap_path_old
+
+        # 再帰的に検索（旧階層構造の場合）
+        old_format_ts = timestamp.replace("/", "_").replace(":", "").replace(" ", "_")
         for img_path in floormap_images_dir.rglob("floormap_*.png"):
             # タイムスタンプがファイル名またはパスに含まれているか確認
             path_str = str(img_path)
-            if normalized_ts in path_str or timestamp_no_colon in path_str:
+            if normalized_ts in path_str or timestamp_no_colon in path_str or old_format_ts in path_str:
                 return img_path
 
         return None
@@ -415,16 +435,37 @@ class SideBySideVideoExporter:
             # バウンディングボックスを描画（track_id色）
             cv2.rectangle(result_image, (x, y), (x + w, y + h), color, 3)
 
-            # track_idと信頼度を表示
-            label = f"ID:{detection.track_id} {detection.confidence:.2f}"
+            # track_idのみを表示（元の「Person 信頼度」ラベルを上書き）
+            label = f"ID:{detection.track_id}"
+
+            # ラベルのサイズを計算
+            font_scale = 0.6
+            thickness = 2
+            (text_width, text_height), baseline = cv2.getTextSize(
+                label, cv2.FONT_HERSHEY_SIMPLEX, font_scale, thickness
+            )
+
+            # 背景矩形を描画（元のラベルを上書き）
+            label_x = x
+            label_y = y - 10
+            padding = 3
+            cv2.rectangle(
+                result_image,
+                (label_x - padding, label_y - text_height - padding),
+                (label_x + text_width + padding, label_y + baseline + padding),
+                color,
+                -1,  # 塗りつぶし
+            )
+
+            # ラベルテキストを描画（白文字）
             cv2.putText(
                 result_image,
                 label,
-                (x, y - 10),
+                (label_x, label_y),
                 cv2.FONT_HERSHEY_SIMPLEX,
-                0.6,
-                color,
-                2,
+                font_scale,
+                (255, 255, 255),  # 白文字で可読性を向上
+                thickness,
             )
 
             # 足元座標を描画
@@ -633,7 +674,7 @@ class SideBySideVideoExporter:
         video_height = target_height
 
         # 動画ライターを初期化
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # type: ignore[attr-defined]
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
         writer = cv2.VideoWriter(str(output_path), fourcc, fps, (video_width, video_height))
 
         if not writer.isOpened():

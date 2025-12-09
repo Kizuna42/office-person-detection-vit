@@ -5,8 +5,69 @@ from datetime import datetime
 import json
 import logging
 from pathlib import Path
+import platform
+import subprocess
+import sys
+from typing import Any
 
 logger = logging.getLogger(__name__)
+
+
+def get_reproducibility_info() -> dict[str, Any]:
+    """再現性のための環境情報を取得
+
+    Returns:
+        環境情報の辞書
+    """
+    info: dict[str, Any] = {
+        "python_version": sys.version,
+        "python_version_info": {
+            "major": sys.version_info.major,
+            "minor": sys.version_info.minor,
+            "micro": sys.version_info.micro,
+        },
+        "platform": platform.platform(),
+        "platform_system": platform.system(),
+        "platform_machine": platform.machine(),
+    }
+
+    # Git情報を取得（失敗した場合はスキップ）
+    try:
+        git_commit = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=5,
+        ).stdout.strip()
+        info["git_commit"] = git_commit
+
+        git_branch = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=5,
+        ).stdout.strip()
+        info["git_branch"] = git_branch
+
+        # ワーキングディレクトリがクリーンかどうか
+        git_status = subprocess.run(
+            ["git", "status", "--porcelain"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=5,
+        ).stdout.strip()
+        info["git_dirty"] = len(git_status) > 0
+
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
+        # Gitが利用できない場合はスキップ
+        info["git_commit"] = None
+        info["git_branch"] = None
+        info["git_dirty"] = None
+
+    return info
 
 
 class OutputManager:
@@ -39,14 +100,15 @@ class OutputManager:
         session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
         session_dir = self.sessions_dir / session_id
 
-        # フェーズ別ディレクトリを作成
+        # フェーズ別ディレクトリを作成（番号プレフィックス形式）
         phase_dirs = [
-            "phase1_extraction/frames",
-            "phase2_detection/images",
-            "phase3_transform",
-            "phase4_aggregation",
-            "phase5_visualization/graphs",
-            "phase5_visualization/floormaps",
+            "01_extraction/frames",
+            "02_detection/images",
+            "03_tracking",
+            "04_transform",
+            "05_aggregation",
+            "06_visualization/graphs",
+            "06_visualization/floormaps",
         ]
 
         for phase_dir in phase_dirs:
@@ -66,6 +128,7 @@ class OutputManager:
         metadata = {
             "session_id": session_dir.name,
             "timestamp": datetime.now().isoformat(),
+            "reproducibility": get_reproducibility_info(),
             "config": config,
             "arguments": args or {},
         }

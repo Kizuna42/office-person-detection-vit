@@ -4,6 +4,10 @@ repos:
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
+      - id: check-yaml
+        args: [--unsafe]
+      - id: check-json
+      - id: check-toml
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.6.4
@@ -11,6 +15,15 @@ repos:
       - id: ruff
         args: [--fix]
       - id: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.10.0
+    hooks:
+      - id: mypy
+        args: [--ignore-missing-imports]
+        additional_dependencies:
+          - types-PyYAML>=6.0
+        files: ^src/
 
   - repo: local
     hooks:
@@ -22,11 +35,13 @@ repos:
         stages: [pre-push]
 
 default_language_version:
-  python: python3.10
+  python: python3.11
 
 exclude: |
   (?x)^(
     \.git/|
     venv/|
-    \.venv/
+    \.venv/|
+    output/|
+    models/
   )

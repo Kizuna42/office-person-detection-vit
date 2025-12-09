@@ -1,0 +1,16 @@
+{
+  "camera_params": {
+    "height_m": 0.50000000000001,
+    "pitch_deg": 2.422850095434734,
+    "yaw_deg": 18.671785516396127,
+    "roll_deg": -89.99999999999999,
+    "camera_x_m": -4.323589281204797,
+    "camera_y_m": -49.99999999999871,
+    "position_x_px": 859.0,
+    "position_y_px": 1040.0,
+    "focal_length_x": 1250.0,
+    "focal_length_y": 1250.0,
+    "center_x": 640.0,
+    "center_y": 360.0
+  }
+}

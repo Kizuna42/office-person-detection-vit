@@ -41,10 +41,11 @@ except ImportError:
     logger.warning("pytesseract is not available")
 
 try:
-    import easyocr  # noqa: F401
+    import easyocr
 
     EASYOCR_AVAILABLE = True
 except ImportError:
+    easyocr = None
     logger.debug("easyocr is not available")
 
 try:
@@ -110,9 +111,11 @@ class MultiEngineOCR:
 
     def _init_easyocr(self) -> Callable[[np.ndarray], str]:
         """EasyOCR: 高精度、やや遅い"""
-        import easyocr
+        easyocr_module = globals().get("easyocr")
+        if easyocr_module is None:
+            raise RuntimeError("easyocr module is not available")
 
-        reader = easyocr.Reader(["en"], gpu=False, quantize=False)  # GPU利用は環境に応じて調整
+        reader = easyocr_module.Reader(["en"], gpu=False, quantize=False)  # GPU利用は環境に応じて調整
 
         def easyocr_func(img: np.ndarray) -> str:
             results = reader.readtext(img)
@@ -419,7 +422,7 @@ class MultiEngineOCR:
         try:
             from Levenshtein import ratio
 
-            return ratio(text1, text2)
+            return float(ratio(text1, text2))
         except ImportError:
             # Levenshteinがインストールされていない場合は簡易版
             logger.warning("python-Levenshtein not installed, using simple similarity")

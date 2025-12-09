@@ -34,7 +34,8 @@ class ConfigManager:
             "image_x_mm_per_pixel",
             "image_y_mm_per_pixel",
         ],
-        "homography": ["matrix"],
+        # homography は旧システム用（オプショナル）
+        # "homography": ["matrix"],
         "camera": ["position_x", "position_y", "height_m"],
         "calibration": [
             "use_distortion_correction",
@@ -72,7 +73,9 @@ class ConfigManager:
             "image_x_mm_per_pixel": 28.1926406926406,
             "image_y_mm_per_pixel": 28.241430700447,
         },
-        "homography": {"matrix": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]},
+        # homography は旧システム用（オプショナル）
+        # 新システムでは camera_params を使用
+        # "homography": {"matrix": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]},
         "camera": {
             "position_x": 0,
             "position_y": 0,
@@ -214,8 +217,10 @@ class ConfigManager:
         # floormap セクションの検証
         self._validate_floormap_config()
 
-        # homography セクションの検証
-        self._validate_homography_config()
+        # homography セクションの検証（オプショナル - 旧システム互換性のため）
+        # 新システムでは camera_params を使用するため、homography は必須ではない
+        if "homography" in self.config:
+            self._validate_homography_config()
 
         # zones セクションの検証
         self._validate_zones_config()

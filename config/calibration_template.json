@@ -1,13 +1,32 @@
 {
-  "__comment": "Copy this template, fill in real measurements, then merge into config.yaml.",
+  "__comment": "座標変換・キャリブレーション設定テンプレート（高精度版）",
+  "__note": "旧システムの homography セクションは不要。新しい camera_params を使用してください。",
 
-  "camera": {
-    "position_x": 859,
-    "position_y": 1040,
+  "camera_params": {
     "height_m": 2.2,
-    "show_on_floormap": true,
-    "marker_color": [0, 0, 255],
-    "marker_size": 15
+    "pitch_deg": 45.0,
+    "yaw_deg": 0.0,
+    "roll_deg": 0.0,
+    "camera_x_m": 0.0,
+    "camera_y_m": 0.0,
+    "position_x_px": 1200.0,
+    "position_y_px": 800.0,
+    "focal_length_x": 1250.0,
+    "focal_length_y": 1250.0,
+    "center_x": 640.0,
+    "center_y": 360.0,
+    "image_width": 1280,
+    "image_height": 720,
+    "dist_coeffs": [0.0, 0.0, 0.0, 0.0, 0.0]
+  },
+
+  "calibration": {
+    "mode": "hybrid",
+    "correspondence_file": "output/calibration/correspondence_points_cam01.json",
+    "optimization": {
+      "max_iterations": 100,
+      "tolerance": 1.0e-6
+    }
   },
 
   "floormap": {
@@ -18,35 +37,6 @@
     "image_origin_y": 9,
     "image_x_mm_per_pixel": 28.1926406926406,
     "image_y_mm_per_pixel": 28.241430700447
-  },
-
-  "homography": {
-    "matrix": [
-      [1.0, 0.0, 0.0],
-      [0.0, 1.0, 0.0],
-      [0.0, 0.0, 1.0]
-    ]
-  },
-
-  "calibration": {
-    "use_distortion_correction": false,
-    "use_intrinsics": false,
-    "reprojection_error_threshold": 2.0,
-    "intrinsics": {
-      "focal_length_x": 800.0,
-      "focal_length_y": 800.0,
-      "principal_point_x": 640.0,
-      "principal_point_y": 360.0,
-      "image_width": 1280,
-      "image_height": 720
-    },
-    "distortion": {
-      "k1": 0.0,
-      "k2": 0.0,
-      "k3": 0.0,
-      "p1": 0.0,
-      "p2": 0.0
-    }
   },
 
   "zones": [

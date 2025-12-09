@@ -311,6 +311,7 @@ class FrameExtractionPipeline:
         self,
         max_frames: int | None = None,
         disable_validation: bool = False,
+        parallel_workers: int = 4,
     ) -> list[dict[str, Any]]:
         """5分刻みフレーム抽出（自動目標タイムスタンプ生成）
 
@@ -321,6 +322,7 @@ class FrameExtractionPipeline:
         Args:
             max_frames: 最大処理フレーム数（Noneの場合は全フレーム）
             disable_validation: タイムスタンプ検証を無効化するか（デフォルト: False）
+            parallel_workers: 並列ワーカー数（デフォルト: 4）
 
         Returns:
             抽出結果のリスト
@@ -358,22 +360,46 @@ class FrameExtractionPipeline:
                 frames_to_process = min(frames_limit, total_video_frames)
 
                 all_extracted_frames: list[dict[str, Any]] = []
-                for frame_idx in tqdm(range(frames_to_process), desc="タイムスタンプ抽出中"):
-                    frame = video_processor.get_frame(frame_idx)
-                    if frame is None:
+
+                # 並列処理用のバッチサイズ
+                batch_size = parallel_workers * 4  # 各ワーカーに4フレームずつ
+
+                # 一時フレーム保存用ディレクトリ（ストリーミング処理用）
+                temp_frames_dir = self.output_dir / "_temp_frames"
+                temp_frames_dir.mkdir(parents=True, exist_ok=True)
+
+                for batch_start in tqdm(range(0, frames_to_process, batch_size), desc="タイムスタンプ抽出中（並列）"):
+                    batch_end = min(batch_start + batch_size, frames_to_process)
+
+                    # バッチ内のフレームを取得
+                    batch_frames: list[tuple[int, Any]] = []
+                    for frame_idx in range(batch_start, batch_end):
+                        frame = video_processor.get_frame(frame_idx)
+                        if frame is not None:
+                            batch_frames.append((frame_idx, frame))
+
+                    if not batch_frames:
                         continue
 
-                    result = self.extractor.extract(frame, frame_idx)
-                    if result and result.get("timestamp"):
-                        all_extracted_frames.append(
-                            {
-                                "frame_index": frame_idx,
-                                "timestamp": result["timestamp"],
-                                "confidence": result.get("confidence", 0.0),
-                                "ocr_text": result.get("ocr_text", ""),
-                                "frame": frame,
-                            }
-                        )
+                    # 並列抽出
+                    batch_results = self.extractor.extract_batch_parallel(batch_frames, max_workers=parallel_workers)
+
+                    # 結果を収集（フレームはディスクに一時保存してメモリを解放）
+                    for (frame_idx, frame), result in zip(batch_frames, batch_results, strict=True):
+                        if result and result.get("timestamp"):
+                            # フレームを一時保存
+                            temp_path = temp_frames_dir / f"temp_{frame_idx}.jpg"
+                            cv2.imwrite(str(temp_path), frame)
+
+                            all_extracted_frames.append(
+                                {
+                                    "frame_index": frame_idx,
+                                    "timestamp": result["timestamp"],
+                                    "confidence": result.get("confidence", 0.0),
+                                    "ocr_text": result.get("ocr_text", ""),
+                                    "frame_path": str(temp_path),  # フレームパスを保存
+                                }
+                            )
 
             finally:
                 video_processor.release()
@@ -441,7 +467,7 @@ class FrameExtractionPipeline:
                             "time_diff": min_diff,
                             "confidence": best_frame["confidence"],
                             "ocr_text": best_frame["ocr_text"],
-                            "frame": best_frame["frame"],
+                            "frame_path": best_frame.get("frame_path"),  # パスを保持
                         }
                     )
                     logger.info(
@@ -456,7 +482,7 @@ class FrameExtractionPipeline:
                         f"±{tolerance_seconds}秒以内のフレームが見つかりませんでした"
                     )
 
-            # ステップ4: 選択されたフレームのみを保存
+            # ステップ4: 選択されたフレームのみを最終保存先に移動
             logger.info(f"ステップ4: {len(selected_frames)}枚のフレームを保存中...")
             results: list[dict[str, Any]] = []
 
@@ -464,25 +490,47 @@ class FrameExtractionPipeline:
             frames_dir = self.output_dir / "frames"
             frames_dir.mkdir(parents=True, exist_ok=True)
 
+            # 選択されたフレームのパスを記録（後でクリーンアップ時に保持）
+            selected_paths: set[str] = set()
+
             for selected in selected_frames:
                 target_str = selected["target_timestamp"].strftime("%Y%m%d_%H%M%S")
                 output_path_frame = frames_dir / f"frame_{target_str}_idx{selected['frame_index']}.jpg"
 
-                cv2.imwrite(str(output_path_frame), selected["frame"])
+                # 一時ファイルから読み込んで最終保存先にコピー
+                frame_path = selected.get("frame_path")
+                if frame_path and Path(frame_path).exists():
+                    frame = cv2.imread(frame_path)
+                    selected_paths.add(frame_path)
+                else:
+                    logger.warning(f"フレームパスが見つかりません: {frame_path}")
+                    frame = None
 
-                results.append(
-                    {
-                        "target_timestamp": selected["target_timestamp"],
-                        "timestamp": selected["timestamp"],
-                        "frame_idx": selected["frame_index"],
-                        "confidence": selected["confidence"],
-                        "ocr_text": selected["ocr_text"],
-                        "time_diff": selected["time_diff"],
-                        "frame": selected["frame"],
-                    }
-                )
+                if frame is not None:
+                    cv2.imwrite(str(output_path_frame), frame)
 
-                logger.debug(f"保存: {output_path_frame.name}")
+                    results.append(
+                        {
+                            "target_timestamp": selected["target_timestamp"],
+                            "timestamp": selected["timestamp"],
+                            "frame_idx": selected["frame_index"],
+                            "confidence": selected["confidence"],
+                            "ocr_text": selected["ocr_text"],
+                            "time_diff": selected["time_diff"],
+                            "frame": frame,  # 後続フェーズで使用
+                            "frame_path": str(output_path_frame),  # 最終保存パス
+                        }
+                    )
+
+                    logger.debug(f"保存: {output_path_frame.name}")
+
+            # 注意: _temp_framesディレクトリは後でcleanup_temp_files設定に基づいて削除される
+            # ここでは選択されなかった一時ファイルのみ削除し、ディレクトリは残す
+            # （デバッグ用途で一時ファイルを確認したい場合があるため）
+            if temp_frames_dir.exists():
+                for temp_file in temp_frames_dir.glob("temp_*.jpg"):
+                    if str(temp_file) not in selected_paths:
+                        temp_file.unlink()
 
             # 結果をCSV保存
             self._save_results_csv(results)

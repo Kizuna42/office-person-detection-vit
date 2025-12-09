@@ -14,18 +14,20 @@ output/
 │   └── YYYYMMDD_HHMMSS/        # 各実行セッション
 │       ├── metadata.json        # 実行メタデータ
 │       ├── summary.json         # 実行サマリー
-│       ├── phase1_extraction/   # フェーズ1: フレーム抽出
+│       ├── 01_extraction/       # フェーズ1: フレーム抽出
 │       │   ├── frames/          # 抽出フレーム画像
 │       │   └── extraction_results.csv
-│       ├── phase2_detection/    # フェーズ2: 人物検出
+│       ├── 02_detection/        # フェーズ2: 人物検出
 │       │   ├── images/          # 検出結果画像
 │       │   ├── detection_results.json
 │       │   └── detection_statistics.json
-│       ├── phase3_transform/    # フェーズ3: 座標変換
+│       ├── 03_tracking/         # フェーズ3: 追跡
+│       │   └── tracking_results.json
+│       ├── 04_transform/        # フェーズ4: 座標変換
 │       │   └── coordinate_transformations.json
-│       ├── phase4_aggregation/  # フェーズ4: 集計
+│       ├── 05_aggregation/      # フェーズ5: 集計
 │       │   └── zone_counts.csv
-│       ├── phase5_visualization/ # フェーズ5: 可視化
+│       ├── 06_visualization/    # フェーズ6: 可視化
 │       │   ├── graphs/
 │       │   │   ├── time_series.png
 │       │   │   └── statistics.png
@@ -53,16 +55,16 @@ output/
 - `system.log` - システムログ
 
 **作成されないもの（削除）:**
-- `detections/` - セッション内の`phase2_detection/images/`に移動
-- `floormaps/` - セッション内の`phase5_visualization/floormaps/`に移動
-- `graphs/` - セッション内の`phase5_visualization/graphs/`に移動
+- `detections/` - セッション内の`02_detection/images/`に移動
+- `floormaps/` - セッション内の`06_visualization/floormaps/`に移動
+- `graphs/` - セッション内の`06_visualization/graphs/`に移動
 - `labels/` - `shared/labels/`に移動（既存データがある場合）
 
 **ルートに残らないファイル:**
-- `coordinate_transformations.json` → `phase3_transform/`に移動
-- `detection_statistics.json` → `phase2_detection/`に移動
-- `zone_counts.csv` → `phase4_aggregation/`に移動
-- `timestamp_extraction_*.csv` → `phase1_extraction/`に移動
+- `coordinate_transformations.json` → `04_transform/`に移動
+- `detection_statistics.json` → `02_detection/`に移動
+- `zone_counts.csv` → `05_aggregation/`に移動
+- `timestamp_extraction_*.csv` → `01_extraction/`に移動
 
 ---
 
@@ -142,7 +144,7 @@ output/
 output/
 ├── sessions/
 │   └── YYYYMMDD_HHMMSS/  # 各実行が独立
-│       └── phase*/        # フェーズ別に整理
+│       └── 0N_*/          # フェーズ別に整理（番号順）
 ├── latest -> sessions/...
 ├── archive/
 ├── shared/

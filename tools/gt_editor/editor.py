@@ -7,7 +7,7 @@ import cv2
 import numpy as np
 
 from src.config import ConfigManager
-from src.transform.coordinate_transformer import CoordinateTransformer
+from src.transform import FloorMapConfig, HomographyTransformer
 from tools.gt_editor.data_loader import (
     FrameImageLoader,
     SessionTrackLoader,
@@ -59,7 +59,7 @@ class GTracksEditor:
         self.detection_results: dict[int, list[dict]] = {}
         self.frame_index_to_gt_frame: dict[int, int] = {}
         self.gt_frame_to_frame_index: dict[int, int] = {}
-        self.coordinate_transformer: CoordinateTransformer | None = None
+        self.coordinate_transformer: HomographyTransformer | None = None
 
         # セッションデータを読み込む
         if session_dir:
@@ -127,9 +127,13 @@ class GTracksEditor:
 
         # 座標変換器を初期化
         homography_matrix = self.config.get("homography.matrix")
-        floormap_config = self.config.get("floormap")
+        floormap_config_dict = self.config.get("floormap", {})
         if homography_matrix:
-            self.coordinate_transformer = CoordinateTransformer(homography_matrix, floormap_config)
+            import numpy as np
+
+            H = np.array(homography_matrix, dtype=np.float64)
+            fm_config = FloorMapConfig.from_config(floormap_config_dict)
+            self.coordinate_transformer = HomographyTransformer(H, fm_config)
 
         # Ground Truthトラックが空の場合のみ、セッショントラックから初期データを生成
         if len(self.tracks_data) == 0 and len(self.session_tracks) > 0:
@@ -221,10 +225,11 @@ class GTracksEditor:
                 camera_x = camera_coords_data.get("x", 0)
                 camera_y = camera_coords_data.get("y", 0)
                 try:
-                    floor_coords = self.coordinate_transformer.transform(
-                        (camera_x, camera_y),
-                        apply_origin_offset=True,
-                    )
+                    result = self.coordinate_transformer.transform_pixel((camera_x, camera_y))
+                    if result.is_valid and result.floor_coords_px:
+                        floor_coords = result.floor_coords_px
+                    else:
+                        continue
                 except Exception as e:
                     logger.debug(f"座標変換エラー: {e}")
                     continue

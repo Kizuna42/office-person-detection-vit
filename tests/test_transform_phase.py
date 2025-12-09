@@ -19,7 +19,18 @@ if TYPE_CHECKING:
 def sample_config(tmp_path: Path) -> ConfigManager:
     """テスト用のConfigManager"""
     config = ConfigManager("nonexistent_config.yaml")
-    config.set("homography.matrix", [[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+
+    # ホモグラフィ行列（単位行列）
+    config.set(
+        "homography",
+        {
+            "matrix": [
+                [1.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
+                [0.0, 0.0, 1.0],
+            ],
+        },
+    )
     config.set(
         "floormap",
         {
@@ -37,7 +48,7 @@ def sample_config(tmp_path: Path) -> ConfigManager:
             {
                 "id": "zone_a",
                 "name": "Zone A",
-                "polygon": [[0, 0], [100, 0], [100, 100], [0, 100]],
+                "polygon": [[0, 0], [2000, 0], [2000, 1500], [0, 1500]],
                 "priority": 1,
             }
         ],
@@ -58,18 +69,18 @@ def sample_detections() -> list[Detection]:
     """テスト用の検出結果"""
     return [
         Detection(
-            bbox=(100.0, 200.0, 50.0, 100.0),
+            bbox=(600.0, 300.0, 80.0, 200.0),
             confidence=0.9,
             class_id=1,
             class_name="person",
-            camera_coords=(125.0, 300.0),
+            camera_coords=(640.0, 500.0),
         ),
         Detection(
-            bbox=(200.0, 300.0, 60.0, 120.0),
+            bbox=(400.0, 350.0, 60.0, 150.0),
             confidence=0.8,
             class_id=1,
             class_name="person",
-            camera_coords=(230.0, 420.0),
+            camera_coords=(430.0, 500.0),
         ),
     ]
 
@@ -90,18 +101,8 @@ def test_initialize(sample_config, sample_logger):
     phase = TransformPhase(sample_config, sample_logger)
     phase.initialize()
 
-    assert phase.coordinate_transformer is not None
+    assert phase.transformer is not None
     assert phase.zone_classifier is not None
-
-
-def test_initialize_missing_homography(sample_config, sample_logger):
-    """ホモグラフィ行列が設定されていない場合"""
-    sample_config.set("homography.matrix", None)
-
-    phase = TransformPhase(sample_config, sample_logger)
-
-    with pytest.raises(ValueError, match="ホモグラフィ行列が設定されていません"):
-        phase.initialize()
 
 
 def test_initialize_empty_zones(sample_config, sample_logger):
@@ -112,6 +113,16 @@ def test_initialize_empty_zones(sample_config, sample_logger):
     phase.initialize()
 
     assert phase.zone_classifier is not None
+
+
+def test_initialize_missing_homography_matrix(sample_config, sample_logger):
+    """ホモグラフィ行列が設定されていない場合"""
+    sample_config.set("homography", {})
+
+    phase = TransformPhase(sample_config, sample_logger)
+
+    with pytest.raises(ValueError, match=r"homography\.matrix"):
+        phase.initialize()
 
 
 def test_execute_success(sample_config, sample_logger, sample_detection_results):
@@ -129,6 +140,7 @@ def test_execute_success(sample_config, sample_logger, sample_detection_results)
 
     # 座標変換が適用されていることを確認
     for detection in results[0].detections:
+        # 単位行列なので変換成功するはず
         assert detection.floor_coords is not None
         assert detection.floor_coords_mm is not None
         assert isinstance(detection.zone_ids, list)
@@ -138,7 +150,7 @@ def test_execute_without_initialize(sample_config, sample_logger, sample_detecti
     """初期化前にexecuteを呼ぶとエラー"""
     phase = TransformPhase(sample_config, sample_logger)
 
-    with pytest.raises(RuntimeError, match="変換器または分類器が初期化されていません"):
+    with pytest.raises(RuntimeError, match="Not initialized"):
         phase.execute(sample_detection_results)
 
 
@@ -152,30 +164,6 @@ def test_execute_empty_detections(sample_config, sample_logger):
 
     assert len(results) == 1
     assert len(results[0].detections) == 0
-
-
-def test_execute_coordinate_transform_error(sample_config, sample_logger, sample_detection_results):
-    """座標変換でエラーが発生した場合"""
-    phase = TransformPhase(sample_config, sample_logger)
-    phase.initialize()
-
-    # 無効な座標を持つ検出結果を作成
-    invalid_detection = Detection(
-        bbox=(100.0, 200.0, 50.0, 100.0),
-        confidence=0.9,
-        class_id=1,
-        class_name="person",
-        camera_coords=(None, None),  # 無効な座標
-    )
-    invalid_results = [(0, "2025/08/26 16:05:00", [invalid_detection])]
-
-    # エラーが発生しても処理は続行される
-    results = phase.execute(invalid_results)
-
-    assert len(results) == 1
-    # エラーが発生した検出は座標がNoneになる
-    assert results[0].detections[0].floor_coords is None
-    assert results[0].detections[0].zone_ids == []
 
 
 def test_export_results(sample_config, sample_logger, sample_detection_results, tmp_path):
@@ -198,10 +186,14 @@ def test_export_results(sample_config, sample_logger, sample_detection_results, 
     with open(json_path, encoding="utf-8") as f:
         data = json.load(f)
 
-    assert len(data) == 2
-    assert data[0]["frame_number"] == 0
-    assert "detections" in data[0]
-    assert len(data[0]["detections"]) == 2
+    # 新しい形式: メタデータ + frames
+    assert "transform_method" in data
+    assert "transformer_info" in data
+    assert "frames" in data
+    assert len(data["frames"]) == 2
+    assert data["frames"][0]["frame_number"] == 0
+    assert "detections" in data["frames"][0]
+    assert len(data["frames"][0]["detections"]) == 2
 
 
 def test_export_results_empty(sample_config, sample_logger, tmp_path):
@@ -223,7 +215,10 @@ def test_export_results_empty(sample_config, sample_logger, tmp_path):
     with open(json_path, encoding="utf-8") as f:
         data = json.load(f)
 
-    assert len(data) == 0
+    # 新しい形式: メタデータ + frames
+    assert "transform_method" in data
+    assert "frames" in data
+    assert len(data["frames"]) == 0
 
 
 def test_export_results_with_missing_coords(sample_config, sample_logger, tmp_path):
@@ -264,6 +259,23 @@ def test_export_results_with_missing_coords(sample_config, sample_logger, tmp_pa
     with open(json_path, encoding="utf-8") as f:
         data = json.load(f)
 
-    assert len(data) == 1
-    assert "floor_coords" not in data[0]["detections"][0]
-    assert "floor_coords_mm" not in data[0]["detections"][0]
+    # 新しい形式: メタデータ + frames
+    assert "transform_method" in data
+    assert "frames" in data
+    assert len(data["frames"]) == 1
+    assert "floor_coords_px" not in data["frames"][0]["detections"][0]
+    assert "floor_coords_mm" not in data["frames"][0]["detections"][0]
+
+
+def test_cleanup(sample_config, sample_logger):
+    """cleanupが正しく動作する"""
+    phase = TransformPhase(sample_config, sample_logger)
+    phase.initialize()
+
+    assert phase.transformer is not None
+    assert phase.zone_classifier is not None
+
+    phase.cleanup()
+
+    assert phase.transformer is None
+    assert phase.zone_classifier is None

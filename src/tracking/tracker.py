@@ -135,9 +135,8 @@ class Tracker:
         # 結果を統合
         matches = matches_a + matches_b
         unmatched_dets = [unmatched_dets_a[i] for i in unmatched_dets_b]
-        unmatched_tracks = [confirmed_tracks[i] for i in unmatched_tracks_a] + [
-            tentative_tracks[i] for i in unmatched_tracks_b
-        ]
+        # unmatched_tracks_a/bは既にself.tracks内のインデックスを含んでいるので直接使用
+        unmatched_tracks = list(unmatched_tracks_a) + list(unmatched_tracks_b)
 
         return matches, unmatched_dets, unmatched_tracks
 
@@ -155,7 +154,7 @@ class Tracker:
             (マッチしたペアのリスト, 未マッチの検出インデックス, 未マッチのトラックインデックス)
         """
         if len(track_indices) == 0 or len(detections) == 0:
-            return [], list(range(len(detections))), list(range(len(track_indices)))
+            return [], list(range(len(detections))), list(track_indices)
 
         # コスト行列を計算
         cost_matrix = self._compute_cost_matrix(track_indices, detections)

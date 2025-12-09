@@ -18,7 +18,7 @@ from src.pipeline.phases import (
     TransformPhase,
     VisualizationPhase,
 )
-from src.utils import OutputManager, PerformanceMonitor, cleanup_resources, setup_output_directories
+from src.utils import CheckpointManager, OutputManager, PerformanceMonitor, cleanup_resources, setup_output_directories
 from src.video import VideoProcessor
 
 
@@ -38,6 +38,7 @@ class PipelineOrchestrator:
         self.session_dir: Path | None = None
         self.output_path: Path = Path(config.get("output.directory", "output"))
         self.performance_monitor = PerformanceMonitor()
+        self.checkpoint_manager: CheckpointManager | None = None
 
     def setup_output_directories(self, use_session_management: bool, args: dict | None = None) -> None:
         """出力ディレクトリをセットアップ
@@ -56,6 +57,9 @@ class PipelineOrchestrator:
             args_dict = vars(args) if args else {}
             self.output_manager.save_metadata(self.session_dir, config_dict, args_dict)
             self.output_path = self.session_dir
+
+            # チェックポイントマネージャーを初期化
+            self.checkpoint_manager = CheckpointManager(self.session_dir)
         else:
             self.logger.info("セッション管理は無効です（従来の出力構造を使用）")
             # 従来のディレクトリ構造を作成
@@ -67,7 +71,7 @@ class PipelineOrchestrator:
         """フェーズごとの出力ディレクトリを取得
 
         Args:
-            phase_name: フェーズ名（例: "phase1_extraction"）
+            phase_name: フェーズ名（例: "01_extraction"）
 
         Returns:
             出力ディレクトリのパス
@@ -87,7 +91,7 @@ class PipelineOrchestrator:
         Returns:
             抽出結果のリスト
         """
-        with self.performance_monitor.measure("phase1_extraction"):
+        with self.performance_monitor.measure("01_extraction"):
             # 設定からパラメータを取得
             timestamp_config = self.config.get("timestamp", {})
             extraction_config = timestamp_config.get("extraction", {})
@@ -99,7 +103,7 @@ class PipelineOrchestrator:
             start_datetime, end_datetime = self._parse_datetime_range(target_config, start_time, end_time)
 
             # 出力ディレクトリの決定
-            extraction_output_dir = self.get_phase_output_dir("phase1_extraction")
+            extraction_output_dir = self.get_phase_output_dir("01_extraction")
 
             # パイプライン初期化
             pipeline = FrameExtractionPipeline(
@@ -162,14 +166,24 @@ class PipelineOrchestrator:
         Returns:
             検出用フレームのリスト [(frame_idx, timestamp, frame), ...]
         """
+        import cv2
+
         sample_frames = []
         video_processor = None
 
         try:
             for result in tqdm(extraction_results, desc="フレーム準備中"):
                 frame = result.get("frame")
+
+                # フレームがない場合、frame_pathから読み込みを試行
                 if frame is None:
-                    # フレームが保存されていない場合は動画から再取得
+                    frame_path = result.get("frame_path")
+                    if frame_path and Path(frame_path).exists():
+                        frame = cv2.imread(frame_path)
+                        self.logger.debug(f"フレームをディスクから読み込み: {frame_path}")
+
+                # それでもない場合は動画から再取得
+                if frame is None:
                     if video_processor is None:
                         video_processor = VideoProcessor(video_path)
                         video_processor.open()
@@ -200,15 +214,22 @@ class PipelineOrchestrator:
         Returns:
             (検出結果のリスト, DetectionPhaseインスタンス)
         """
-        with self.performance_monitor.measure("phase2_detection"):
+        with self.performance_monitor.measure("02_detection"):
             detection_phase = DetectionPhase(self.config, self.logger)
             detection_phase.initialize()
 
-            output_dir = self.get_phase_output_dir("phase2_detection")
+            output_dir = self.get_phase_output_dir("02_detection")
             detection_phase.output_path = output_dir
 
             detection_results = detection_phase.execute(sample_frames)
             detection_phase.log_statistics(detection_results, output_dir)
+
+            # チェックポイント保存
+            if self.checkpoint_manager:
+                self.checkpoint_manager.save_checkpoint(
+                    "02_detection",
+                    {"total_detections": sum(len(dets) for _, _, dets in detection_results)},
+                )
 
             return detection_results, detection_phase
 
@@ -216,12 +237,14 @@ class PipelineOrchestrator:
         self,
         detection_results: list[tuple[int, str, list[Detection]]],
         sample_frames: list[tuple[int, str, np.ndarray]],
+        detection_phase: DetectionPhase | None = None,
     ) -> tuple[list[tuple[int, str, list[Detection]]], TrackingPhase]:
         """追跡処理を実行
 
         Args:
             detection_results: 検出結果のリスト
             sample_frames: サンプルフレームのリスト [(frame_num, timestamp, frame), ...]
+            detection_phase: 検出フェーズインスタンス（検出器共有用、オプション）
 
         Returns:
             (track_idが割り当てられた検出結果のリスト, TrackingPhaseインスタンス)
@@ -233,11 +256,17 @@ class PipelineOrchestrator:
             tracking_phase.initialize()  # 初期化のみ（実行はスキップ）
             return detection_results, tracking_phase
 
-        with self.performance_monitor.measure("phase2.5_tracking"):
+        with self.performance_monitor.measure("03_tracking"):
             tracking_phase = TrackingPhase(self.config, self.logger)
+
+            # 検出フェーズから検出器を共有（メモリ効率化）
+            if detection_phase is not None and detection_phase.detector is not None:
+                tracking_phase.set_detector(detection_phase.detector)
+                self.logger.info("検出器をPhase 2からPhase 3に共有しました")
+
             tracking_phase.initialize()
 
-            output_dir = self.get_phase_output_dir("phase2.5_tracking")
+            output_dir = self.get_phase_output_dir("03_tracking")
             output_dir.mkdir(parents=True, exist_ok=True)
 
             # 追跡実行（sample_framesをそのまま渡す）
@@ -245,6 +274,13 @@ class PipelineOrchestrator:
 
             # 結果をエクスポート
             tracking_phase.export_results(output_dir)
+
+            # チェックポイント保存
+            if self.checkpoint_manager:
+                self.checkpoint_manager.save_checkpoint(
+                    "03_tracking",
+                    {"total_tracks": len(tracking_phase.get_tracks())},
+                )
 
             return tracked_results, tracking_phase
 
@@ -259,13 +295,20 @@ class PipelineOrchestrator:
         Returns:
             (FrameResultのリスト, TransformPhaseインスタンス)
         """
-        with self.performance_monitor.measure("phase3_transform"):
+        with self.performance_monitor.measure("04_transform"):
             transform_phase = TransformPhase(self.config, self.logger)
             transform_phase.initialize()
 
-            output_dir = self.get_phase_output_dir("phase3_transform")
+            output_dir = self.get_phase_output_dir("04_transform")
             frame_results = transform_phase.execute(detection_results)
             transform_phase.export_results(frame_results, output_dir)
+
+            # チェックポイント保存
+            if self.checkpoint_manager:
+                self.checkpoint_manager.save_checkpoint(
+                    "04_transform",
+                    {"frames_processed": len(frame_results)},
+                )
 
             return frame_results, transform_phase
 
@@ -278,10 +321,17 @@ class PipelineOrchestrator:
         Returns:
             (AggregationPhaseインスタンス, Aggregatorインスタンス)
         """
-        with self.performance_monitor.measure("phase4_aggregation"):
+        with self.performance_monitor.measure("05_aggregation"):
             aggregation_phase = AggregationPhase(self.config, self.logger)
-            output_dir = self.get_phase_output_dir("phase4_aggregation")
+            output_dir = self.get_phase_output_dir("05_aggregation")
             aggregator = aggregation_phase.execute(frame_results, output_dir)
+
+            # チェックポイント保存
+            if self.checkpoint_manager:
+                self.checkpoint_manager.save_checkpoint(
+                    "05_aggregation",
+                    {"zones_count": len(aggregator.get_statistics())},
+                )
 
             return aggregation_phase, aggregator
 
@@ -292,10 +342,17 @@ class PipelineOrchestrator:
             aggregator: Aggregatorインスタンス
             frame_results: FrameResultのリスト
         """
-        with self.performance_monitor.measure("phase5_visualization"):
+        with self.performance_monitor.measure("06_visualization"):
             visualization_phase = VisualizationPhase(self.config, self.logger)
-            output_dir = self.get_phase_output_dir("phase5_visualization")
+            output_dir = self.get_phase_output_dir("06_visualization")
             visualization_phase.execute(aggregator, frame_results, output_dir)
+
+            # チェックポイント保存
+            if self.checkpoint_manager:
+                self.checkpoint_manager.save_checkpoint(
+                    "06_visualization",
+                    {"floormaps_generated": len(frame_results)},
+                )
 
     def save_session_summary(
         self,
@@ -318,25 +375,17 @@ class PipelineOrchestrator:
         # パフォーマンスメトリクスを取得
         performance_summary = self.performance_monitor.get_summary()
 
+        # サマリー用の主要統計（詳細はpipeline_checkpoint.jsonを参照）
+        total_detections = sum(len(dets) for _, _, dets in detection_results)
         summary = {
             "status": "completed",
-            "phases": {
-                "extraction": {
-                    "frames_extracted": len(extraction_results),
-                    "success_rate": 1.0 if extraction_results else 0.0,
-                },
-                "detection": {
-                    "total_detections": sum(len(dets) for _, _, dets in detection_results),
-                    "avg_per_frame": sum(len(dets) for _, _, dets in detection_results) / len(detection_results)
-                    if detection_results
-                    else 0.0,
-                },
-                "transform": {"frames_processed": len(frame_results)},
-                "aggregation": {"zones_count": len(aggregator.get_statistics())},
-                "visualization": {
-                    "graphs_generated": 2,  # time_series, statistics
-                    "floormaps_generated": len(frame_results),
-                },
+            "statistics": {
+                "frames_extracted": len(extraction_results),
+                "total_detections": total_detections,
+                "avg_detections_per_frame": total_detections / len(detection_results) if detection_results else 0.0,
+                "frames_processed": len(frame_results),
+                "zones_count": len(aggregator.get_statistics()),
+                "floormaps_generated": len(frame_results),
             },
             "performance": performance_summary,
         }
@@ -388,6 +437,19 @@ class PipelineOrchestrator:
         Args:
             detector: DetectionPhaseインスタンス（オプション）
         """
+        # 一時ファイルのクリーンアップ
+        cleanup_temp_files = self.config.get("output.cleanup_temp_files", True)
+        if cleanup_temp_files and self.session_dir:
+            temp_frames_dir = self.session_dir / "01_extraction" / "_temp_frames"
+            if temp_frames_dir.exists():
+                try:
+                    import shutil
+
+                    shutil.rmtree(temp_frames_dir)
+                    self.logger.info(f"一時ファイルを削除しました: {temp_frames_dir}")
+                except Exception as e:
+                    self.logger.warning(f"一時ファイルの削除に失敗しました: {e}")
+
         cleanup_resources(
             video_processor=None,
             detector=detector.detector if detector else None,

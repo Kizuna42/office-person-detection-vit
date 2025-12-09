@@ -1,5 +1,6 @@
 """Utility modules for the office person detection system."""
 
+from src.utils.checkpoint_manager import CheckpointManager
 from src.utils.export_utils import TrajectoryExporter
 from src.utils.image_utils import save_detection_image
 from src.utils.logging_utils import setup_logging
@@ -14,6 +15,7 @@ from src.utils.stats_utils import DetectionStatistics, calculate_detection_stati
 from src.utils.torch_utils import setup_mps_compatibility
 
 __all__ = [
+    "CheckpointManager",
     "DetectionStatistics",
     "OutputManager",
     "PerformanceMonitor",
