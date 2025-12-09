@@ -6,11 +6,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-try:
+if TYPE_CHECKING:
     from typing import Self
-except ImportError:
-    from typing_extensions import Self
+else:
+    from typing import Self
 
 
 @dataclass
