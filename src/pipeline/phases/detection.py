@@ -9,6 +9,7 @@ import numpy as np
 from tqdm import tqdm
 
 from src.config import ConfigManager
+from src.core.policy import OutputPolicy
 from src.detection import ViTDetector
 from src.models import Detection
 from src.pipeline.phases.base import BasePhase
@@ -45,7 +46,11 @@ class DetectionPhase(BasePhase):
         self.detector = ViTDetector(model_name, confidence_threshold, device)
         self.detector.load_model()
 
-    def execute(self, sample_frames: list[tuple[int, str, np.ndarray]]) -> list[tuple[int, str, list[Detection]]]:
+    def execute(
+        self,
+        sample_frames: list[tuple[int, str, np.ndarray]],
+        output_policy: OutputPolicy | None = None,
+    ) -> list[tuple[int, str, list[Detection]]]:
         """人物検出処理を実行
 
         Args:
@@ -59,7 +64,11 @@ class DetectionPhase(BasePhase):
 
         results = []
         batch_size = self.config.get("detection.batch_size", 4)
-        save_detection_images = self.config.get("output.save_detection_images", True)
+        save_detection_images = (
+            output_policy.save_detection_images
+            if output_policy is not None
+            else self.config.get("output.save_detection_images", True)
+        )
         # output_pathが設定されている場合はそれを使用、なければ設定から取得
         if self.output_path:
             detection_images_dir = self.output_path / "images"

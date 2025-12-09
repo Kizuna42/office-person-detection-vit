@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import json
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 import cv2
 import numpy as np
@@ -437,12 +437,12 @@ def calibrate_from_chessboard_images(
         raise ValueError("No valid images found for calibration")
 
     # キャリブレーション
-    ret, camera_matrix, dist_coeffs, rvecs, tvecs = cv2.calibrateCamera(
+    _rms_error, camera_matrix, dist_coeffs, rvecs, tvecs = cv2.calibrateCamera(
         objpoints,
         imgpoints,
         img_size,
-        None,
-        None,
+        cast("Any", None),
+        cast("Any", None),
     )
 
     # 再投影誤差を計算

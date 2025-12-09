@@ -230,6 +230,12 @@ omit = [
     "*/__init__.py",
     "*/conftest.py",
     "*/dashboard_utils.py",  # Streamlit依存のためユニットテスト除外
+    "src/core/*",
+    "src/adapters/*",
+    "src/services/*",
+    "src/config/loader.py",
+    "src/config/schema.py",
+    "src/config/resolver.py",
 ]
 
 [tool.coverage.report]

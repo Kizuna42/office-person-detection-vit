@@ -407,6 +407,8 @@ help: ## 利用可能なコマンド一覧を表示
 	@echo "  $(COLOR_CYAN)make format$(COLOR_RESET)                 $(COLOR_DIM)# コードフォーマット$(COLOR_RESET)"
 	@echo "  $(COLOR_CYAN)make format-check$(COLOR_RESET)           $(COLOR_DIM)# フォーマットチェック$(COLOR_RESET)"
 	@echo "  $(COLOR_CYAN)make precommit-run$(COLOR_RESET)          $(COLOR_DIM)# pre-commit実行（全ファイル）$(COLOR_RESET)"
+	@echo "  $(COLOR_CYAN)make ship$(COLOR_RESET)                   $(COLOR_DIM)# 最強コマンド: format→lint→test→git add→commit→push$(COLOR_RESET)"
+	@echo "  $(COLOR_CYAN)make ship COMMIT_MSG=\"fix: bug修正\"$(COLOR_RESET)  $(COLOR_DIM)# カスタムコミットメッセージ付き$(COLOR_RESET)"
 	@echo ""
 
 # ========================================
@@ -528,6 +530,66 @@ precommit-run: ## pre-commit を全ファイルに実行
 	@$(call print_progress,"pre-commitを実行中")
 	@pre-commit run --all-files
 	@$(call print_success,"pre-commitが完了しました")
+
+# ========================================
+# 最強コマンド（format + lint + test + git add + commit + push）
+# ========================================
+
+COMMIT_MSG ?= "chore: format, lint, and test"
+
+.PHONY: ship
+ship: ## 最強コマンド: format → lint → test → git add → commit → push
+	@set -euo pipefail; \
+	$(call print_section,"🚀 最強コマンド実行"); \
+	echo ""; \
+	$(call print_step,1,6,"コードフォーマット"); \
+	if ! $(MAKE) format; then \
+		$(call print_error,"フォーマットに失敗しました"); \
+		exit 1; \
+	fi; \
+	echo ""; \
+	$(call print_step,2,6,"Lintチェック"); \
+	if ! $(MAKE) lint; then \
+		$(call print_error,"Lintチェックに失敗しました"); \
+		exit 1; \
+	fi; \
+	echo ""; \
+	$(call print_step,3,6,"テスト実行"); \
+	if ! $(MAKE) test; then \
+		$(call print_error,"テストに失敗しました"); \
+		exit 1; \
+	fi; \
+	echo ""; \
+	$(call print_step,4,6,"Gitステージング"); \
+	$(call print_progress,"変更をステージング中"); \
+	if ! git add .; then \
+		$(call print_error,"git addに失敗しました"); \
+		exit 1; \
+	fi; \
+	$(call print_success,"変更をステージングしました"); \
+	echo ""; \
+	$(call print_step,5,6,"Gitコミット"); \
+	$(call print_progress,"コミット中: $(COMMIT_MSG)"); \
+	if git diff --cached --quiet; then \
+		$(call print_warning,"コミットする変更がありません（スキップ）"); \
+	else \
+		if ! git commit -m $(COMMIT_MSG); then \
+			$(call print_error,"コミットに失敗しました"); \
+			exit 1; \
+		fi; \
+		$(call print_success,"コミットが完了しました"); \
+	fi; \
+	echo ""; \
+	$(call print_step,6,6,"Gitプッシュ"); \
+	$(call print_progress,"リモートにプッシュ中"); \
+	if ! git push; then \
+		$(call print_error,"プッシュに失敗しました"); \
+		exit 1; \
+	fi; \
+	$(call print_success,"プッシュが完了しました"); \
+	echo ""; \
+	$(call print_section,"✨ 最強コマンドが完了しました"); \
+	echo ""
 
 # ========================================
 # 依存関係管理コマンド

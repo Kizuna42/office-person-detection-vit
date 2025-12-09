@@ -8,6 +8,7 @@ import numpy as np
 from tqdm import tqdm
 
 from src.config import ConfigManager
+from src.core.policy import OutputPolicy
 from src.detection import ViTDetector
 from src.models import Detection
 from src.pipeline.phases.base import BasePhase
@@ -153,7 +154,7 @@ class TrackingPhase(BasePhase):
 
         return tracked_results
 
-    def export_results(self, output_path: Path) -> None:
+    def export_results(self, output_path: Path, output_policy: OutputPolicy | None = None) -> None:
         """追跡結果をエクスポート
 
         Args:
@@ -218,7 +219,11 @@ class TrackingPhase(BasePhase):
             self.logger.error(f"追跡統計情報のJSON出力に失敗しました: {e}")
 
         # ID付き検出画像を出力（オプション）
-        save_tracking_images = self.config.get("output.save_tracking_images", True)
+        save_tracking_images = (
+            output_policy.save_tracking_images
+            if output_policy is not None
+            else self.config.get("output.save_tracking_images", True)
+        )
         if save_tracking_images and self.tracked_results and self.sample_frames:
             try:
                 images_dir = output_path / "images"
