@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 def _video_writer_fourcc(code: str = "mp4v") -> int:
-    """cv2.VideoWriter_fourcc の型チェックを回避しつつ安全に取得する。"""
+    """cv2.VideoWriter_fourcc の型チェックを回避しつつ取得するヘルパー。"""
     fourcc_fn = getattr(cv2, "VideoWriter_fourcc", None)
     if callable(fourcc_fn):
         return int(fourcc_fn(*code))
