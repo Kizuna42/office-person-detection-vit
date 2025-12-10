@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 import cv2
 import numpy as np
@@ -73,12 +73,12 @@ class CameraCalibrator:
             raise ValueError(f"Insufficient images with detected corners: {len(objpoints)} < 3")
 
         # キャリブレーション実行
-        ret, camera_matrix, dist_coeffs, _rvecs, _tvecs = cv2.calibrateCamera(
+        _rms_error, camera_matrix, dist_coeffs, _rvecs, _tvecs = cv2.calibrateCamera(
             objpoints,
             imgpoints,
             gray.shape[::-1],
-            None,
-            None,
+            cast("Any", None),
+            cast("Any", None),
         )
 
         self.camera_matrix = camera_matrix

@@ -18,7 +18,10 @@ from src.pipeline.phases import (
     TransformPhase,
     VisualizationPhase,
 )
-from src.utils import CheckpointManager, OutputManager, PerformanceMonitor, cleanup_resources, setup_output_directories
+from src.services.checkpoint_service import CheckpointService
+from src.services.output_service import OutputService
+from src.services.perf_service import PerformanceService
+from src.utils import OutputManager, cleanup_resources, setup_output_directories
 from src.video import VideoProcessor
 
 
@@ -34,11 +37,15 @@ class PipelineOrchestrator:
         """
         self.config = config
         self.logger = logger
-        self.output_manager: OutputManager | None = None
         self.session_dir: Path | None = None
         self.output_path: Path = Path(config.get("output.directory", "output"))
-        self.performance_monitor = PerformanceMonitor()
-        self.checkpoint_manager: CheckpointManager | None = None
+        # 互換性用の公開属性
+        self.output_manager: OutputManager | None = None
+        self.output_service = OutputService(self.logger, self.output_path)
+        self.performance_service = PerformanceService()
+        # 既存属性との互換性を維持
+        self.performance_monitor = self.performance_service.monitor
+        self.checkpoint_service: CheckpointService | None = None
 
     def setup_output_directories(self, use_session_management: bool, args: dict | None = None) -> None:
         """出力ディレクトリをセットアップ
@@ -47,25 +54,15 @@ class PipelineOrchestrator:
             use_session_management: セッション管理を使用するか
             args: コマンドライン引数（オプション、メタデータ保存用）
         """
-        if use_session_management:
-            self.output_manager = OutputManager(self.output_path)
-            self.session_dir = self.output_manager.create_session()
-            self.logger.info(f"セッション管理を有効化しました: {self.session_dir.name}")
+        self.output_path = self.output_service.setup(use_session_management, self.config, args)
+        self.session_dir = self.output_service.session_dir
+        self.output_manager = self.output_service.output_manager
 
-            # メタデータを保存
-            config_dict = self.config.config if hasattr(self.config, "config") else {}
-            args_dict = vars(args) if args else {}
-            self.output_manager.save_metadata(self.session_dir, config_dict, args_dict)
-            self.output_path = self.session_dir
-
-            # チェックポイントマネージャーを初期化
-            self.checkpoint_manager = CheckpointManager(self.session_dir)
+        if self.session_dir:
+            self.checkpoint_service = CheckpointService(self.session_dir)
         else:
-            self.logger.info("セッション管理は無効です（従来の出力構造を使用）")
-            # 従来のディレクトリ構造を作成
+            # 従来の構造を維持するために空のチェックポイントサービスは持たない
             setup_output_directories(self.output_path)
-
-        self.logger.info(f"出力ディレクトリ: {self.output_path.absolute()}")
 
     def get_phase_output_dir(self, phase_name: str) -> Path:
         """フェーズごとの出力ディレクトリを取得
@@ -225,8 +222,8 @@ class PipelineOrchestrator:
             detection_phase.log_statistics(detection_results, output_dir)
 
             # チェックポイント保存
-            if self.checkpoint_manager:
-                self.checkpoint_manager.save_checkpoint(
+            if self.checkpoint_service:
+                self.checkpoint_service.save(
                     "02_detection",
                     {"total_detections": sum(len(dets) for _, _, dets in detection_results)},
                 )
@@ -276,8 +273,8 @@ class PipelineOrchestrator:
             tracking_phase.export_results(output_dir)
 
             # チェックポイント保存
-            if self.checkpoint_manager:
-                self.checkpoint_manager.save_checkpoint(
+            if self.checkpoint_service:
+                self.checkpoint_service.save(
                     "03_tracking",
                     {"total_tracks": len(tracking_phase.get_tracks())},
                 )
@@ -304,8 +301,8 @@ class PipelineOrchestrator:
             transform_phase.export_results(frame_results, output_dir)
 
             # チェックポイント保存
-            if self.checkpoint_manager:
-                self.checkpoint_manager.save_checkpoint(
+            if self.checkpoint_service:
+                self.checkpoint_service.save(
                     "04_transform",
                     {"frames_processed": len(frame_results)},
                 )
@@ -327,8 +324,8 @@ class PipelineOrchestrator:
             aggregator = aggregation_phase.execute(frame_results, output_dir)
 
             # チェックポイント保存
-            if self.checkpoint_manager:
-                self.checkpoint_manager.save_checkpoint(
+            if self.checkpoint_service:
+                self.checkpoint_service.save(
                     "05_aggregation",
                     {"zones_count": len(aggregator.get_statistics())},
                 )
@@ -348,8 +345,8 @@ class PipelineOrchestrator:
             visualization_phase.execute(aggregator, frame_results, output_dir)
 
             # チェックポイント保存
-            if self.checkpoint_manager:
-                self.checkpoint_manager.save_checkpoint(
+            if self.checkpoint_service:
+                self.checkpoint_service.save(
                     "06_visualization",
                     {"floormaps_generated": len(frame_results)},
                 )
@@ -369,11 +366,11 @@ class PipelineOrchestrator:
             frame_results: FrameResultのリスト
             aggregator: Aggregatorインスタンス
         """
-        if not self.session_dir or not self.output_manager:
+        if not self.session_dir or not self.output_service.output_manager:
             return
 
         # パフォーマンスメトリクスを取得
-        performance_summary = self.performance_monitor.get_summary()
+        performance_summary = self.performance_service.summary()
 
         # サマリー用の主要統計（詳細はpipeline_checkpoint.jsonを参照）
         total_detections = sum(len(dets) for _, _, dets in detection_results)
@@ -389,8 +386,7 @@ class PipelineOrchestrator:
             },
             "performance": performance_summary,
         }
-        self.output_manager.save_summary(self.session_dir, summary)
-        self.output_manager.update_latest_link(self.session_dir)
+        self.output_service.save_summary(summary)
         self.logger.info(f"セッションサマリーを保存しました: {self.session_dir / 'summary.json'}")
 
     def _parse_datetime_range(

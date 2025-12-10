@@ -19,6 +19,14 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _video_writer_fourcc(code: str = "mp4v") -> int:
+    """cv2.VideoWriter_fourcc の型チェックを回避しつつ取得するヘルパー。"""
+    fourcc_fn = getattr(cv2, "VideoWriter_fourcc", None)
+    if callable(fourcc_fn):
+        return int(fourcc_fn(*code))
+    raise AttributeError("cv2.VideoWriter_fourcc が利用できません")
+
+
 class TrajectoryExporter:
     """軌跡データのエクスポートクラス
 
@@ -228,7 +236,7 @@ class TrajectoryExporter:
 
         # 動画ライターを初期化
         h, w = floormap_image.shape[:2]
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        fourcc = _video_writer_fourcc()
         writer = cv2.VideoWriter(str(output_path), fourcc, fps, (w, h))
 
         try:
@@ -674,7 +682,7 @@ class SideBySideVideoExporter:
         video_height = target_height
 
         # 動画ライターを初期化
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        fourcc = _video_writer_fourcc()
         writer = cv2.VideoWriter(str(output_path), fourcc, fps, (video_width, video_height))
 
         if not writer.isOpened():
