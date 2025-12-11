@@ -104,7 +104,6 @@ models/*.bin
 .env.local
 
 # macOS
-.DS_Store
 .AppleDouble
 .LSOverride
 
