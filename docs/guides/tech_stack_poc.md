@@ -21,7 +21,7 @@
      ```bash
      pip install pytracking==0.5 torch==2.3.1 torchvision==0.18.1 --extra-index-url https://download.pytorch.org/whl/cpu
      ```
-  2. 既存検出結果を入力し PyTracking を呼び出す簡易ラッパーを `tools/poc_tracking_pytracking.py` に追加済み。
+  2. 既存検出結果を入力し PyTracking を呼び出す簡易ラッパーを `tools/poc_tracking_pytracking.py` に追加済み（PyTracking 未導入時は DeepSORT ベースラインのみ出力）。
      - 入力: 画像ディレクトリと検出 JSON（frame_num, bbox[x,y,w,h], score）。
      - 出力: `tracks_pytracking.csv/json`（track_id 付与済み）＋fps ログ。
   3. 比較: 既存 DeepSORT の `tracks.csv` と MOTA/MOTP を並べる。

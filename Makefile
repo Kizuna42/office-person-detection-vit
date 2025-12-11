@@ -125,38 +125,35 @@ precommit-run: venv ## pre-commit を全ファイルに実行
 
 .PHONY: clean
 clean: ## output ディレクトリを安全にクリーンアップ
-	@python - <<'PY'
-from pathlib import Path
-
-root = Path("$(OUTPUT_DIR)")
-preserve_files = {root / "labels" / "result_fixed.json"}
-preserve_dirs = {root / "calibration", root / "shared"}
-if not root.exists():
-    print("skip: output directory not found")
-    raise SystemExit
-
-deleted = 0
-for path in sorted(root.rglob("*"), key=lambda p: len(p.parts), reverse=True):
-    if any(parent in preserve_dirs for parent in path.parents):
-        continue
-    if path in preserve_files:
-        continue
-    try:
-        if path.is_file() or path.is_symlink():
-            path.unlink()
-            deleted += 1
-        elif path.is_dir():
-            path.rmdir()
-    except Exception as exc:
-        print(f"skip {path}: {exc}")
-
-for child in root.iterdir():
-    if child in preserve_dirs:
-        continue
-    if child.is_dir() and not any(child.rglob("*")):
-        child.rmdir()
-print(f"deleted files: {deleted}")
-PY
+	@$(RUN_PY) -c "from pathlib import Path; \
+root = Path('$(OUTPUT_DIR)'); \
+preserve_files = {root / 'labels' / 'result_fixed.json'}; \
+preserve_dirs = {root / 'calibration', root / 'shared'}; \
+\
+if not root.exists(): \
+    print('skip: output directory not found'); \
+    raise SystemExit; \
+deleted = 0; \
+paths = sorted(root.rglob('*'), key=lambda p: len(p.parts), reverse=True); \
+for path in paths: \
+    if any(parent in preserve_dirs for parent in path.parents): \
+        continue; \
+    if path in preserve_files: \
+        continue; \
+    try: \
+        if path.is_file() or path.is_symlink(): \
+            path.unlink(); \
+            deleted += 1; \
+        elif path.is_dir(): \
+            path.rmdir(); \
+    except Exception as exc: \
+        print(f'skip {path}: {exc}'); \
+for child in root.iterdir(): \
+    if child in preserve_dirs: \
+        continue; \
+    if child.is_dir() and not any(child.rglob('*')): \
+        child.rmdir(); \
+print(f'deleted files: {deleted}')"
 
 .PHONY: sync-requirements
 sync-requirements: venv ## pyproject.toml から requirements.txt を生成

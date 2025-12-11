@@ -1,0 +1,12 @@
+stages:
+  pipeline-run:
+    cmd: python main.py --config config/calibration_template.yaml
+    deps:
+      - main.py
+      - src/
+      - config/calibration_template.yaml
+      - data/floormap.png
+    outs:
+      - output:
+          cache: true
+          persist: true
