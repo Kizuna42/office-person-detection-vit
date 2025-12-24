@@ -425,7 +425,7 @@ class TrackingPhase(BasePhase):
         interval_seconds = self._output_interval_minutes * 60
 
         # 結果をタイムスタンプでグループ化
-        aggregated = []
+        aggregated: list[tuple[int, str, list[Detection]]] = []
         current_window_start: datetime | None = None
         current_window_detections: list[Detection] = []
         current_window_frame_num: int = 0

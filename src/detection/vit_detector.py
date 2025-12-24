@@ -310,7 +310,7 @@ class ViTDetector:
                     logger.warning(f"ROI feature fallback failed: {roi_err}")
 
             logger.debug(f"Extracted features: shape={features_np.shape}")
-            return cast("np.ndarray", features_np)
+            return features_np
 
         except Exception as e:
             logger.error(f"Failed to extract features from outputs: {e}")
