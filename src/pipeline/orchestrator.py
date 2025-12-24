@@ -115,6 +115,7 @@ class PipelineOrchestrator:
                 fine_search_window_seconds=sampling_config.get("search_window_seconds", 60.0),
                 fine_interval_seconds=sampling_config.get("fine_interval_seconds", 0.1),
                 fps=self.config.get("video.fps", 30.0),
+                time_compression_ratio=self.config.get("video.time_compression_ratio", 1.0),
                 roi_config=extraction_config.get("roi"),
                 enabled_ocr_engines=ocr_config.get("engines"),
                 use_improved_validator=extraction_config.get("use_improved_validator", False),

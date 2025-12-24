@@ -63,7 +63,6 @@ class DetectionPhase(BasePhase):
             raise RuntimeError("検出器が初期化されていません。initialize()を先に呼び出してください。")
 
         results = []
-        batch_size = self.config.get("detection.batch_size", 4)
         save_detection_images = (
             output_policy.save_detection_images
             if output_policy is not None
@@ -80,61 +79,49 @@ class DetectionPhase(BasePhase):
 
         if save_detection_images:
             self.logger.info(f"検出画像の保存先: {detection_images_dir}")
-        self.logger.info(f"バッチサイズ: {batch_size}")
 
-        # バッチ処理
-        for i in tqdm(range(0, len(sample_frames), batch_size), desc="人物検出中"):
-            batch = sample_frames[i : i + batch_size]
-            batch_frames = [frame for _, _, frame in batch]
-
+        # フレームごとに特徴量付き検出を実行（再推論による順序ズレを防ぐ）
+        for frame_num, timestamp, frame in tqdm(sample_frames, desc="人物検出中"):
             try:
-                # バッチ検出（パフォーマンス計測）
                 with self.performance_monitor.measure("detection_batch"):
-                    batch_detections = self.detector.detect_batch(batch_frames, batch_size=len(batch_frames))
+                    detections, features = self.detector.detect_with_features(frame)
 
-                # 結果を保存
-                for j, (frame_num, timestamp, frame) in enumerate(batch):
-                    detections = batch_detections[j]
-                    results.append((frame_num, timestamp, detections))
+                if features.shape[0] != len(detections):
+                    self.logger.warning(
+                        f"フレーム #{frame_num}: 特徴量数と検出数が不一致 "
+                        f"(features={features.shape[0]}, detections={len(detections)})"
+                    )
 
-                    self.logger.info(f"フレーム #{frame_num} ({timestamp}): {len(detections)}人検出")
+                results.append((frame_num, timestamp, detections))
+                self.logger.info(f"フレーム #{frame_num} ({timestamp}): {len(detections)}人検出")
 
-                    # 検出画像を保存（オプション）
-                    if save_detection_images:
-                        if detections:
-                            self.logger.debug(
-                                f"検出画像を保存します: {detection_images_dir}, "
-                                f"タイムスタンプ={timestamp}, 検出数={len(detections)}"
-                            )
-                            save_detection_image(
-                                frame,
-                                detections,
-                                timestamp,
-                                detection_images_dir,
-                                self.logger,
-                            )
-                        else:
-                            self.logger.debug(f"フレーム #{frame_num}: 検出結果が空のため画像を保存しません")
-                    else:
+                # 検出画像を保存（オプション）
+                if save_detection_images:
+                    if detections:
                         self.logger.debug(
-                            f"フレーム #{frame_num}: save_detection_imagesがFalseのため画像を保存しません"
+                            f"検出画像を保存します: {detection_images_dir}, "
+                            f"タイムスタンプ={timestamp}, 検出数={len(detections)}"
                         )
-
-                # バッチ処理後のメモリ解放
-                del batch_frames, batch_detections
-                # 定期的にガベージコレクションを実行
-                if (i // batch_size + 1) % 10 == 0:
-                    gc.collect()
+                        save_detection_image(
+                            frame,
+                            detections,
+                            timestamp,
+                            detection_images_dir,
+                            self.logger,
+                        )
+                    else:
+                        self.logger.debug(f"フレーム #{frame_num}: 検出結果が空のため画像を保存しません")
+                else:
+                    self.logger.debug(f"フレーム #{frame_num}: save_detection_imagesがFalseのため画像を保存しません")
 
             except Exception as e:
-                self.logger.error(f"バッチ {i // batch_size + 1} の検出処理に失敗しました: {e}", exc_info=True)
-                # エラーが発生した場合は空の結果を追加
-                for frame_num, timestamp, _ in batch:
-                    results.append((frame_num, timestamp, []))
-                    self.logger.warning(f"フレーム #{frame_num} をスキップしました")
+                self.logger.error(f"フレーム #{frame_num} の検出処理に失敗しました: {e}", exc_info=True)
+                results.append((frame_num, timestamp, []))
+                self.logger.warning(f"フレーム #{frame_num} をスキップしました")
             finally:
-                # バッチ変数のクリーンアップ
-                del batch
+                # 定期的にガベージコレクションを実行
+                if (frame_num + 1) % 10 == 0:
+                    gc.collect()
 
         return results
 

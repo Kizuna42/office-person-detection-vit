@@ -390,12 +390,20 @@ class SideBySideVideoExporter:
         Returns:
             フロアマップ画像のパス（見つからない場合はNone）
         """
-        # 新形式: floormap_20250826_160456.png（フラット構造）
+        # visualization.pyで生成される形式: floormap_20250826_160456.png
+        # (timestamp.replace("/", "").replace(":", "").replace(" ", "_"))
+        compact_ts = timestamp.replace("/", "").replace(":", "").replace(" ", "_")
+        compact_pattern = f"floormap_{compact_ts}.png"
+        floormap_path_compact = floormap_images_dir / compact_pattern
+        if floormap_path_compact.exists():
+            return floormap_path_compact
+
+        # 正規化形式: floormap_2025_08_26_160456.png（_normalize_timestamp使用）
         normalized_ts = self._normalize_timestamp(timestamp)
-        new_pattern = f"floormap_{normalized_ts}.png"
-        floormap_path_new = floormap_images_dir / new_pattern
-        if floormap_path_new.exists():
-            return floormap_path_new
+        normalized_pattern = f"floormap_{normalized_ts}.png"
+        floormap_path_normalized = floormap_images_dir / normalized_pattern
+        if floormap_path_normalized.exists():
+            return floormap_path_normalized
 
         # 後方互換性: 旧形式のパスパターンも検索
         # 旧形式: floormaps/floormap_2025/08/26 160456.png（階層構造、スペースあり）
@@ -410,7 +418,12 @@ class SideBySideVideoExporter:
         for img_path in floormap_images_dir.rglob("floormap_*.png"):
             # タイムスタンプがファイル名またはパスに含まれているか確認
             path_str = str(img_path)
-            if normalized_ts in path_str or timestamp_no_colon in path_str or old_format_ts in path_str:
+            if (
+                compact_ts in path_str
+                or normalized_ts in path_str
+                or timestamp_no_colon in path_str
+                or old_format_ts in path_str
+            ):
                 return img_path
 
         return None
@@ -752,5 +765,12 @@ class SideBySideVideoExporter:
         finally:
             writer.release()
 
-        logger.info(f"Side-by-side video exported: {output_path}")
+        # 動画ファイルが正常に生成されたか確認
+        if output_path.exists() and output_path.stat().st_size > 0:
+            logger.info(f"Side-by-side video exported: {output_path}")
+        else:
+            logger.error(f"Side-by-side videoの生成に失敗しました: {output_path}")
+            if output_path.exists():
+                output_path.unlink()  # 空のファイルを削除
+
         return output_path

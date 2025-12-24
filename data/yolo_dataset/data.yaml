@@ -1,0 +1,11 @@
+# YOLOv8 Person Detection Dataset
+path: /Users/kizuna/Aeterlink/yolo3/data/yolo_dataset
+train: images/train
+val: images/val
+
+# Classes
+names:
+  0: person
+
+# Number of classes
+nc: 1

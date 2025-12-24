@@ -2,6 +2,7 @@
 
 from collections.abc import Sequence
 import logging
+import math
 from typing import cast
 
 import numpy as np
@@ -10,6 +11,7 @@ import torch
 from transformers import DetrForObjectDetection, DetrImageProcessor
 
 from src.models.data_models import Detection
+from src.tracking.feature_extractor import FeatureExtractor
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +40,7 @@ class ViTDetector:
         self.device = self._setup_device(device)
         self.model = None
         self.processor = None
+        self.feature_extractor = FeatureExtractor()
 
         logger.info(f"ViTDetector initialized with model: {model_name}")
         logger.info(f"Using device: {self.device}")
@@ -159,9 +162,26 @@ class ViTDetector:
 
             # 後処理
             detections = self._postprocess(outputs, frame.shape)
+            query_indices = [det.query_index for det in detections]
 
             # 特徴量抽出
-            features = self._extract_features_from_outputs(outputs, detections)
+            features = self._extract_features_from_outputs(
+                outputs,
+                detections,
+                query_indices=query_indices,
+                image_shape=frame.shape[:2],
+            )
+
+            # 検出結果へ対応する特徴量をアサイン
+            if len(features) != len(detections):
+                logger.warning(
+                    "Feature count mismatch: detections=%d, features=%d",
+                    len(detections),
+                    len(features),
+                )
+            for i, det in enumerate(detections):
+                if i < len(features):
+                    det.features = features[i]
 
             logger.debug(f"Detected {len(detections)} persons with features")
             return detections, features
@@ -203,7 +223,13 @@ class ViTDetector:
                 outputs = model(**inputs, output_hidden_states=True)
 
             # 特徴量抽出
-            features = self._extract_features_from_outputs(outputs, detections)
+            query_indices = [det.query_index for det in detections]
+            features = self._extract_features_from_outputs(
+                outputs,
+                detections,
+                query_indices=query_indices,
+                image_shape=frame.shape[:2],
+            )
 
             return features
 
@@ -211,66 +237,159 @@ class ViTDetector:
             logger.error(f"Feature extraction failed: {e}")
             raise
 
-    def _extract_features_from_outputs(self, outputs, detections: list[Detection]) -> np.ndarray:
-        """モデル出力から特徴量を抽出
+    def _extract_features_from_outputs(
+        self,
+        outputs,
+        detections: list[Detection],
+        query_indices: Sequence[int | None] | None = None,
+        image_shape: tuple[int, int] | None = None,
+    ) -> np.ndarray:
+        """モデル出力から特徴量を抽出し、検出と正確に対応付ける."""
+        num_detections = len(detections)
+        if num_detections == 0:
+            return np.array([]).reshape(0, 256)
 
-        Args:
-            outputs: モデルの出力
-            detections: 検出結果のリスト
-
-        Returns:
-            特徴量配列 (num_detections, feature_dim)
-        """
         try:
-            # DETRのdecoder出力から特徴量を取得
-            # decoder_last_hidden_state: (batch_size, num_queries, hidden_dim)
+            # decoder出力を優先的に使用
             if hasattr(outputs, "decoder_hidden_states") and outputs.decoder_hidden_states:
-                # 最終層のdecoder hidden statesを使用
-                decoder_features = outputs.decoder_hidden_states[-1]  # (batch, num_queries, hidden_dim)
+                decoder_features = outputs.decoder_hidden_states[-1]
             elif hasattr(outputs, "last_hidden_state"):
-                # フォールバック: last_hidden_stateを使用
                 decoder_features = outputs.last_hidden_state
+            elif hasattr(outputs, "encoder_last_hidden_state"):
+                decoder_features = outputs.encoder_last_hidden_state.mean(dim=1, keepdim=True)
             else:
-                # encoderの出力を使用（フォールバック）
-                if hasattr(outputs, "encoder_last_hidden_state"):
-                    encoder_features = outputs.encoder_last_hidden_state
-                    # 簡易的に平均プーリングで特徴量を取得
-                    decoder_features = encoder_features.mean(dim=1, keepdim=True)
-                else:
-                    raise ValueError("Model outputs do not contain feature information")
+                raise ValueError("Model outputs do not contain feature information")
 
-            # バッチの最初の要素を取得
             features = decoder_features[0]  # (num_queries, hidden_dim)
 
-            # 検出結果に対応する特徴量を抽出
-            # DETRでは、検出結果の順序とdecoder queryの順序が対応している
-            num_detections = len(detections)
-            if features.shape[0] < num_detections:
-                logger.warning(
-                    f"Feature dimension mismatch: {features.shape[0]} queries but {num_detections} detections"
-                )
-                # 検出数に合わせて特徴量を切り詰める
-                detection_features = features[:num_detections]
+            # クエリindexをもとに並びを合わせる
+            effective_indices: list[int] = []
+            if query_indices:
+                effective_indices = [idx for idx in query_indices if idx is not None]
             else:
-                # 検出数分の特徴量を取得
+                # Detectionに埋め込まれたindexを使う
+                effective_indices = [det.query_index for det in detections if det.query_index is not None]
+
+            detection_features = None
+            if len(effective_indices) == num_detections and effective_indices:
+                index_tensor = torch.tensor(effective_indices, device=features.device)
+                detection_features = features.index_select(0, index_tensor)
+            else:
+                if effective_indices and len(effective_indices) != num_detections:
+                    logger.warning(
+                        "Using sequential feature mapping due to index mismatch (detections=%d, query_indices=%d)",
+                        num_detections,
+                        len(effective_indices),
+                    )
+                if features.shape[0] < num_detections:
+                    logger.warning(
+                        "Feature dimension mismatch: %d queries but %d detections",
+                        features.shape[0],
+                        num_detections,
+                    )
                 detection_features = features[:num_detections]
 
-            # CPUに移動してnumpy配列に変換
-            features_np = cast("np.ndarray", detection_features.cpu().numpy())
+            features_np = cast("np.ndarray", detection_features.detach().cpu().numpy())
 
             # L2正規化（コサイン類似度計算のため）
             norms = np.linalg.norm(features_np, axis=1, keepdims=True)
             features_np = features_np / (norms + 1e-8)
+
+            # 不足分があればROIフォールバックで補完
+            if features_np.shape[0] < num_detections and hasattr(outputs, "encoder_last_hidden_state"):
+                encoder_feat = outputs.encoder_last_hidden_state
+                try:
+                    roi_features = self._fallback_roi_features(
+                        encoder_feat,
+                        detections,
+                        image_shape=image_shape,
+                    )
+                    if roi_features.size > 0:
+                        features_np = self._merge_feature_sources(features_np, roi_features, num_detections)
+                except Exception as roi_err:
+                    logger.warning(f"ROI feature fallback failed: {roi_err}")
 
             logger.debug(f"Extracted features: shape={features_np.shape}")
             return cast("np.ndarray", features_np)
 
         except Exception as e:
             logger.error(f"Failed to extract features from outputs: {e}")
-            # フォールバック: ゼロ特徴量を返す
-            num_detections = len(detections)
             feature_dim = 256  # DETR-ResNet-50のデフォルト次元
             return np.zeros((num_detections, feature_dim), dtype=np.float32)
+
+    def _fallback_roi_features(
+        self,
+        encoder_features,
+        detections: list[Detection],
+        image_shape: tuple[int, int] | None = None,
+    ) -> np.ndarray:
+        """encoder特徴量からROI平均で外観特徴を再計算するフォールバック."""
+        if image_shape is None:
+            return np.array([])
+
+        feature_dim = encoder_features.shape[-1]
+        # encoder_features: (batch, seq_len, dim) または (batch, H, W, dim)
+        enc = encoder_features[0]
+        if enc.ndim == 2:
+            seq_len = enc.shape[0]
+            inferred_shape = self._infer_feature_map_shape(seq_len, image_shape)
+            if inferred_shape is None:
+                return np.array([]).reshape(0, feature_dim)
+            h, w = inferred_shape
+            enc_grid = enc.reshape(h, w, feature_dim).detach().cpu().numpy()
+        elif enc.ndim == 3:
+            enc_grid = enc.detach().cpu().numpy()
+        else:
+            return np.array([]).reshape(0, feature_dim)
+
+        roi_features = self.feature_extractor.extract_roi_features(
+            enc_grid,
+            [det.bbox for det in detections],
+            image_shape,
+        )
+        return roi_features
+
+    def _infer_feature_map_shape(
+        self,
+        seq_len: int,
+        image_shape: tuple[int, int],
+    ) -> tuple[int, int] | None:
+        """Flattenされたencoder特徴の空間サイズを推定する."""
+        grid_size = int(math.sqrt(seq_len))
+        if grid_size * grid_size == seq_len:
+            return grid_size, grid_size
+
+        # 入力解像度から概算 (DETRはおおむね1/32スケール)
+        est_h = max(1, round(image_shape[0] / 32))
+        est_w = max(1, round(image_shape[1] / 32))
+        if est_h * est_w == seq_len:
+            return est_h, est_w
+
+        return None
+
+    def _merge_feature_sources(
+        self,
+        decoder_features: np.ndarray,
+        roi_features: np.ndarray,
+        num_detections: int,
+    ) -> np.ndarray:
+        """decoder由来とROI由来の特徴を結合して不足分を補完する."""
+        if roi_features.shape[0] == 0:
+            return decoder_features
+
+        if decoder_features.shape[0] >= num_detections:
+            return decoder_features[:num_detections]
+
+        if roi_features.shape[0] == num_detections:
+            merged = np.vstack(
+                [
+                    decoder_features,
+                    roi_features[decoder_features.shape[0] : num_detections],
+                ]
+            )
+            return merged
+
+        return decoder_features
 
     def _preprocess(self, frame: np.ndarray) -> dict:
         """入力画像の前処理
@@ -317,17 +436,33 @@ class ViTDetector:
         if processor is None:
             raise RuntimeError("Processor not loaded. Call load_model() first.")
 
+        # personクラスのクエリindexを事前に抽出しておく
+        person_class_id = 1
+        keep_indices: list[int] = []
+        logits = getattr(outputs, "logits", None)
+        if logits is not None:
+            # logits: (batch, num_queries, num_classes+1) の想定
+            probs = logits.softmax(-1)[0, :, :-1]
+            scores_per_query, labels_per_query = probs.max(dim=-1)
+            keep_mask = (scores_per_query >= self.confidence_threshold) & (labels_per_query == person_class_id)
+            keep_indices = torch.nonzero(keep_mask, as_tuple=False).squeeze(1).tolist()
+
         # 後処理（座標を元画像サイズにスケール）
         results = processor.post_process_object_detection(
             outputs, target_sizes=target_sizes, threshold=self.confidence_threshold
         )[0]
 
         detections = []
+        if keep_indices and len(keep_indices) != len(results["scores"]):
+            logger.warning(
+                "Postprocess results and query index length differ: results=%d, indices=%d",
+                len(results["scores"]),
+                len(keep_indices),
+            )
 
-        # COCO datasetのpersonクラスID = 1
-        person_class_id = 1
-
-        for score, label, box in zip(results["scores"], results["labels"], results["boxes"], strict=False):
+        for idx, (score, label, box) in enumerate(
+            zip(results["scores"], results["labels"], results["boxes"], strict=False)
+        ):
             # personクラスのみをフィルタリング
             if label.item() != person_class_id:
                 continue
@@ -360,6 +495,8 @@ class ViTDetector:
                 class_name="person",
                 camera_coords=camera_coords,
             )
+            if keep_indices:
+                detection.query_index = keep_indices[idx] if idx < len(keep_indices) else None
 
             detections.append(detection)
 

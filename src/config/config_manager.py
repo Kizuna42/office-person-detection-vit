@@ -55,6 +55,7 @@ class ConfigManager:
             "is_timelapse": True,
             "frame_interval_minutes": 5,
             "tolerance_seconds": 10,
+            "time_compression_ratio": 1.0,
         },
         "detection": {
             "model_name": "facebook/detr-resnet-50",
@@ -63,6 +64,15 @@ class ConfigManager:
             "patch_size": 16,
             "device": "mps",
             "batch_size": 4,
+        },
+        "tracking": {
+            "enabled": True,
+            "algorithm": "deepsort",
+            "max_age": 12,
+            "min_hits": 2,
+            "iou_threshold": 0.5,
+            "appearance_weight": 0.3,
+            "motion_weight": 0.7,
         },
         "floormap": {
             "image_path": "data/floormap.png",
@@ -110,6 +120,13 @@ class ConfigManager:
             "save_detection_images": True,
             "save_floormap_images": True,
             "debug_mode": False,
+        },
+        "timestamp": {
+            "sampling": {
+                "coarse_interval_seconds": 10.0,
+                "fine_interval_seconds": 1.0,
+                "search_window_seconds": 30.0,
+            }
         },
         "evaluation": {
             "ground_truth_path": "output/labels/result_fixed.json",

@@ -166,21 +166,31 @@ class OutputManager:
             session_dir: セッションディレクトリ
         """
         try:
+            # 既存のリンクまたはディレクトリを削除
             if self.latest_link.exists():
                 if self.latest_link.is_symlink():
                     self.latest_link.unlink()
+                elif self.latest_link.is_dir():
+                    # ディレクトリの場合は削除できないので警告を出してスキップ
+                    logger.warning(
+                        f"output/latestがディレクトリとして存在します。シンボリックリンクを作成できません: {self.latest_link}"
+                    )
+                    return
                 else:
-                    # シンボリックリンクでない場合は削除
+                    # ファイルの場合は削除
                     self.latest_link.unlink()
 
             # 相対パスでシンボリックリンクを作成
             relative_path = session_dir.relative_to(self.output_base)
             self.latest_link.symlink_to(relative_path)
 
-            logger.debug(f"最新セッションリンクを更新しました: {self.latest_link} -> {session_dir}")
+            logger.info(f"最新セッションリンクを更新しました: {self.latest_link} -> {session_dir}")
         except OSError as e:
             # Windowsなど、シンボリックリンクが使えない環境ではスキップ
             logger.warning(f"シンボリックリンクの作成に失敗しました: {e}")
+        except ValueError as e:
+            # 相対パスの計算に失敗した場合
+            logger.warning(f"シンボリックリンクの作成に失敗しました（相対パス計算エラー）: {e}")
 
     def get_latest_session(self) -> Path | None:
         """最新のセッションを取得

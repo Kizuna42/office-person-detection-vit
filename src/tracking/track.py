@@ -123,3 +123,12 @@ class Track:
             仮の状態の場合True
         """
         return not self.is_confirmed()
+
+    def get_smoothed_feature(self) -> np.ndarray | None:
+        """特徴量履歴から平滑化した特徴を取得する."""
+        if self.features_history:
+            # 過去特徴量の単純平均を使用（ノイズ緩和）
+            return np.mean(self.features_history, axis=0)
+        if self.detection.features is not None:
+            return self.detection.features
+        return None

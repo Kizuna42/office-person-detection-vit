@@ -1,0 +1,1 @@
+{"frame_idx": 4, "timestamp": null, "old_track_id": 8, "new_track_id": 8, "gt_id": 84, "bbox": [526.79, 311.88, 40.0, 80.0], "reason": "gt_id_change", "details": {"previous_gt_id": 46, "iou": 0.588979540329887}}

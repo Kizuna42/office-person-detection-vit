@@ -103,9 +103,8 @@ class VisualizationPhase(BasePhase):
 
         # Side-by-side動画の生成（オプション）
         save_side_by_side_video = self.config.get("output.save_side_by_side_video", True)
-        tracking_enabled = self.config.get("tracking.enabled", False)
 
-        if save_side_by_side_video and tracking_enabled and frame_results:
+        if save_side_by_side_video and frame_results:
             try:
                 # 検出画像ディレクトリとフロアマップ画像ディレクトリのパスを取得
                 # output_pathは06_visualizationディレクトリ
@@ -130,7 +129,10 @@ class VisualizationPhase(BasePhase):
                         fps=video_fps,
                     )
 
-                    self.logger.info(f"Side-by-side動画を生成しました: {video_path}")
+                    if video_path.exists():
+                        self.logger.info(f"Side-by-side動画を生成しました: {video_path}")
+                    else:
+                        self.logger.warning(f"Side-by-side動画の生成に失敗しました: {video_path}")
 
             except Exception as e:
                 self.logger.error(f"Side-by-side動画生成エラー: {e}", exc_info=True)

@@ -1,0 +1,22 @@
+{
+  "timestamp": "2025-12-15T17:10:57.316274",
+  "mode": "dense",
+  "iou_threshold": 0.5,
+  "metrics": {
+    "mota": -1.1176470588235294,
+    "idf1": 0.12195121951219512,
+    "idp": 0.10416666666666667,
+    "idr": 0.14705882352941177,
+    "idsw": 0,
+    "fp": 172,
+    "fn": 116,
+    "gt_count": 136,
+    "num_frames": 14,
+    "num_transitions": 13,
+    "idsw_per_transition": 0.0,
+    "motp": 0.0,
+    "mt": 0,
+    "ml": 0,
+    "frag": 0
+  }
+}

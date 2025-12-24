@@ -106,6 +106,7 @@ def save_outputs(
     output_dir.mkdir(parents=True, exist_ok=True)
     json_path = output_dir / f"tracks_{backend}.json"
     csv_path = output_dir / f"tracks_{backend}.csv"
+    mot_path = output_dir / f"tracks_{backend}_mot.csv"
 
     serializable = []
     for frame_id, ts, dets in tracked:
@@ -133,7 +134,18 @@ def save_outputs(
                 f"{bbox[0]},{bbox[1]},{bbox[2]},{bbox[3]},{item['score']}\n"
             )
 
-    print(f"[OK] 出力: {json_path}, {csv_path}")
+    with open(mot_path, "w", encoding="utf-8") as f:
+        f.write("frame,id,bb_left,bb_top,bb_width,bb_height,conf,x,y,z\n")
+        for item in serializable:
+            if item["track_id"] is None:
+                continue
+            bbox = item["bbox"]
+            f.write(
+                f"{item['frame']},{item['track_id']},{bbox[0]},{bbox[1]},{bbox[2]},{bbox[3]},"
+                f"{item['score']},-1,-1,-1\n"
+            )
+
+    print(f"[OK] 出力: {json_path}, {csv_path}, {mot_path}")
 
 
 def main() -> None:

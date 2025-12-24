@@ -301,24 +301,17 @@ class EvaluationModule:
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(report, f, indent=2, ensure_ascii=False)
 
-    def evaluate_tracking(
-        self,
-        ground_truth_tracks: list[dict[str, Any]],
-        predicted_tracks: list[Any],
-        frame_count: int,
-    ) -> dict[str, float]:
-        """追跡精度を評価（MOTメトリクス）
+    def evaluate_tracking(self, prediction_mot_path: str | Path) -> dict[str, float]:
+        """MOTChallenge形式の予測結果を用いて追跡精度を評価する。
 
         Args:
-            ground_truth_tracks: Ground Truthトラックのリスト
-            predicted_tracks: 予測トラックのリスト（Trackオブジェクトまたは辞書）
-            frame_count: 総フレーム数
+            prediction_mot_path: MOTChallenge形式（CSV）の予測パス
 
         Returns:
             MOTメトリクスの辞書
         """
-        mot_metrics = MOTMetrics()
-        return mot_metrics.calculate_tracking_metrics(ground_truth_tracks, predicted_tracks, frame_count)
+        mot_metrics = MOTMetrics(iou_threshold=self.iou_threshold)
+        return mot_metrics.evaluate_from_files(self.ground_truth_path, prediction_mot_path)
 
     def evaluate_reprojection_error(
         self,

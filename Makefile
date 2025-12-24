@@ -21,6 +21,9 @@ TESTS_DIR ?= tests
 SRC_DIR ?= src
 SCRIPTS_DIR ?= scripts
 REQUIREMENTS ?= requirements.txt
+DASHBOARD_APP ?= src/visualization/dashboard_app.py
+DASHBOARD_HOST ?= 0.0.0.0
+DASHBOARD_PORT ?= 8501
 COMMIT_MSG ?= "chore: format lint test"
 
 export PYTHONPATH := $(PWD)
@@ -79,6 +82,10 @@ setup: deps ## 開発環境初期化（venv + 依存）
 run: venv ## 通常実行（メインパイプライン）
 	@$(RUN_PY) main.py --config $(CONFIG)
 
+.PHONY: dashboard
+dashboard: venv ## Streamlit ダッシュボードを起動
+	@$(RUN_PY) -m streamlit run $(DASHBOARD_APP) --server.address=$(DASHBOARD_HOST) --server.port=$(DASHBOARD_PORT)
+
 .PHONY: baseline
 baseline: venv ## ベースライン実行と評価
 	@set -e
@@ -92,6 +99,60 @@ baseline: venv ## ベースライン実行と評価
 	test -n "$$session_id"
 	$(RUN_PY) $(SCRIPTS_DIR)/evaluate_baseline.py --session $$session_id --config $(CONFIG) $(if $(GT),--gt $(GT)) $(if $(POINTS),--points $(POINTS))
 	@echo "session: $$session_id"
+
+# ベンチマーク関連変数
+BENCHMARK_GT ?= output/ground_truth/gt_tracking.json
+BENCHMARK_PRED ?= output/latest/03_tracking/tracks.csv
+BENCHMARK_OUT ?= output/benchmark
+GT_DIR ?= output/ground_truth
+CVAT_CSV ?= output/ground_truth/gt_tracking_fixed.csv
+
+.PHONY: gt-prepare
+gt-prepare: venv ## パイプライン出力からGT初期データを生成
+	@$(RUN_PY) tools/convert_to_gold_gt.py \
+		--input output/latest/04_transform/coordinate_transformations.json \
+		--output $(GT_DIR)/gt_tracking.json \
+		--mot-output $(GT_DIR)/gt_tracking.csv
+	@echo "GT生成完了: $(GT_DIR)/gt_tracking.json"
+	@echo "MOT CSV: $(GT_DIR)/gt_tracking.csv (CVAT用)"
+
+.PHONY: gt-from-cvat
+gt-from-cvat: venv ## CVATからエクスポートしたCSVをGold GTに変換
+	@$(RUN_PY) tools/convert_mot_to_gold.py \
+		--input $(CVAT_CSV) \
+		--output $(GT_DIR)/gt_tracking.json
+	@echo "CVAT CSVからGold GTに変換完了"
+
+.PHONY: benchmark-tracking
+benchmark-tracking: venv ## トラッキング精度を評価（make benchmark-tracking）
+	@$(RUN_PY) -m src.benchmark \
+		--gt $(BENCHMARK_GT) \
+		--pred $(BENCHMARK_PRED) \
+		-o $(BENCHMARK_OUT) \
+		--gt-format gold \
+		--report
+
+.PHONY: benchmark-tracking-sparse
+benchmark-tracking-sparse: venv ## 疎サンプリングモードで評価（5分間隔）
+	@$(RUN_PY) -m src.benchmark \
+		--gt $(BENCHMARK_GT) \
+		--pred $(BENCHMARK_PRED) \
+		-o $(BENCHMARK_OUT) \
+		--gt-format gold \
+		--sparse \
+		--report
+
+# 検出ベンチマーク変数
+DETECTION_GT ?= output/labels/result_fixed.json
+DETECTION_PRED ?= output/latest/04_transform/coordinate_transformations.json
+
+.PHONY: benchmark-detection
+benchmark-detection: venv ## 検出精度を評価（make benchmark-detection）
+	@$(RUN_PY) -m src.benchmark.detection_runner \
+		--gt $(DETECTION_GT) \
+		--pred $(DETECTION_PRED) \
+		-o $(BENCHMARK_OUT) \
+		--report
 
 .PHONY: lint
 lint: venv ## ruff + mypy
