@@ -32,7 +32,7 @@ class TrackingPhase(BasePhase):
         super().__init__(config, logger)
         self.tracker: Tracker | None = None
         self.lightweight_tracker: LightweightTracker | None = None  # ハイブリッドモード用
-        self.detector: ViTDetector | None = None  # 特徴量抽出用
+        self.detector: ViTDetector | YOLOv8Detector | None = None  # 特徴量抽出用
         self.reid_extractor: ReIDFeatureExtractor | None = None  # Phase2: Re-ID特徴抽出
         self._detector_shared: bool = False  # 検出器が共有されているかどうか
         self._hybrid_mode: bool = False  # ハイブリッドモード使用フラグ
@@ -43,7 +43,7 @@ class TrackingPhase(BasePhase):
         self.tracked_results: list[tuple[int, str, list[Detection]]] = []  # 画像出力用
         self.sample_frames: list[tuple[int, str, np.ndarray]] = []  # 画像出力用
 
-    def set_detector(self, detector: ViTDetector) -> None:
+    def set_detector(self, detector: ViTDetector | YOLOv8Detector) -> None:
         """検出器を外部から設定（共有用）
 
         Args:

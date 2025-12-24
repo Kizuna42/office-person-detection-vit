@@ -86,3 +86,52 @@ class FeatureExtractor:
 
         features_array = np.array(roi_features)
         return self.normalize_features(features_array)
+
+    def extract_batch(self, crops: list[np.ndarray]) -> np.ndarray:
+        """クロップ画像のバッチから特徴量を抽出
+
+        Args:
+            crops: クロップ画像のリスト (各要素は BGR format numpy array)
+
+        Returns:
+            特徴量配列 (num_crops, feature_dim)
+            簡易実装ではカラーヒストグラム特徴を使用
+        """
+        if not crops:
+            return np.array([]).reshape(0, 256)
+
+        features = []
+        for crop in crops:
+            if crop is None or crop.size == 0:
+                features.append(np.zeros(256))
+                continue
+
+            # 簡易実装: カラーヒストグラムを特徴量として使用
+            # 本番環境ではRe-IDモデル（OSNet等）を使用することを推奨
+            try:
+                # 各チャンネルのヒストグラムを計算
+                hist_b = np.histogram(crop[:, :, 0], bins=64, range=(0, 256))[0]
+                hist_g = np.histogram(crop[:, :, 1], bins=64, range=(0, 256))[0]
+                hist_r = np.histogram(crop[:, :, 2], bins=64, range=(0, 256))[0]
+
+                # 各チャンネルの統計量を追加
+                stats = np.array(
+                    [
+                        crop[:, :, 0].mean(),
+                        crop[:, :, 0].std(),
+                        crop[:, :, 1].mean(),
+                        crop[:, :, 1].std(),
+                        crop[:, :, 2].mean(),
+                        crop[:, :, 2].std(),
+                    ]
+                )
+
+                # ヒストグラム + 統計量を連結 (64*3 + 6 = 198, パディングで256に)
+                feature = np.concatenate([hist_b, hist_g, hist_r, stats])
+                feature = np.pad(feature, (0, 256 - len(feature)))[:256]
+                features.append(feature.astype(np.float32))
+            except Exception:
+                features.append(np.zeros(256, dtype=np.float32))
+
+        features_array = np.array(features)
+        return self.normalize_features(features_array)
