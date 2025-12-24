@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 from src.config import ConfigManager
 from src.core.policy import OutputPolicy
-from src.detection import ViTDetector
+from src.detection import ViTDetector, YOLOv8Detector
 from src.models import Detection
 from src.pipeline.phases.base import BasePhase
 from src.utils import PerformanceMonitor, calculate_detection_statistics, save_detection_image
@@ -27,23 +27,42 @@ class DetectionPhase(BasePhase):
             logger: ロガー
         """
         super().__init__(config, logger)
-        self.detector: ViTDetector | None = None
+        self.detector: ViTDetector | YOLOv8Detector | None = None
         self.output_path: Path | None = None  # 検出画像の保存先
         self.performance_monitor = PerformanceMonitor()
 
     def initialize(self) -> None:
         """検出器を初期化"""
-        self.log_phase_start("フェーズ2: ViT人物検出")
-
-        model_name = self.config.get("detection.model_name")
-        confidence_threshold = self.config.get("detection.confidence_threshold")
+        detector_type = self.config.get("detection.detector_type", "yolov8")
+        confidence_threshold = self.config.get("detection.confidence_threshold", 0.25)
         device = self.config.get("detection.device")
 
-        self.logger.info(f"モデル: {model_name}")
-        self.logger.info(f"信頼度閾値: {confidence_threshold}")
-        self.logger.info(f"デバイス: {device}")
+        if detector_type == "yolov8":
+            self.log_phase_start("フェーズ2: YOLOv8人物検出")
+            model_path = self.config.get("detection.yolov8_model_path", "runs/detect/person_ft/weights/best.pt")
+            iou_threshold = self.config.get("detection.iou_threshold", 0.45)
 
-        self.detector = ViTDetector(model_name, confidence_threshold, device)
+            self.logger.info(f"モデル: {model_path}")
+            self.logger.info(f"信頼度閾値: {confidence_threshold}")
+            self.logger.info(f"IoU閾値: {iou_threshold}")
+            self.logger.info(f"デバイス: {device}")
+
+            self.detector = YOLOv8Detector(
+                model_path=model_path,
+                confidence_threshold=confidence_threshold,
+                device=device,
+                iou_threshold=iou_threshold,
+            )
+        else:
+            self.log_phase_start("フェーズ2: ViT人物検出")
+            model_name = self.config.get("detection.model_name", "facebook/detr-resnet-50")
+
+            self.logger.info(f"モデル: {model_name}")
+            self.logger.info(f"信頼度閾値: {confidence_threshold}")
+            self.logger.info(f"デバイス: {device}")
+
+            self.detector = ViTDetector(model_name, confidence_threshold, device)
+
         self.detector.load_model()
 
     def execute(

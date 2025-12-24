@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 from src.config import ConfigManager
 from src.core.policy import OutputPolicy
-from src.detection import ViTDetector
+from src.detection import ViTDetector, YOLOv8Detector
 from src.models import Detection
 from src.pipeline.phases.base import BasePhase
 from src.tracking import LightweightTracker, ReIDFeatureExtractor, Tracker
@@ -103,11 +103,25 @@ class TrackingPhase(BasePhase):
             self.logger.info("検出器は既にセットされています（共有モード）")
         else:
             # 検出器が未設定の場合のみ新規作成
-            model_name = self.config.get("detection.model_name")
-            confidence_threshold = self.config.get("detection.confidence_threshold")
+            detector_type = self.config.get("detection.detector_type", "yolov8")
+            confidence_threshold = self.config.get("detection.confidence_threshold", 0.25)
             device = self.config.get("detection.device")
 
-            self.detector = ViTDetector(model_name, confidence_threshold, device)
+            if detector_type == "yolov8":
+                model_path = self.config.get("detection.yolov8_model_path", "runs/detect/person_ft/weights/best.pt")
+                iou_threshold = self.config.get("detection.iou_threshold", 0.45)
+                self.detector = YOLOv8Detector(
+                    model_path=model_path,
+                    confidence_threshold=confidence_threshold,
+                    device=device,
+                    iou_threshold=iou_threshold,
+                )
+                self.logger.info(f"YOLOv8Detector初期化: model={model_path}, conf={confidence_threshold}")
+            else:
+                model_name = self.config.get("detection.model_name", "facebook/detr-resnet-50")
+                self.detector = ViTDetector(model_name, confidence_threshold, device)
+                self.logger.info(f"ViTDetector初期化: model={model_name}, conf={confidence_threshold}")
+
             self.detector.load_model()
             self.logger.info("特徴量抽出用の検出器を新規初期化しました")
 

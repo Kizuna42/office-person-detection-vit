@@ -440,12 +440,17 @@ class ViTDetector:
         person_class_id = 1
         keep_indices: list[int] = []
         logits = getattr(outputs, "logits", None)
-        if logits is not None:
-            # logits: (batch, num_queries, num_classes+1) の想定
-            probs = logits.softmax(-1)[0, :, :-1]
-            scores_per_query, labels_per_query = probs.max(dim=-1)
-            keep_mask = (scores_per_query >= self.confidence_threshold) & (labels_per_query == person_class_id)
-            keep_indices = torch.nonzero(keep_mask, as_tuple=False).squeeze(1).tolist()
+        if logits is not None and isinstance(logits, torch.Tensor) and logits.numel() > 0:
+            try:
+                # logits: (batch, num_queries, num_classes+1) の想定
+                probs = logits.softmax(-1)[0, :, :-1]
+                if probs.numel() > 0:
+                    scores_per_query, labels_per_query = probs.max(dim=-1)
+                    keep_mask = (scores_per_query >= self.confidence_threshold) & (labels_per_query == person_class_id)
+                    # flatten()を使用して安全にリストへ変換
+                    keep_indices = torch.nonzero(keep_mask, as_tuple=False).flatten().tolist()
+            except Exception as e:
+                logger.debug(f"Failed to compute query indices from logits: {e}")
 
         # 後処理（座標を元画像サイズにスケール）
         results = processor.post_process_object_detection(

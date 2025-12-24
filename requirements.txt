@@ -231,3 +231,4 @@ tzdata==2025.2
     # via pandas
 urllib3==2.5.0
     # via requests
+ultralytics>=8.0.0

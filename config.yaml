@@ -30,16 +30,29 @@ video:
 # 2. 検出設定 (Detection - Phase 2)
 # ==============================================================================
 detection:
-  # 使用するViTモデル名
+  # 検出器タイプ: "yolov8" (推奨) または "detr"
+  detector_type: "yolov8"
+
+  # YOLOv8設定（detector_type="yolov8"時）
+  yolov8_model_path: "runs/detect/person_ft/weights/best.pt"
+
+  # DETR設定（detector_type="detr"時）
   model_name: "facebook/detr-resnet-50"
+
   # 検出信頼度閾値（0.0-1.0）
-  confidence_threshold: 0.5
-  # NMS（Non-Maximum Suppression）閾値（0.0-1.0）
-  nms_threshold: 0.4
-  # パッチサイズ（ViTの入力パッチサイズ）
+  # YOLOv8 Fine-tuned: 0.25推奨（F1=0.831）
+  # DETR: 0.70推奨
+  confidence_threshold: 0.25
+
+  # NMS/IoU閾値（0.0-1.0）
+  iou_threshold: 0.45
+
+  # パッチサイズ（DETR用）
   patch_size: 16
+
   # 使用デバイス ("mps", "cuda", "cpu")
   device: "mps"
+
   # バッチサイズ（複数フレームの同時処理数）
   batch_size: 4
 
