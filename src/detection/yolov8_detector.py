@@ -104,14 +104,22 @@ class YOLOv8Detector:
 
         try:
             # YOLOv8で推論
-            results = self.model(
-                frame,
-                conf=self.confidence_threshold,
-                iou=self.iou_threshold,
-                classes=[0],  # person only
-                verbose=False,
-                device=self.device,
-            )
+            # Fine-tunedモデル（single_cls=True）の場合はclassesフィルタを使用しない
+            # ベースモデル（yolov8x.pt等）の場合はclasses=[0]でpersonのみフィルタ
+            is_finetuned = "person_ft" in self.model_path or "best.pt" in self.model_path
+
+            predict_kwargs = {
+                "conf": self.confidence_threshold,
+                "iou": self.iou_threshold,
+                "verbose": False,
+                "device": self.device,
+            }
+
+            # ベースモデルの場合のみクラスフィルタを適用
+            if not is_finetuned:
+                predict_kwargs["classes"] = [0]  # person only (COCO)
+
+            results = self.model(frame, **predict_kwargs)
 
             # 検出結果をDetectionオブジェクトに変換
             detections = self._postprocess(results, frame.shape)
@@ -181,7 +189,7 @@ class YOLOv8Detector:
 
         return features
 
-    def _postprocess(self, results, _image_shape: tuple[int, ...]) -> list[Detection]:
+    def _postprocess(self, results, image_shape: tuple[int, ...]) -> list[Detection]:
         """YOLOv8の出力を検出結果に変換.
 
         Args:
@@ -192,6 +200,7 @@ class YOLOv8Detector:
             検出結果のリスト
         """
         detections = []
+        _height, _width = image_shape[:2]
 
         for result in results:
             boxes = result.boxes
@@ -204,7 +213,6 @@ class YOLOv8Detector:
                 conf = float(boxes.conf[i])
 
                 bbox = (x1, y1, x2 - x1, y2 - y1)
-                # 足元座標（バウンディングボックスの中心下端）
                 camera_coords = self._get_foot_position(bbox)
 
                 detection = Detection(

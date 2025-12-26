@@ -21,6 +21,7 @@ if TYPE_CHECKING:
 def sample_config(tmp_path: Path) -> ConfigManager:
     """テスト用のConfigManager"""
     config = ConfigManager("nonexistent_config.yaml")
+    config.set("detection.detector_type", "vit")  # 明示的にViTを指定
     config.set("detection.model_name", "facebook/detr-resnet-50")
     config.set("detection.confidence_threshold", 0.5)
     config.set("detection.device", "cpu")
@@ -98,11 +99,14 @@ def test_initialize(mock_detector_class, sample_config, sample_logger):
 @patch("src.pipeline.phases.detection.ViTDetector")
 def test_execute_success(mock_detector_class, sample_config, sample_logger, sample_frames, sample_detections):
     """executeが正しく動作する"""
+    import numpy as np
+
     mock_detector = MagicMock()
-    # バッチサイズ2なので、最初の2フレームが1バッチ、最後の1フレームが1バッチ
-    mock_detector.detect_batch.side_effect = [
-        [sample_detections, sample_detections[:1]],  # 最初のバッチ（2フレーム）
-        [sample_detections],  # 2番目のバッチ（1フレーム）
+    # detect_with_featuresは(detections, features)のタプルを返す
+    mock_detector.detect_with_features.side_effect = [
+        (sample_detections, np.zeros((len(sample_detections), 256))),
+        (sample_detections[:1], np.zeros((1, 256))),
+        (sample_detections, np.zeros((len(sample_detections), 256))),
     ]
     mock_detector_class.return_value = mock_detector
 
@@ -142,11 +146,16 @@ def test_execute_with_image_saving(
     tmp_path,
 ):
     """検出画像の保存が有効な場合"""
+    import numpy as np
+
     sample_config.set("output.save_detection_images", True)
     sample_config.set("output.directory", str(tmp_path / "output"))
 
     mock_detector = MagicMock()
-    mock_detector.detect_batch.return_value = [sample_detections]
+    mock_detector.detect_with_features.return_value = (
+        sample_detections,
+        np.zeros((len(sample_detections), 256)),
+    )
     mock_detector_class.return_value = mock_detector
 
     phase = DetectionPhase(sample_config, sample_logger)
@@ -162,13 +171,16 @@ def test_execute_with_image_saving(
 @patch("src.pipeline.phases.detection.ViTDetector")
 def test_execute_batch_processing(mock_detector_class, sample_config, sample_logger, sample_frames, sample_detections):
     """バッチ処理が正しく動作する"""
+    import numpy as np
+
     sample_config.set("detection.batch_size", 2)
 
     mock_detector = MagicMock()
-    # バッチサイズ2なので、2回呼ばれる（2フレーム + 1フレーム）
-    mock_detector.detect_batch.side_effect = [
-        [sample_detections, sample_detections],
-        [sample_detections],
+    # detect_with_featuresはフレームごとに呼ばれる
+    mock_detector.detect_with_features.side_effect = [
+        (sample_detections, np.zeros((len(sample_detections), 256))),
+        (sample_detections, np.zeros((len(sample_detections), 256))),
+        (sample_detections, np.zeros((len(sample_detections), 256))),
     ]
     mock_detector_class.return_value = mock_detector
 
@@ -177,7 +189,7 @@ def test_execute_batch_processing(mock_detector_class, sample_config, sample_log
 
     results = phase.execute(sample_frames)
 
-    assert mock_detector.detect_batch.call_count == 2
+    assert mock_detector.detect_with_features.call_count == 3
     assert len(results) == 3
 
 

@@ -63,14 +63,16 @@ def test_evaluate_with_misses():
 def test_evaluate_from_files(tmp_path: Path):
     metrics = MOTMetrics()
 
+    # _base_df()と一致するデータ: FrameId=1,2, Id=1（同一トラック）
     coco = {
         "images": [
             {"id": 0, "file_name": "frame_000001.jpg"},
             {"id": 1, "file_name": "frame_000002.jpg"},
         ],
         "annotations": [
+            # annotation id=1 → pred_dfのId=1と一致
             {"id": 1, "image_id": 0, "category_id": 1, "bbox": [10, 20, 30, 40]},
-            {"id": 2, "image_id": 1, "category_id": 1, "bbox": [15, 25, 30, 40]},
+            {"id": 1, "image_id": 1, "category_id": 1, "bbox": [15, 25, 30, 40]},
         ],
     }
 

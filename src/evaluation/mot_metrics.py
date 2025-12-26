@@ -60,8 +60,7 @@ class MOTMetrics:
 
             distances = mm.distances.iou_matrix(gt_boxes, pred_boxes, max_iou=1.0)
             if distances.size > 0:
-                # motmetricsは距離ベースなのでIoUを距離へ変換
-                distances = 1.0 - distances
+                # iou_matrixは既に1-IoU（距離）を返す。しきい値を超える距離をNaNにする
                 distances[distances > (1.0 - self.iou_threshold)] = np.nan
 
             acc.update(gt_ids, pred_ids, distances)
