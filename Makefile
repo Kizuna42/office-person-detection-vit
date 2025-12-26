@@ -123,6 +123,40 @@ gt-from-cvat: venv ## CVATからエクスポートしたCSVをGold GTに変換
 		--output $(GT_DIR)/gt_tracking.json
 	@echo "CVAT CSVからGold GTに変換完了"
 
+# MOTベンチマーク用変数
+CVAT_XML_INPUT ?= output/cvat/tracks_initial.xml
+CVAT_XML_OUTPUT ?= output/cvat/tracks_annotated.xml
+MOT_GT_CSV ?= output/ground_truth/gt_mot.csv
+
+.PHONY: coco-to-cvat
+coco-to-cvat: venv ## COCO Detection形式をCVAT XML (Tracks)に変換
+	@$(RUN_PY) tools/coco_to_cvat_tracks.py \
+		--input output/labels/result_fixed.json \
+		--images data/annotation_images \
+		--output $(CVAT_XML_INPUT)
+	@echo "CVAT XML出力完了: $(CVAT_XML_INPUT)"
+
+.PHONY: cvat-to-mot
+cvat-to-mot: venv ## CVATエクスポートXMLをMOT形式GTに変換
+	@$(RUN_PY) tools/cvat_to_mot_gt.py \
+		--input $(CVAT_XML_OUTPUT) \
+		--output $(MOT_GT_CSV)
+	@echo "MOT GT CSV出力完了: $(MOT_GT_CSV)"
+
+.PHONY: validate-annotation
+validate-annotation: venv ## アノテーションの整合性検証
+	@$(RUN_PY) tools/validate_annotation_integrity.py \
+		--images data/annotation_images \
+		--annotation output/labels/result_fixed.json \
+		--format coco
+
+.PHONY: mot-evaluate
+mot-evaluate: venv ## MOT評価実行（MOTA/IDF1/HOTA）
+	@$(RUN_PY) tools/run_mot_evaluation.py \
+		--gt $(MOT_GT_CSV) \
+		--pred output/sessions/latest/03_tracking/tracks_mot.csv \
+		--output output/evaluation/
+
 .PHONY: benchmark-tracking
 benchmark-tracking: venv ## トラッキング精度を評価（make benchmark-tracking）
 	@$(RUN_PY) -m src.benchmark \

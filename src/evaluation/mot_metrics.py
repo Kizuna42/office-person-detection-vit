@@ -170,6 +170,159 @@ class MOTMetrics:
         df["Confidence"] = df.get("Confidence", 1.0)
         return df[["FrameId", "Id", "X", "Y", "Width", "Height", "Confidence"]]
 
+    def evaluate_with_hota(self, gt_df: pd.DataFrame, pred_df: pd.DataFrame) -> dict[str, float]:
+        """HOTA (Higher Order Tracking Accuracy) を含む拡張評価.
+
+        Returns:
+            基本メトリクス + HOTA, DetA, AssA, LocA
+        """
+        basic_metrics = self.evaluate_from_dataframes(gt_df, pred_df)
+
+        # HOTA計算（簡易実装）
+        hota_metrics = self._compute_hota_simple(gt_df, pred_df)
+
+        return {**basic_metrics, **hota_metrics}
+
+    def _compute_hota_simple(self, gt_df: pd.DataFrame, pred_df: pd.DataFrame) -> dict[str, float]:
+        """HOTA簡易計算.
+
+        Note: 完全なHOTA実装はTrackEvalを使用することを推奨。
+              ここではα=0.5固定での近似値を算出する。
+
+        HOTA = sqrt(DetA * AssA)
+        DetA = Detection Accuracy (TP / (TP + FP + FN))
+        AssA = Association Accuracy (正しいID割当の割合)
+        """
+        if gt_df.empty or pred_df.empty:
+            return {"HOTA": 0.0, "DetA": 0.0, "AssA": 0.0, "LocA": 0.0}
+
+        frames = sorted(set(gt_df["FrameId"]).union(set(pred_df["FrameId"])))
+
+        tp_total = 0
+        fp_total = 0
+        fn_total = 0
+        correct_assoc = 0
+        total_matches = 0
+        loc_sum = 0.0
+
+        for frame in frames:
+            gt_frame = gt_df[gt_df["FrameId"] == frame]
+            pred_frame = pred_df[pred_df["FrameId"] == frame]
+
+            if gt_frame.empty and pred_frame.empty:
+                continue
+
+            gt_boxes = gt_frame[["X", "Y", "Width", "Height"]].to_numpy() if not gt_frame.empty else np.empty((0, 4))
+            pred_boxes = (
+                pred_frame[["X", "Y", "Width", "Height"]].to_numpy() if not pred_frame.empty else np.empty((0, 4))
+            )
+
+            gt_ids = gt_frame["Id"].tolist() if not gt_frame.empty else []
+            pred_ids = pred_frame["Id"].tolist() if not pred_frame.empty else []
+
+            if len(gt_boxes) == 0:
+                fp_total += len(pred_boxes)
+                continue
+            if len(pred_boxes) == 0:
+                fn_total += len(gt_boxes)
+                continue
+
+            # IoU行列計算
+            iou_matrix = mm.distances.iou_matrix(gt_boxes, pred_boxes, max_iou=1.0)
+            # iou_matrixは1-IoUを返すので反転
+            iou_values = 1.0 - iou_matrix
+
+            # マッチング（簡易版：greedy）
+            matched_gt: set[int] = set()
+            matched_pred: set[int] = set()
+
+            for _ in range(min(len(gt_boxes), len(pred_boxes))):
+                if iou_values.size == 0:
+                    break
+                max_iou = np.nanmax(iou_values)
+                if max_iou < self.iou_threshold:
+                    break
+
+                max_idx = np.unravel_index(np.nanargmax(iou_values), iou_values.shape)
+                gi, pi = int(max_idx[0]), int(max_idx[1])
+
+                if gi not in matched_gt and pi not in matched_pred:
+                    matched_gt.add(gi)
+                    matched_pred.add(pi)
+                    tp_total += 1
+                    total_matches += 1
+                    loc_sum += max_iou
+
+                    # ID一致チェック
+                    if gt_ids[gi] == pred_ids[pi]:
+                        correct_assoc += 1
+
+                iou_values[gi, :] = -1
+                iou_values[:, pi] = -1
+
+            fp_total += len(pred_boxes) - len(matched_pred)
+            fn_total += len(gt_boxes) - len(matched_gt)
+
+        # メトリクス計算
+        det_a = tp_total / (tp_total + fp_total + fn_total) if (tp_total + fp_total + fn_total) > 0 else 0.0
+        ass_a = correct_assoc / total_matches if total_matches > 0 else 0.0
+        loc_a = loc_sum / total_matches if total_matches > 0 else 0.0
+        hota = np.sqrt(det_a * ass_a)
+
+        return {
+            "HOTA": float(hota),
+            "DetA": float(det_a),
+            "AssA": float(ass_a),
+            "LocA": float(loc_a),
+        }
+
+    def get_id_switch_frames(self, gt_df: pd.DataFrame, pred_df: pd.DataFrame) -> list[dict]:
+        """IDスイッチ発生フレームと詳細情報を返す.
+
+        Returns:
+            [{"frame": 42, "gt_id": 5, "event": "SWITCH"}, ...]
+        """
+        if gt_df.empty:
+            return []
+
+        acc = mm.MOTAccumulator(auto_id=True)
+        frames = sorted(set(gt_df["FrameId"]).union(set(pred_df["FrameId"])))
+
+        for frame in frames:
+            gt_frame = gt_df[gt_df["FrameId"] == frame]
+            pred_frame = pred_df[pred_df["FrameId"] == frame]
+
+            gt_ids = gt_frame["Id"].tolist()
+            pred_ids = pred_frame["Id"].tolist()
+
+            gt_boxes = gt_frame[["X", "Y", "Width", "Height"]].to_numpy() if not gt_frame.empty else np.empty((0, 4))
+            pred_boxes = (
+                pred_frame[["X", "Y", "Width", "Height"]].to_numpy() if not pred_frame.empty else np.empty((0, 4))
+            )
+
+            distances = mm.distances.iou_matrix(gt_boxes, pred_boxes, max_iou=1.0)
+            if distances.size > 0:
+                distances[distances > (1.0 - self.iou_threshold)] = np.nan
+
+            acc.update(gt_ids, pred_ids, distances)
+
+        # イベントログからスイッチを抽出
+        events = acc.events
+        switches = []
+
+        for idx, row in events.iterrows():
+            if row["Type"] == "SWITCH":
+                frame_id = idx[0] if isinstance(idx, tuple) else idx
+                switches.append(
+                    {
+                        "frame": int(frame_id),
+                        "gt_id": row.get("OId"),
+                        "event": "SWITCH",
+                    }
+                )
+
+        return switches
+
     def dataframe_to_csv(self, df: pd.DataFrame, output_path: Path) -> Path:
         """DataFrameをMOTChallenge形式で保存するヘルパー."""
         output_path.parent.mkdir(parents=True, exist_ok=True)

@@ -10,14 +10,14 @@ from tqdm import tqdm
 
 from src.config import ConfigManager
 from src.core.policy import OutputPolicy
-from src.detection import ViTDetector, YOLOv8Detector
+from src.detection import YOLOv8Detector
 from src.models import Detection
 from src.pipeline.phases.base import BasePhase
 from src.utils import PerformanceMonitor, calculate_detection_statistics, save_detection_image
 
 
 class DetectionPhase(BasePhase):
-    """人物検出フェーズ"""
+    """人物検出フェーズ（YOLOv8）"""
 
     def __init__(self, config: ConfigManager, logger: logging.Logger):
         """初期化
@@ -27,42 +27,30 @@ class DetectionPhase(BasePhase):
             logger: ロガー
         """
         super().__init__(config, logger)
-        self.detector: ViTDetector | YOLOv8Detector | None = None
+        self.detector: YOLOv8Detector | None = None
         self.output_path: Path | None = None  # 検出画像の保存先
         self.performance_monitor = PerformanceMonitor()
 
     def initialize(self) -> None:
         """検出器を初期化"""
-        detector_type = self.config.get("detection.detector_type", "yolov8")
+        self.log_phase_start("フェーズ2: YOLOv8人物検出")
+
         confidence_threshold = self.config.get("detection.confidence_threshold", 0.25)
         device = self.config.get("detection.device")
+        model_path = self.config.get("detection.yolov8_model_path", "runs/detect/person_ft/weights/best.pt")
+        iou_threshold = self.config.get("detection.iou_threshold", 0.45)
 
-        if detector_type == "yolov8":
-            self.log_phase_start("フェーズ2: YOLOv8人物検出")
-            model_path = self.config.get("detection.yolov8_model_path", "runs/detect/person_ft/weights/best.pt")
-            iou_threshold = self.config.get("detection.iou_threshold", 0.45)
+        self.logger.info(f"モデル: {model_path}")
+        self.logger.info(f"信頼度閾値: {confidence_threshold}")
+        self.logger.info(f"IoU閾値: {iou_threshold}")
+        self.logger.info(f"デバイス: {device}")
 
-            self.logger.info(f"モデル: {model_path}")
-            self.logger.info(f"信頼度閾値: {confidence_threshold}")
-            self.logger.info(f"IoU閾値: {iou_threshold}")
-            self.logger.info(f"デバイス: {device}")
-
-            self.detector = YOLOv8Detector(
-                model_path=model_path,
-                confidence_threshold=confidence_threshold,
-                device=device,
-                iou_threshold=iou_threshold,
-            )
-        else:
-            self.log_phase_start("フェーズ2: ViT人物検出")
-            model_name = self.config.get("detection.model_name", "facebook/detr-resnet-50")
-
-            self.logger.info(f"モデル: {model_name}")
-            self.logger.info(f"信頼度閾値: {confidence_threshold}")
-            self.logger.info(f"デバイス: {device}")
-
-            self.detector = ViTDetector(model_name, confidence_threshold, device)
-
+        self.detector = YOLOv8Detector(
+            model_path=model_path,
+            confidence_threshold=confidence_threshold,
+            device=device,
+            iou_threshold=iou_threshold,
+        )
         self.detector.load_model()
 
     def execute(
@@ -99,7 +87,7 @@ class DetectionPhase(BasePhase):
         if save_detection_images:
             self.logger.info(f"検出画像の保存先: {detection_images_dir}")
 
-        # フレームごとに特徴量付き検出を実行（再推論による順序ズレを防ぐ）
+        # フレームごとに特徴量付き検出を実行
         for frame_num, timestamp, frame in tqdm(sample_frames, desc="人物検出中"):
             try:
                 with self.performance_monitor.measure("detection_batch"):
@@ -157,11 +145,6 @@ class DetectionPhase(BasePhase):
         """
         stats = calculate_detection_statistics(detection_results)
 
-        # 検出画像の保存先を更新（output_pathを使用）
-        save_detection_images = self.config.get("output.save_detection_images", True)
-        if save_detection_images:
-            _ = output_path / "images"  # 将来の拡張用
-
         # パフォーマンス統計を表示
         perf_stats = self.performance_monitor.get_metrics("detection_batch")
         if perf_stats and perf_stats.get("count", 0) > 0:
@@ -207,7 +190,6 @@ class DetectionPhase(BasePhase):
     def cleanup(self) -> None:
         """リソースのクリーンアップ"""
         if self.detector is not None:
-            # モデルをメモリから解放
             del self.detector
             self.detector = None
         gc.collect()

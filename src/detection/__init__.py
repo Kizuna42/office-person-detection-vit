@@ -1,4 +1,4 @@
-"""Detection module for person detection using Vision Transformer and YOLOv8."""
+"""Detection module for person detection using YOLOv8."""
 
 from src.detection.preprocessing import (
     apply_blur,
@@ -11,11 +11,9 @@ from src.detection.preprocessing import (
     apply_threshold,
     apply_unsharp_mask,
 )
-from src.detection.vit_detector import ViTDetector
 from src.detection.yolov8_detector import YOLOv8Detector
 
 __all__ = [
-    "ViTDetector",
     "YOLOv8Detector",
     "apply_blur",
     "apply_clahe",

@@ -124,11 +124,28 @@ class Track:
         """
         return not self.is_confirmed()
 
-    def get_smoothed_feature(self) -> np.ndarray | None:
-        """特徴量履歴から平滑化した特徴を取得する."""
-        if self.features_history:
-            # 過去特徴量の単純平均を使用（ノイズ緩和）
-            return np.mean(self.features_history, axis=0)
-        if self.detection.features is not None:
-            return self.detection.features
-        return None
+    def get_smoothed_feature(self, alpha: float = 0.9) -> np.ndarray | None:
+        """特徴量履歴からEMA平滑化した特徴を取得する.
+
+        Args:
+            alpha: EMAの減衰係数（0-1）。大きいほど新しい特徴量を重視。
+
+        Returns:
+            L2正規化されたEMA特徴量、またはNone。
+        """
+        if not self.features_history:
+            if self.detection.features is not None:
+                return self.detection.features
+            return None
+
+        # EMA (Exponential Moving Average): 新しい特徴量を重視
+        ema = self.features_history[0].copy()
+        for feat in self.features_history[1:]:
+            ema = alpha * feat + (1 - alpha) * ema
+
+        # L2正規化（コサイン類似度計算用）
+        norm = np.linalg.norm(ema)
+        if norm > 1e-6:
+            ema = ema / norm
+
+        return ema

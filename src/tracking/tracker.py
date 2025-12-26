@@ -159,10 +159,11 @@ class Tracker:
             remaining_track_indices = unmatched_tracks_2
 
         # === Stage 3: IoUのみマッチング（低信頼・フォールバック）===
+        # IoU閾値を緩和（0.7→0.4）でフォールバック機能を有効化
         if remaining_track_indices and remaining_det_indices:
             stage3_dets = [detections[i] for i in remaining_det_indices]
             matches_3, _unmatched_dets_3, unmatched_tracks_3 = self._match_by_iou(
-                remaining_track_indices, stage3_dets, iou_threshold=0.7
+                remaining_track_indices, stage3_dets, iou_threshold=0.4
             )
             # インデックス変換
             matches_3 = [(t, remaining_det_indices[d]) for t, d in matches_3]

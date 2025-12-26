@@ -21,8 +21,8 @@ if TYPE_CHECKING:
 def sample_config(tmp_path: Path) -> ConfigManager:
     """テスト用のConfigManager"""
     config = ConfigManager("nonexistent_config.yaml")
-    config.set("detection.detector_type", "vit")  # 明示的にViTを指定
-    config.set("detection.model_name", "facebook/detr-resnet-50")
+    config.set("detection.yolov8_model_path", "test_model.pt")  # 明示的にViTを指定
+    config.set("detection.yolov8_model_path", "test_model.pt")
     config.set("detection.confidence_threshold", 0.5)
     config.set("detection.device", "cpu")
     config.set("detection.batch_size", 2)
@@ -82,7 +82,7 @@ def sample_detections() -> list[Detection]:
     ]
 
 
-@patch("src.pipeline.phases.detection.ViTDetector")
+@patch("src.pipeline.phases.detection.YOLOv8Detector")
 def test_initialize(mock_detector_class, sample_config, sample_logger):
     """初期化が正しく動作する"""
     mock_detector = MagicMock()
@@ -96,7 +96,7 @@ def test_initialize(mock_detector_class, sample_config, sample_logger):
     assert phase.detector is mock_detector
 
 
-@patch("src.pipeline.phases.detection.ViTDetector")
+@patch("src.pipeline.phases.detection.YOLOv8Detector")
 def test_execute_success(mock_detector_class, sample_config, sample_logger, sample_frames, sample_detections):
     """executeが正しく動作する"""
     import numpy as np
@@ -125,7 +125,7 @@ def test_execute_success(mock_detector_class, sample_config, sample_logger, samp
     assert len(results[2][2]) == 2  # 最後のバッチはsample_detectionsが返される
 
 
-@patch("src.pipeline.phases.detection.ViTDetector")
+@patch("src.pipeline.phases.detection.YOLOv8Detector")
 def test_execute_without_initialize(mock_detector_class, sample_config, sample_logger, sample_frames):
     """初期化前にexecuteを呼ぶとエラー"""
     phase = DetectionPhase(sample_config, sample_logger)
@@ -134,7 +134,7 @@ def test_execute_without_initialize(mock_detector_class, sample_config, sample_l
         phase.execute(sample_frames)
 
 
-@patch("src.pipeline.phases.detection.ViTDetector")
+@patch("src.pipeline.phases.detection.YOLOv8Detector")
 @patch("src.pipeline.phases.detection.save_detection_image")
 def test_execute_with_image_saving(
     mock_save_image,
@@ -168,7 +168,7 @@ def test_execute_with_image_saving(
     mock_save_image.assert_called_once()
 
 
-@patch("src.pipeline.phases.detection.ViTDetector")
+@patch("src.pipeline.phases.detection.YOLOv8Detector")
 def test_execute_batch_processing(mock_detector_class, sample_config, sample_logger, sample_frames, sample_detections):
     """バッチ処理が正しく動作する"""
     import numpy as np
@@ -193,7 +193,7 @@ def test_execute_batch_processing(mock_detector_class, sample_config, sample_log
     assert len(results) == 3
 
 
-@patch("src.pipeline.phases.detection.ViTDetector")
+@patch("src.pipeline.phases.detection.YOLOv8Detector")
 def test_execute_error_handling(mock_detector_class, sample_config, sample_logger, sample_frames):
     """エラーハンドリングが正しく動作する"""
     mock_detector = MagicMock()
@@ -210,7 +210,7 @@ def test_execute_error_handling(mock_detector_class, sample_config, sample_logge
     assert all(len(detections) == 0 for _, _, detections in results)
 
 
-@patch("src.pipeline.phases.detection.ViTDetector")
+@patch("src.pipeline.phases.detection.YOLOv8Detector")
 @patch("src.pipeline.phases.detection.calculate_detection_statistics")
 def test_log_statistics(
     mock_calc_stats,
@@ -253,7 +253,7 @@ def test_log_statistics(
     assert (output_path / "detection_statistics.json").exists()
 
 
-@patch("src.pipeline.phases.detection.ViTDetector")
+@patch("src.pipeline.phases.detection.YOLOv8Detector")
 def test_execute_empty_frames(mock_detector_class, sample_config, sample_logger):
     """空のフレームリストでexecuteを呼ぶ"""
     mock_detector = MagicMock()
@@ -269,7 +269,7 @@ def test_execute_empty_frames(mock_detector_class, sample_config, sample_logger)
     mock_detector.detect_batch.assert_not_called()
 
 
-@patch("src.pipeline.phases.detection.ViTDetector")
+@patch("src.pipeline.phases.detection.YOLOv8Detector")
 def test_output_path_setting(mock_detector_class, sample_config, sample_logger, tmp_path):
     """output_pathが設定されている場合"""
     mock_detector = MagicMock()
