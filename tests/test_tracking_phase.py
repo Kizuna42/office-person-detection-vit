@@ -28,9 +28,7 @@ class TestTrackingPhase:
                 "motion_weight": 0.3,
             },
             "detection": {
-                "detector_type": "vit",  # 明示的にViTを指定
                 "yolov8_model_path": "test_model.pt",
-                "model_name": "facebook/detr-resnet-50",
                 "confidence_threshold": 0.5,
                 "device": "cpu",
             },

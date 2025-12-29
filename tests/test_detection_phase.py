@@ -91,7 +91,12 @@ def test_initialize(mock_detector_class, sample_config, sample_logger):
     phase = DetectionPhase(sample_config, sample_logger)
     phase.initialize()
 
-    mock_detector_class.assert_called_once_with("facebook/detr-resnet-50", 0.5, "cpu")
+    mock_detector_class.assert_called_once_with(
+        model_path="test_model.pt",
+        confidence_threshold=0.5,
+        device="cpu",
+        iou_threshold=0.45,
+    )
     mock_detector.load_model.assert_called_once()
     assert phase.detector is mock_detector
 
