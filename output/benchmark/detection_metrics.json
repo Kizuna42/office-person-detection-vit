@@ -1,0 +1,21 @@
+{
+  "timestamp": "2025-12-19T16:54:03.091172",
+  "iou_threshold": 0.5,
+  "confidence_threshold": 0.0,
+  "metrics": {
+    "precision": 0.5342960288808665,
+    "recall": 0.4941569282136895,
+    "f1_score": 0.5134431916738942,
+    "ap_50": 0.75450602295444,
+    "ap_75": 0.410723531973343,
+    "ap": 0.5328017900178651,
+    "true_positives": 296,
+    "false_positives": 258,
+    "false_negatives": 303,
+    "gt_count": 599,
+    "pred_count": 554,
+    "iou_threshold": 0.5,
+    "confidence_threshold": 0.0,
+    "num_images": 44
+  }
+}

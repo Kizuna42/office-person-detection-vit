@@ -104,10 +104,25 @@ models/*.bin
 .env.local
 
 # macOS
-.DS_Store
 .AppleDouble
 .LSOverride
 
 # Thumbnails
 ._*
 output/sessions/
+
+# YOLOv8 Training Outputs (large files, 3GB+)
+runs/
+*.onnx
+*.engine
+
+# Windows-specific files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Editor config (cross-platform)
+.cursor/
+.kiro/
+*.code-workspace

@@ -36,6 +36,7 @@ class FrameExtractionPipeline:
         fine_search_window_seconds: float = 60.0,
         fine_interval_seconds: float = 0.1,
         fps: float = 30.0,
+        time_compression_ratio: float = 1.0,
         roi_config: dict[str, float] | None = None,
         enabled_ocr_engines: list[str] | None = None,
         use_improved_validator: bool = False,
@@ -74,17 +75,25 @@ class FrameExtractionPipeline:
 
         self.interval_minutes = interval_minutes
         self.tolerance_seconds = tolerance_seconds
+        self.time_compression_ratio = time_compression_ratio if time_compression_ratio > 0 else 1.0
+        self.requested_coarse_interval_seconds = coarse_interval_seconds
+        self.requested_fine_search_window_seconds = fine_search_window_seconds
+        self.requested_fine_interval_seconds = fine_interval_seconds
+        self.fps = fps
 
         # サンプラーと抽出器を初期化
-        self.coarse_sampler = CoarseSampler(video_path, interval_seconds=coarse_interval_seconds)
+        coarse_interval_video = self._to_video_seconds(coarse_interval_seconds, fps)
+        self.coarse_sampler = CoarseSampler(video_path, interval_seconds=coarse_interval_video)
         self.video_cap = cv2.VideoCapture(video_path)
         if not self.video_cap.isOpened():
             raise RuntimeError(f"Failed to open video: {video_path}")
         # 精密サンプリング間隔を設定
+        fine_search_window_video = self._to_video_seconds(fine_search_window_seconds, fps)
+        fine_interval_video = self._to_video_seconds(fine_interval_seconds, fps)
         self.fine_sampler = FineSampler(
             self.video_cap,
-            search_window=fine_search_window_seconds,
-            interval_seconds=fine_interval_seconds,
+            search_window=fine_search_window_video,
+            interval_seconds=fine_interval_video,
         )
 
         self.extractor = TimestampExtractorV2(
@@ -110,6 +119,15 @@ class FrameExtractionPipeline:
 
         self.target_timestamps = self._generate_target_timestamps(
             start=start_datetime, end=end_datetime, interval_minutes=interval_minutes
+        )
+
+        logger.info(
+            "Extraction sampling (actual seconds): coarse=%.2fs, fine_window=%.2fs, fine_interval=%.3fs, "
+            "compression_ratio=%.2f",
+            coarse_interval_seconds,
+            fine_search_window_seconds,
+            fine_interval_seconds,
+            self.time_compression_ratio,
         )
 
     def _generate_target_timestamps(self, start: datetime, end: datetime, interval_minutes: int) -> list[datetime]:
@@ -550,3 +568,15 @@ class FrameExtractionPipeline:
         if self.video_cap is not None:
             self.video_cap.release()
         self.extractor.reset_validator()
+        self.extractor.clear_cache()
+        logger.info("FrameExtractionPipeline resources have been released")
+
+    def _to_video_seconds(self, actual_seconds: float, fps: float) -> float:
+        """実時間の秒数を動画上の秒数に変換し、1フレーム未満に落ちないよう下限を設定する。"""
+        if actual_seconds <= 0:
+            return actual_seconds
+        if fps <= 0:
+            return actual_seconds / self.time_compression_ratio
+        video_seconds = actual_seconds / self.time_compression_ratio
+        min_video_seconds = 1.0 / fps
+        return max(video_seconds, min_video_seconds)

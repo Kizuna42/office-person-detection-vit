@@ -6,6 +6,7 @@ from typing import cast
 
 import cv2
 import numpy as np
+from PIL import Image, ImageDraw, ImageFont
 
 from src.models.data_models import Detection, FrameResult
 
@@ -452,46 +453,63 @@ class FloormapVisualizer:
         else:
             logger.error(f"可視化画像の保存に失敗しました: {output_path}")
 
-    def create_legend(self, width: int = 300, height: int | None = None) -> np.ndarray:
-        """凡例画像を作成する
+    def _get_font(self, size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+        """日本語対応フォントを取得する（見つからなければデフォルト）。
 
-        Args:
-            width: 凡例の幅
-            height: 凡例の高さ（Noneの場合は自動計算）
-
-        Returns:
-            凡例画像
+        macOS 標準のヒラギノや Arial Unicode を優先し、存在しなければ
+        Pillow のデフォルトフォントでフォールバックする。
         """
+        font_candidates = [
+            "/System/Library/Fonts/ヒラギノ角ゴシック W4.ttc",
+            "/System/Library/Fonts/ヒラギノ角ゴ ProN W3.ttc",
+            "/System/Library/Fonts/ヒラギノ丸ゴ ProN W4.ttc",
+            "/Library/Fonts/Arial Unicode.ttf",
+            "/Library/Fonts/Arial Unicode MS.ttf",
+            "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+            "/System/Library/Fonts/Helvetica.ttc",
+        ]
+
+        for path in font_candidates:
+            font_path = Path(path)
+            if font_path.exists():
+                try:
+                    return ImageFont.truetype(str(font_path), size=size)
+                except OSError:
+                    continue
+
+        return ImageFont.load_default()
+
+    def create_legend(self, width: int = 300, height: int | None = None) -> np.ndarray:
+        """凡例画像を作成する（日本語可・白背景で視認性重視）。"""
         if height is None:
             height = 50 + len(self.zones) * 40
 
-        legend = np.ones((height, width, 3), dtype=np.uint8) * 255
+        # Pillow でアンチエイリアス付き文字描画（UTF-8対応）
+        image = Image.new("RGB", (width, height), (255, 255, 255))
+        draw = ImageDraw.Draw(image)
+
+        title_font = self._get_font(size=20)
+        body_font = self._get_font(size=16)
 
         # タイトル
-        cv2.putText(legend, "Zone Legend", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2)
+        draw.text((10, 12), "Zone Legend", font=title_font, fill=(0, 0, 0))
 
         # 各ゾーンの凡例
-        y_offset = 60
+        y_offset = 50
         for zone in self.zones:
             zone_id = zone["id"]
             zone_name = zone.get("name", zone_id)
-            color = self.zone_colors.get(zone_id, (128, 128, 128))
+            color_bgr = self.zone_colors.get(zone_id, (128, 128, 128))
+            color_rgb = (color_bgr[2], color_bgr[1], color_bgr[0])
 
-            # 色のボックス
-            cv2.rectangle(legend, (10, y_offset - 15), (40, y_offset + 5), color, -1)
-            cv2.rectangle(legend, (10, y_offset - 15), (40, y_offset + 5), (0, 0, 0), 1)
+            # 色のボックス（縁取り付き）
+            draw.rectangle((10, y_offset - 10, 40, y_offset + 12), fill=color_rgb, outline=(0, 0, 0), width=1)
 
-            # ゾーン名
-            cv2.putText(
-                legend,
-                zone_name,
-                (50, y_offset),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.5,
-                (0, 0, 0),
-                1,
-            )
+            # ゾーン名（日本語も可）
+            draw.text((50, y_offset - 4), str(zone_name), font=body_font, fill=(0, 0, 0))
 
             y_offset += 40
 
+        # OpenCV 互換の BGR ndarray に変換
+        legend = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
         return legend

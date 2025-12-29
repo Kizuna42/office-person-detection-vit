@@ -21,7 +21,8 @@ if TYPE_CHECKING:
 def sample_config(tmp_path: Path) -> ConfigManager:
     """テスト用のConfigManager"""
     config = ConfigManager("nonexistent_config.yaml")
-    config.set("detection.model_name", "facebook/detr-resnet-50")
+    config.set("detection.yolov8_model_path", "test_model.pt")  # 明示的にViTを指定
+    config.set("detection.yolov8_model_path", "test_model.pt")
     config.set("detection.confidence_threshold", 0.5)
     config.set("detection.device", "cpu")
     config.set("detection.batch_size", 2)
@@ -81,7 +82,7 @@ def sample_detections() -> list[Detection]:
     ]
 
 
-@patch("src.pipeline.phases.detection.ViTDetector")
+@patch("src.pipeline.phases.detection.YOLOv8Detector")
 def test_initialize(mock_detector_class, sample_config, sample_logger):
     """初期化が正しく動作する"""
     mock_detector = MagicMock()
@@ -90,19 +91,27 @@ def test_initialize(mock_detector_class, sample_config, sample_logger):
     phase = DetectionPhase(sample_config, sample_logger)
     phase.initialize()
 
-    mock_detector_class.assert_called_once_with("facebook/detr-resnet-50", 0.5, "cpu")
+    mock_detector_class.assert_called_once_with(
+        model_path="test_model.pt",
+        confidence_threshold=0.5,
+        device="cpu",
+        iou_threshold=0.45,
+    )
     mock_detector.load_model.assert_called_once()
     assert phase.detector is mock_detector
 
 
-@patch("src.pipeline.phases.detection.ViTDetector")
+@patch("src.pipeline.phases.detection.YOLOv8Detector")
 def test_execute_success(mock_detector_class, sample_config, sample_logger, sample_frames, sample_detections):
     """executeが正しく動作する"""
+    import numpy as np
+
     mock_detector = MagicMock()
-    # バッチサイズ2なので、最初の2フレームが1バッチ、最後の1フレームが1バッチ
-    mock_detector.detect_batch.side_effect = [
-        [sample_detections, sample_detections[:1]],  # 最初のバッチ（2フレーム）
-        [sample_detections],  # 2番目のバッチ（1フレーム）
+    # detect_with_featuresは(detections, features)のタプルを返す
+    mock_detector.detect_with_features.side_effect = [
+        (sample_detections, np.zeros((len(sample_detections), 256))),
+        (sample_detections[:1], np.zeros((1, 256))),
+        (sample_detections, np.zeros((len(sample_detections), 256))),
     ]
     mock_detector_class.return_value = mock_detector
 
@@ -121,7 +130,7 @@ def test_execute_success(mock_detector_class, sample_config, sample_logger, samp
     assert len(results[2][2]) == 2  # 最後のバッチはsample_detectionsが返される
 
 
-@patch("src.pipeline.phases.detection.ViTDetector")
+@patch("src.pipeline.phases.detection.YOLOv8Detector")
 def test_execute_without_initialize(mock_detector_class, sample_config, sample_logger, sample_frames):
     """初期化前にexecuteを呼ぶとエラー"""
     phase = DetectionPhase(sample_config, sample_logger)
@@ -130,7 +139,7 @@ def test_execute_without_initialize(mock_detector_class, sample_config, sample_l
         phase.execute(sample_frames)
 
 
-@patch("src.pipeline.phases.detection.ViTDetector")
+@patch("src.pipeline.phases.detection.YOLOv8Detector")
 @patch("src.pipeline.phases.detection.save_detection_image")
 def test_execute_with_image_saving(
     mock_save_image,
@@ -142,11 +151,16 @@ def test_execute_with_image_saving(
     tmp_path,
 ):
     """検出画像の保存が有効な場合"""
+    import numpy as np
+
     sample_config.set("output.save_detection_images", True)
     sample_config.set("output.directory", str(tmp_path / "output"))
 
     mock_detector = MagicMock()
-    mock_detector.detect_batch.return_value = [sample_detections]
+    mock_detector.detect_with_features.return_value = (
+        sample_detections,
+        np.zeros((len(sample_detections), 256)),
+    )
     mock_detector_class.return_value = mock_detector
 
     phase = DetectionPhase(sample_config, sample_logger)
@@ -159,16 +173,19 @@ def test_execute_with_image_saving(
     mock_save_image.assert_called_once()
 
 
-@patch("src.pipeline.phases.detection.ViTDetector")
+@patch("src.pipeline.phases.detection.YOLOv8Detector")
 def test_execute_batch_processing(mock_detector_class, sample_config, sample_logger, sample_frames, sample_detections):
     """バッチ処理が正しく動作する"""
+    import numpy as np
+
     sample_config.set("detection.batch_size", 2)
 
     mock_detector = MagicMock()
-    # バッチサイズ2なので、2回呼ばれる（2フレーム + 1フレーム）
-    mock_detector.detect_batch.side_effect = [
-        [sample_detections, sample_detections],
-        [sample_detections],
+    # detect_with_featuresはフレームごとに呼ばれる
+    mock_detector.detect_with_features.side_effect = [
+        (sample_detections, np.zeros((len(sample_detections), 256))),
+        (sample_detections, np.zeros((len(sample_detections), 256))),
+        (sample_detections, np.zeros((len(sample_detections), 256))),
     ]
     mock_detector_class.return_value = mock_detector
 
@@ -177,11 +194,11 @@ def test_execute_batch_processing(mock_detector_class, sample_config, sample_log
 
     results = phase.execute(sample_frames)
 
-    assert mock_detector.detect_batch.call_count == 2
+    assert mock_detector.detect_with_features.call_count == 3
     assert len(results) == 3
 
 
-@patch("src.pipeline.phases.detection.ViTDetector")
+@patch("src.pipeline.phases.detection.YOLOv8Detector")
 def test_execute_error_handling(mock_detector_class, sample_config, sample_logger, sample_frames):
     """エラーハンドリングが正しく動作する"""
     mock_detector = MagicMock()
@@ -198,7 +215,7 @@ def test_execute_error_handling(mock_detector_class, sample_config, sample_logge
     assert all(len(detections) == 0 for _, _, detections in results)
 
 
-@patch("src.pipeline.phases.detection.ViTDetector")
+@patch("src.pipeline.phases.detection.YOLOv8Detector")
 @patch("src.pipeline.phases.detection.calculate_detection_statistics")
 def test_log_statistics(
     mock_calc_stats,
@@ -241,7 +258,7 @@ def test_log_statistics(
     assert (output_path / "detection_statistics.json").exists()
 
 
-@patch("src.pipeline.phases.detection.ViTDetector")
+@patch("src.pipeline.phases.detection.YOLOv8Detector")
 def test_execute_empty_frames(mock_detector_class, sample_config, sample_logger):
     """空のフレームリストでexecuteを呼ぶ"""
     mock_detector = MagicMock()
@@ -257,7 +274,7 @@ def test_execute_empty_frames(mock_detector_class, sample_config, sample_logger)
     mock_detector.detect_batch.assert_not_called()
 
 
-@patch("src.pipeline.phases.detection.ViTDetector")
+@patch("src.pipeline.phases.detection.YOLOv8Detector")
 def test_output_path_setting(mock_detector_class, sample_config, sample_logger, tmp_path):
     """output_pathが設定されている場合"""
     mock_detector = MagicMock()

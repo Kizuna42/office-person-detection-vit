@@ -24,7 +24,7 @@ class ConfigManager:
     # 必須項目の定義
     REQUIRED_KEYS: ClassVar[dict[str, list[str]]] = {
         "video": ["input_path"],
-        "detection": ["model_name", "confidence_threshold", "device"],
+        "detection": ["yolov8_model_path", "confidence_threshold", "device"],
         "floormap": [
             "image_path",
             "image_width",
@@ -55,14 +55,23 @@ class ConfigManager:
             "is_timelapse": True,
             "frame_interval_minutes": 5,
             "tolerance_seconds": 10,
+            "time_compression_ratio": 1.0,
         },
         "detection": {
-            "model_name": "facebook/detr-resnet-50",
-            "confidence_threshold": 0.5,
-            "nms_threshold": 0.4,
-            "patch_size": 16,
+            "yolov8_model_path": "runs/detect/person_ft/weights/best.pt",
+            "confidence_threshold": 0.25,
+            "iou_threshold": 0.45,
             "device": "mps",
             "batch_size": 4,
+        },
+        "tracking": {
+            "enabled": True,
+            "algorithm": "deepsort",
+            "max_age": 12,
+            "min_hits": 2,
+            "iou_threshold": 0.5,
+            "appearance_weight": 0.3,
+            "motion_weight": 0.7,
         },
         "floormap": {
             "image_path": "data/floormap.png",
@@ -110,6 +119,13 @@ class ConfigManager:
             "save_detection_images": True,
             "save_floormap_images": True,
             "debug_mode": False,
+        },
+        "timestamp": {
+            "sampling": {
+                "coarse_interval_seconds": 10.0,
+                "fine_interval_seconds": 1.0,
+                "search_window_seconds": 30.0,
+            }
         },
         "evaluation": {
             "ground_truth_path": "output/labels/result_fixed.json",
@@ -272,20 +288,20 @@ class ConfigManager:
         """detection セクションの検証"""
         detection_config = self.config.get("detection", {})
 
-        # model_name の型チェック
-        if not isinstance(detection_config.get("model_name"), str):
-            raise ValueError("detection.model_name は文字列である必要があります。")
+        # yolov8_model_path の型チェック
+        if not isinstance(detection_config.get("yolov8_model_path"), str):
+            raise ValueError("detection.yolov8_model_path は文字列である必要があります。")
 
         # confidence_threshold の検証
         confidence = detection_config.get("confidence_threshold")
         if not isinstance(confidence, int | float) or not (0.0 <= confidence <= 1.0):
             raise ValueError("detection.confidence_threshold は 0.0 から 1.0 の範囲である必要があります。")
 
-        # nms_threshold の検証
-        if "nms_threshold" in detection_config:
-            nms = detection_config["nms_threshold"]
-            if not isinstance(nms, int | float) or not (0.0 <= nms <= 1.0):
-                raise ValueError("detection.nms_threshold は 0.0 から 1.0 の範囲である必要があります。")
+        # iou_threshold の検証
+        if "iou_threshold" in detection_config:
+            iou = detection_config["iou_threshold"]
+            if not isinstance(iou, int | float) or not (0.0 <= iou <= 1.0):
+                raise ValueError("detection.iou_threshold は 0.0 から 1.0 の範囲である必要があります。")
 
         # device の検証
         device = detection_config.get("device")

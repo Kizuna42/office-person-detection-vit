@@ -1,10 +1,14 @@
-"""Hungarian Algorithm implementation for assignment problem."""
+"""Hungarian Algorithm implementation for assignment problem.
+
+Uses scipy.optimize.linear_sum_assignment for guaranteed optimal solution.
+"""
 
 from __future__ import annotations
 
 import logging
 
 import numpy as np
+from scipy.optimize import linear_sum_assignment
 
 logger = logging.getLogger(__name__)
 
@@ -12,15 +16,15 @@ logger = logging.getLogger(__name__)
 class HungarianAlgorithm:
     """ハンガリアンアルゴリズム（割り当て問題の解法）
 
-    コスト行列から最適な割り当てを見つけます。
+    scipy.optimize.linear_sum_assignment を使用して最適解を保証します。
     """
 
     def __init__(self):
         """HungarianAlgorithmを初期化"""
-        logger.debug("HungarianAlgorithm initialized")
+        logger.debug("HungarianAlgorithm initialized (using scipy optimal solver)")
 
     def solve(self, cost_matrix: np.ndarray) -> tuple[np.ndarray, float]:
-        """割り当て問題を解く
+        """割り当て問題を解く（最適解保証）
 
         Args:
             cost_matrix: コスト行列 (n, m)
@@ -33,15 +37,32 @@ class HungarianAlgorithm:
         if cost_matrix.size == 0:
             return np.array([], dtype=np.int32), 0.0
 
-        _rows, _cols = cost_matrix.shape
+        n_rows, _n_cols = cost_matrix.shape
 
-        # 簡易実装: 貪欲法（本番環境ではscipy.optimize.linear_sum_assignmentを使用推奨）
-        assignment, total_cost = self._greedy_assignment(cost_matrix)
+        # scipy.optimize.linear_sum_assignment で最適解を求める
+        # 大きなコスト（inf等）を扱えるように、非常に大きい値を有限値に置換
+        cost_finite = np.where(np.isinf(cost_matrix), 1e9, cost_matrix)
+
+        try:
+            row_idx, col_idx = linear_sum_assignment(cost_finite)
+        except ValueError as e:
+            logger.warning(f"linear_sum_assignment failed: {e}, falling back to greedy")
+            return self._greedy_assignment(cost_matrix)
+
+        # 結果を割り当て配列に変換
+        assignment = np.full(n_rows, -1, dtype=np.int32)
+        total_cost = 0.0
+
+        for r, c in zip(row_idx, col_idx, strict=True):
+            # 元のコスト行列で inf だった場合は未割り当てとする
+            if not np.isinf(cost_matrix[r, c]):
+                assignment[r] = c
+                total_cost += cost_matrix[r, c]
 
         return assignment, total_cost
 
     def _greedy_assignment(self, cost_matrix: np.ndarray) -> tuple[np.ndarray, float]:
-        """貪欲法による割り当て（簡易実装）
+        """貪欲法による割り当て（フォールバック用）
 
         Args:
             cost_matrix: コスト行列 (n, m)

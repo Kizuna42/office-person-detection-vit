@@ -5,20 +5,20 @@ import logging
 
 import torch
 
-from src.detection import ViTDetector
+from src.detection import YOLOv8Detector
 from src.video import VideoProcessor
 
 
 def cleanup_resources(
     video_processor: VideoProcessor | None = None,
-    detector: ViTDetector | None = None,
+    detector: YOLOv8Detector | None = None,
     logger: logging.Logger | None = None,
 ) -> None:
     """リソースをクリーンアップする
 
     Args:
         video_processor: VideoProcessorインスタンス（オプション）
-        detector: ViTDetectorインスタンス（オプション）
+        detector: YOLOv8Detectorインスタンス（オプション）
         logger: ロガー（オプション）
     """
     # 動画処理のクリーンアップ

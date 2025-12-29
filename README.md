@@ -74,6 +74,12 @@ python main.py --start-time "10:00" --end-time "14:00"
 python main.py --evaluate
 ```
 
+### タイムラプス運用のヒント
+
+- 追跡を有効にする場合は `video.is_timelapse=false` にして連続フレーム、もしくは `frame_interval_minutes` を 0.03〜0.1 程度（約 2〜6 秒）まで短縮してください。
+- どうしても長間隔（数分）になる場合は `tracking.enabled=false` で検出のみ運用するか、人数カウント用途に限定してください。
+- 撮影条件を変えられない場合でも、`tracking.max_age` や `tracking.iou_threshold` などは `config.yaml` で即時変更できます。
+
 ## 処理パイプライン
 
 システムは以下の 5 つのフェーズで構成されています：

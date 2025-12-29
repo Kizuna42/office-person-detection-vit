@@ -1,333 +1,89 @@
-"""Unit tests for MOT metrics evaluation module."""
+"""Unit tests for MOT metrics evaluation module (motmetrics)."""
 
-import numpy as np
+import json
+from pathlib import Path
+
+import pandas as pd
+import pytest
 
 from src.evaluation.mot_metrics import MOTMetrics
-from src.models.data_models import Detection
-from src.tracking.kalman_filter import KalmanFilter
-from src.tracking.track import Track
 
 
-class TestMOTMetrics:
-    """MOTMetricsのテスト"""
-
-    def test_init(self):
-        """初期化テスト"""
-        metrics = MOTMetrics()
-        assert metrics is not None
-
-    def test_calculate_mota_empty_ground_truth(self):
-        """空のGround TruthでのMOTA計算テスト"""
-        metrics = MOTMetrics()
-        predicted_tracks = []
-        result = metrics.calculate_mota([], predicted_tracks, 100)
-        assert result == 0.0
-
-    def test_calculate_mota_empty_predicted(self):
-        """空の予測トラックでのMOTA計算テスト"""
-        metrics = MOTMetrics()
-        gt_tracks = [{"trajectory": [{"x": 100, "y": 200}]}]
-        predicted_tracks = []
-        result = metrics.calculate_mota(gt_tracks, predicted_tracks, 100)
-        assert 0.0 <= result <= 1.0
-
-    def test_calculate_mota_perfect_match(self):
-        """完全一致の場合のMOTA計算テスト"""
-        metrics = MOTMetrics()
-        gt_tracks = [{"trajectory": [{"x": 100, "y": 200}]}]
-
-        # 予測トラックを作成（Ground Truthに近い位置）
-        detection = Detection(
-            bbox=(100.0, 200.0, 50.0, 100.0),
-            confidence=0.9,
-            class_id=1,
-            class_name="person",
-            camera_coords=(100.0, 200.0),
-        )
-        kf = KalmanFilter()
-        kf.init(np.array([100.0, 200.0]))
-        track = Track(track_id=1, detection=detection, kalman_filter=kf)
-
-        result = metrics.calculate_mota(gt_tracks, [track], 100)
-        assert 0.0 <= result <= 1.0
-
-    def test_calculate_mota_no_matches(self):
-        """マッチングがない場合のMOTA計算テスト"""
-        metrics = MOTMetrics()
-        gt_tracks = [{"trajectory": [{"x": 100, "y": 200}]}]
-
-        # 予測トラックを作成（Ground Truthから遠い位置）
-        detection = Detection(
-            bbox=(1000.0, 2000.0, 50.0, 100.0),
-            confidence=0.9,
-            class_id=1,
-            class_name="person",
-            camera_coords=(1000.0, 2000.0),
-        )
-        kf = KalmanFilter()
-        kf.init(np.array([1000.0, 2000.0]))
-        track = Track(track_id=1, detection=detection, kalman_filter=kf)
-
-        result = metrics.calculate_mota(gt_tracks, [track], 100)
-        assert 0.0 <= result <= 1.0
-
-    def test_calculate_idf1_both_empty(self):
-        """両方が空の場合のIDF1計算テスト"""
-        metrics = MOTMetrics()
-        result = metrics.calculate_idf1([], [])
-        assert result == 1.0
-
-    def test_calculate_idf1_ground_truth_empty(self):
-        """Ground Truthが空の場合のIDF1計算テスト"""
-        metrics = MOTMetrics()
-        detection = Detection(
-            bbox=(100.0, 200.0, 50.0, 100.0),
-            confidence=0.9,
-            class_id=1,
-            class_name="person",
-            camera_coords=(100.0, 200.0),
-        )
-        kf = KalmanFilter()
-        kf.init(np.array([100.0, 200.0]))
-        track = Track(track_id=1, detection=detection, kalman_filter=kf)
-
-        result = metrics.calculate_idf1([], [track])
-        assert result == 0.0
-
-    def test_calculate_idf1_predicted_empty(self):
-        """予測トラックが空の場合のIDF1計算テスト"""
-        metrics = MOTMetrics()
-        gt_tracks = [{"trajectory": [{"x": 100, "y": 200}]}]
-        result = metrics.calculate_idf1(gt_tracks, [])
-        assert result == 0.0
-
-    def test_calculate_idf1_normal_case(self):
-        """通常の場合のIDF1計算テスト"""
-        metrics = MOTMetrics()
-        gt_tracks = [{"trajectory": [{"x": 100, "y": 200}]}, {"trajectory": [{"x": 200, "y": 300}]}]
-
-        detection1 = Detection(
-            bbox=(100.0, 200.0, 50.0, 100.0),
-            confidence=0.9,
-            class_id=1,
-            class_name="person",
-            camera_coords=(100.0, 200.0),
-        )
-        kf1 = KalmanFilter()
-        kf1.init(np.array([100.0, 200.0]))
-        track1 = Track(track_id=1, detection=detection1, kalman_filter=kf1)
-
-        detection2 = Detection(
-            bbox=(200.0, 300.0, 50.0, 100.0),
-            confidence=0.9,
-            class_id=1,
-            class_name="person",
-            camera_coords=(200.0, 300.0),
-        )
-        kf2 = KalmanFilter()
-        kf2.init(np.array([200.0, 300.0]))
-        track2 = Track(track_id=2, detection=detection2, kalman_filter=kf2)
-
-        result = metrics.calculate_idf1(gt_tracks, [track1, track2])
-        assert 0.0 <= result <= 1.0
-
-    def test_calculate_tracking_metrics(self):
-        """追跡メトリクス一括計算テスト"""
-        metrics = MOTMetrics()
-        gt_tracks = [{"trajectory": [{"x": 100, "y": 200}]}]
-
-        detection = Detection(
-            bbox=(100.0, 200.0, 50.0, 100.0),
-            confidence=0.9,
-            class_id=1,
-            class_name="person",
-            camera_coords=(100.0, 200.0),
-        )
-        kf = KalmanFilter()
-        kf.init(np.array([100.0, 200.0]))
-        track = Track(track_id=1, detection=detection, kalman_filter=kf)
-
-        result = metrics.calculate_tracking_metrics(gt_tracks, [track], 100)
-
-        assert "MOTA" in result
-        assert "IDF1" in result
-        assert "ID_Switches" in result
-        assert 0.0 <= result["MOTA"] <= 1.0
-        assert 0.0 <= result["IDF1"] <= 1.0
-        assert result["ID_Switches"] >= 0.0
-
-    def test_calculate_tracking_metrics_empty(self):
-        """空のデータでの追跡メトリクス計算テスト"""
-        metrics = MOTMetrics()
-        result = metrics.calculate_tracking_metrics([], [], 100)
-
-        assert "MOTA" in result
-        assert "IDF1" in result
-        assert "ID_Switches" in result
-
-    def test_count_matches_with_trajectory(self):
-        """軌跡がある場合のマッチング数計算テスト"""
-        metrics = MOTMetrics()
-        gt_tracks = [{"trajectory": [{"x": 100, "y": 200}]}]
-
-        detection = Detection(
-            bbox=(100.0, 200.0, 50.0, 100.0),
-            confidence=0.9,
-            class_id=1,
-            class_name="person",
-            camera_coords=(100.0, 200.0),
-        )
-        kf = KalmanFilter()
-        kf.init(np.array([100.0, 200.0]))
-        track = Track(track_id=1, detection=detection, kalman_filter=kf)
-
-        matches = metrics._count_matches(gt_tracks, [track])
-        assert matches >= 0
-
-    def test_count_matches_empty_trajectory(self):
-        """空の軌跡でのマッチング数計算テスト"""
-        metrics = MOTMetrics()
-        gt_tracks = [{"trajectory": []}]
-
-        detection = Detection(
-            bbox=(100.0, 200.0, 50.0, 100.0),
-            confidence=0.9,
-            class_id=1,
-            class_name="person",
-            camera_coords=(100.0, 200.0),
-        )
-        kf = KalmanFilter()
-        kf.init(np.array([100.0, 200.0]))
-        track = Track(track_id=1, detection=detection, kalman_filter=kf)
-
-        matches = metrics._count_matches(gt_tracks, [track])
-        assert matches == 0
-
-    def test_count_matches_far_distance(self):
-        """距離が遠い場合のマッチング数計算テスト"""
-        metrics = MOTMetrics()
-        gt_tracks = [{"trajectory": [{"x": 100, "y": 200}]}]
-
-        # 距離が50ピクセル以上離れている
-        detection = Detection(
-            bbox=(1000.0, 2000.0, 50.0, 100.0),
-            confidence=0.9,
-            class_id=1,
-            class_name="person",
-            camera_coords=(1000.0, 2000.0),
-        )
-        kf = KalmanFilter()
-        kf.init(np.array([1000.0, 2000.0]))
-        track = Track(track_id=1, detection=detection, kalman_filter=kf)
-
-        matches = metrics._count_matches(gt_tracks, [track])
-        assert matches == 0
-
-    def test_count_id_matches(self):
-        """IDマッチング数計算テスト"""
-        metrics = MOTMetrics()
-        gt_tracks = [{"trajectory": [{"x": 100, "y": 200}]}, {"trajectory": [{"x": 200, "y": 300}]}]
-
-        detection1 = Detection(
-            bbox=(100.0, 200.0, 50.0, 100.0),
-            confidence=0.9,
-            class_id=1,
-            class_name="person",
-            camera_coords=(100.0, 200.0),
-        )
-        kf1 = KalmanFilter()
-        kf1.init(np.array([100.0, 200.0]))
-        track1 = Track(track_id=1, detection=detection1, kalman_filter=kf1)
-
-        matches = metrics._count_id_matches(gt_tracks, [track1])
-        assert matches == min(len(gt_tracks), 1)
-
-    def test_count_id_switches(self):
-        """IDスイッチ数計算テスト"""
-        metrics = MOTMetrics()
-
-        detection = Detection(
-            bbox=(100.0, 200.0, 50.0, 100.0),
-            confidence=0.9,
-            class_id=1,
-            class_name="person",
-            camera_coords=(100.0, 200.0),
-        )
-        kf = KalmanFilter()
-        kf.init(np.array([100.0, 200.0]))
-        track = Track(track_id=1, detection=detection, kalman_filter=kf)
-
-        id_switches = metrics._count_id_switches([track])
-        assert id_switches == 0  # 簡易実装では常に0を返す
-
-    def test_calculate_mota_multiple_tracks(self):
-        """複数トラックでのMOTA計算テスト"""
-        metrics = MOTMetrics()
-        gt_tracks = [
-            {"trajectory": [{"x": 100, "y": 200}]},
-            {"trajectory": [{"x": 200, "y": 300}]},
-            {"trajectory": [{"x": 300, "y": 400}]},
+def _base_df() -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            {"FrameId": 1, "Id": 1, "X": 10.0, "Y": 20.0, "Width": 30.0, "Height": 40.0, "Confidence": 1.0},
+            {"FrameId": 2, "Id": 1, "X": 15.0, "Y": 25.0, "Width": 30.0, "Height": 40.0, "Confidence": 1.0},
         ]
+    )
 
-        tracks = []
-        for i, gt_track in enumerate(gt_tracks):
-            traj = gt_track["trajectory"][0]
-            detection = Detection(
-                bbox=(traj["x"], traj["y"], 50.0, 100.0),
-                confidence=0.9,
-                class_id=1,
-                class_name="person",
-                camera_coords=(traj["x"], traj["y"]),
-            )
-            kf = KalmanFilter()
-            kf.init(np.array([traj["x"], traj["y"]]))
-            track = Track(track_id=i + 1, detection=detection, kalman_filter=kf)
-            tracks.append(track)
 
-        result = metrics.calculate_mota(gt_tracks, tracks, 100)
-        assert 0.0 <= result <= 1.0
+def test_coco_to_mot_dataframe(tmp_path: Path):
+    coco = {
+        "images": [{"id": 0, "file_name": "frame_000001.jpg"}],
+        "annotations": [{"id": 11, "image_id": 0, "category_id": 1, "bbox": [10, 20, 30, 40]}],
+    }
+    gt_path = tmp_path / "gt.json"
+    gt_path.write_text(json.dumps(coco), encoding="utf-8")
 
-    def test_calculate_idf1_more_gt_than_pred(self):
-        """Ground Truthが予測より多い場合のIDF1計算テスト"""
-        metrics = MOTMetrics()
-        gt_tracks = [
-            {"trajectory": [{"x": 100, "y": 200}]},
-            {"trajectory": [{"x": 200, "y": 300}]},
-            {"trajectory": [{"x": 300, "y": 400}]},
-        ]
+    metrics = MOTMetrics()
+    df = metrics.coco_to_mot_dataframe(gt_path)
 
-        detection = Detection(
-            bbox=(100.0, 200.0, 50.0, 100.0),
-            confidence=0.9,
-            class_id=1,
-            class_name="person",
-            camera_coords=(100.0, 200.0),
-        )
-        kf = KalmanFilter()
-        kf.init(np.array([100.0, 200.0]))
-        track = Track(track_id=1, detection=detection, kalman_filter=kf)
+    assert len(df) == 1
+    assert df.iloc[0]["FrameId"] == 1
+    assert df.iloc[0]["Id"] == 11
 
-        result = metrics.calculate_idf1(gt_tracks, [track])
-        assert 0.0 <= result <= 1.0
 
-    def test_calculate_idf1_more_pred_than_gt(self):
-        """予測がGround Truthより多い場合のIDF1計算テスト"""
-        metrics = MOTMetrics()
-        gt_tracks = [{"trajectory": [{"x": 100, "y": 200}]}]
+def test_evaluate_perfect_match():
+    metrics = MOTMetrics()
+    gt_df = _base_df()
+    pred_df = _base_df()
 
-        tracks = []
-        for i in range(3):
-            detection = Detection(
-                bbox=(100.0 + i * 10, 200.0 + i * 10, 50.0, 100.0),
-                confidence=0.9,
-                class_id=1,
-                class_name="person",
-                camera_coords=(100.0 + i * 10, 200.0 + i * 10),
-            )
-            kf = KalmanFilter()
-            kf.init(np.array([100.0 + i * 10, 200.0 + i * 10]))
-            track = Track(track_id=i + 1, detection=detection, kalman_filter=kf)
-            tracks.append(track)
+    result = metrics.evaluate_from_dataframes(gt_df, pred_df)
 
-        result = metrics.calculate_idf1(gt_tracks, tracks)
-        assert 0.0 <= result <= 1.0
+    assert result["FP"] == 0.0
+    assert result["FN"] == 0.0
+    assert result["IDSW"] == 0.0
+    assert result["MOTA"] == pytest.approx(1.0)
+    assert result["IDF1"] == pytest.approx(1.0)
+
+
+def test_evaluate_with_misses():
+    metrics = MOTMetrics()
+    gt_df = _base_df()
+    empty_pred = pd.DataFrame(columns=["FrameId", "Id", "X", "Y", "Width", "Height", "Confidence"])
+
+    result = metrics.evaluate_from_dataframes(gt_df, empty_pred)
+
+    assert result["FP"] == 0.0
+    assert result["FN"] == len(gt_df)
+    assert result["MOTA"] <= 1.0
+
+
+def test_evaluate_from_files(tmp_path: Path):
+    metrics = MOTMetrics()
+
+    # _base_df()と一致するデータ: FrameId=1,2, Id=1（同一トラック）
+    coco = {
+        "images": [
+            {"id": 0, "file_name": "frame_000001.jpg"},
+            {"id": 1, "file_name": "frame_000002.jpg"},
+        ],
+        "annotations": [
+            # annotation id=1 → pred_dfのId=1と一致
+            {"id": 1, "image_id": 0, "category_id": 1, "bbox": [10, 20, 30, 40]},
+            {"id": 1, "image_id": 1, "category_id": 1, "bbox": [15, 25, 30, 40]},
+        ],
+    }
+
+    gt_path = tmp_path / "gt.json"
+    pred_path = tmp_path / "pred.csv"
+    gt_path.write_text(json.dumps(coco), encoding="utf-8")
+
+    pred_df = _base_df()
+    pred_df.to_csv(pred_path, index=False)
+
+    result = metrics.evaluate_from_files(gt_path, pred_path)
+
+    assert result["MOTA"] == pytest.approx(1.0)
+    assert result["IDF1"] == pytest.approx(1.0)

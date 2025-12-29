@@ -30,7 +30,7 @@ def sample_config(tmp_path: Path) -> ConfigManager:
     config.set("timestamp.sampling", {})
     config.set("timestamp.target", {})
     config.set("ocr", {"engines": ["tesseract"]})
-    config.set("detection.model_name", "facebook/detr-resnet-50")
+    config.set("detection.yolov8_model_path", "test_model.pt")
     config.set("detection.confidence_threshold", 0.5)
     config.set("detection.device", "cpu")
     config.set("detection.batch_size", 2)

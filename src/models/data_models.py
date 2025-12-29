@@ -35,6 +35,7 @@ class Detection:
     track_id: Optional[int] = None
     features: Optional[np.ndarray] = None
     appearance_score: Optional[float] = None
+    query_index: Optional[int] = None
 
 
 @dataclass

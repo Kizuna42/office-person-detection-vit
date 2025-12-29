@@ -31,6 +31,7 @@ class OutputService:
             config_dict = config.config if hasattr(config, "config") else {}
             args_dict = vars(args) if args else {}
             self.output_manager.save_metadata(self.session_dir, config_dict, args_dict)
+            self.output_manager.update_latest_link(self.session_dir)
             self.base_output = self.session_dir
         else:
             self.logger.info("セッション管理は無効です（従来の出力構造を使用）")

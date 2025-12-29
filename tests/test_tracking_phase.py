@@ -28,7 +28,7 @@ class TestTrackingPhase:
                 "motion_weight": 0.3,
             },
             "detection": {
-                "model_name": "facebook/detr-resnet-50",
+                "yolov8_model_path": "test_model.pt",
                 "confidence_threshold": 0.5,
                 "device": "cpu",
             },
@@ -98,7 +98,7 @@ class TestTrackingPhase:
         assert phase.tracker is None
         assert phase.detector is None
 
-    @patch("src.pipeline.phases.tracking.ViTDetector")
+    @patch("src.pipeline.phases.tracking.YOLOv8Detector")
     @patch("src.pipeline.phases.tracking.Tracker")
     def test_initialize_tracking_enabled(self, mock_tracker_class, mock_detector_class, config, logger):
         """追跡が有効な場合の初期化テスト"""
@@ -167,7 +167,7 @@ class TestTrackingPhase:
         with pytest.raises(RuntimeError, match="トラッカーまたは検出器が初期化されていません"):
             tracking_phase.execute(detection_results, sample_frames)
 
-    @patch("src.pipeline.phases.tracking.ViTDetector")
+    @patch("src.pipeline.phases.tracking.YOLOv8Detector")
     @patch("src.pipeline.phases.tracking.Tracker")
     def test_execute_basic(self, mock_tracker_class, mock_detector_class, config, logger):
         """基本的な実行テスト"""
@@ -214,7 +214,7 @@ class TestTrackingPhase:
         assert len(result[0][2]) == 1  # detections
         assert result[0][2][0].track_id == 1
 
-    @patch("src.pipeline.phases.tracking.ViTDetector")
+    @patch("src.pipeline.phases.tracking.YOLOv8Detector")
     @patch("src.pipeline.phases.tracking.Tracker")
     def test_execute_missing_frame(self, mock_tracker_class, mock_detector_class, config, logger):
         """フレームが見つからない場合のテスト"""
@@ -250,7 +250,7 @@ class TestTrackingPhase:
         assert len(result) == 1
         # フレームが見つからない場合は元の検出結果を返す
 
-    @patch("src.pipeline.phases.tracking.ViTDetector")
+    @patch("src.pipeline.phases.tracking.YOLOv8Detector")
     @patch("src.pipeline.phases.tracking.Tracker")
     def test_execute_feature_extraction_failure(self, mock_tracker_class, mock_detector_class, config, logger):
         """特徴量抽出に失敗した場合のテスト"""
@@ -361,9 +361,9 @@ class TestTrackingPhase:
 
     def test_cleanup(self, tracking_phase):
         """クリーンアップテスト"""
-        from src.detection import ViTDetector
+        from src.detection import YOLOv8Detector
 
-        mock_detector = MagicMock(spec=ViTDetector)
+        mock_detector = MagicMock(spec=YOLOv8Detector)
         tracking_phase.detector = mock_detector
 
         tracking_phase.cleanup()

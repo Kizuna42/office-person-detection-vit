@@ -9,7 +9,7 @@ video:
   input_path: "input/merged_moviefiles.mov"
   # タイムラプス動画かどうか
   is_timelapse: true
-  # フレーム抽出間隔（分）
+  # フレーム抽出間隔（分）- 最終出力用キーフレーム
   frame_interval_minutes: 5
   # タイムスタンプ許容誤差（秒）
   tolerance_seconds: 30
@@ -17,21 +17,32 @@ video:
   scan_margin_minutes: 5
   # フレームレート（fps）
   fps: 30
+  # 実時間 / 動画時間 の圧縮倍率（タイムラプスの場合 >1）
+  time_compression_ratio: 313.0
+
+  # 高密度トラッキング設定（Phase 2）
+  dense_tracking:
+    enabled: true  # 10秒間隔フレームを使用した連続トラッキング
+    tracking_interval_seconds: 10  # トラッキング用フレーム間隔（秒）
+    output_interval_minutes: 5  # 最終出力間隔（分）
 
 # ==============================================================================
-# 2. 検出設定 (Detection - Phase 2)
+# 2. 検出設定 (Detection - Phase 2: YOLOv8)
 # ==============================================================================
 detection:
-  # 使用するViTモデル名
-  model_name: "facebook/detr-resnet-50"
+  # YOLOv8 Fine-tunedモデルのパス
+  yolov8_model_path: "runs/detect/person_ft/weights/best.pt"
+
   # 検出信頼度閾値（0.0-1.0）
-  confidence_threshold: 0.5
-  # NMS（Non-Maximum Suppression）閾値（0.0-1.0）
-  nms_threshold: 0.4
-  # パッチサイズ（ViTの入力パッチサイズ）
-  patch_size: 16
+  # 0.25推奨（F1=0.831）
+  confidence_threshold: 0.25
+
+  # NMS/IoU閾値（0.0-1.0）
+  iou_threshold: 0.45
+
   # 使用デバイス ("mps", "cuda", "cpu")
   device: "mps"
+
   # バッチサイズ（複数フレームの同時処理数）
   batch_size: 4
 
@@ -44,16 +55,34 @@ tracking:
   # 追跡アルゴリズム ("deepsort" 推奨)
   algorithm: "deepsort"
   # IDが消失してから削除するまでの最大フレーム数
-  max_age: 30
+  # Phase1改善: 5分間隔×長時間対応で100に拡大
+  max_age: 100
   # 追跡確立に必要な最小検出回数
-  min_hits: 3
+  # 低頻度検出対応: 2→1に引き下げ
+  min_hits: 1
   # IoU閾値（マッチング用）
-  iou_threshold: 0.3
+  iou_threshold: 0.5
   # 外観特徴量の重み（0.0-1.0）
-  appearance_weight: 0.7
+  # Phase1改善: 5分間隔では位置が信頼できないため外観重視（0.3→0.9）
+  appearance_weight: 0.9
   # 位置情報の重み（0.0-1.0）
-  motion_weight: 0.3
+  # Phase1改善: 位置依存を最小化（0.7→0.1）
+  motion_weight: 0.1
+  # 位置距離の最大許容値（ピクセル）
+  # Phase1改善: 5分間隔では位置制約を事実上無効化（300→10000）
+  max_position_distance: 10000.0
+  # ハイブリッドモード: 検出フレーム間をOptical Flow/Kalmanで補間
+  hybrid_mode:
+    enabled: true  # true: LightweightTracker使用, false: DeepSORTのみ
+    use_optical_flow: true  # Optical Flowを使用するか（falseならKalman予測のみ）
 
+  # Phase2: Re-ID特化特徴抽出（長時間サンプリング対応）
+  reid:
+    enabled: true  # true: Re-ID特徴量を使用, false: DETR特徴量を使用
+    model_type: "osnet"  # "clip" | "osnet" - OSNet推奨（精度+12%）
+    model_name: "openai/clip-vit-base-patch32"  # CLIPモデル（model_type="clip"時）
+    model_path: "models/osnet_x1_0_market1501.pth"  # OSNetモデルパス（オプション、nullならpretrained使用）
+    # feature_dim: 512 (自動設定)
 # ==============================================================================
 # 4. 座標変換設定 (Transform - Phase 3)
 # ==============================================================================
@@ -221,13 +250,13 @@ output:
   side_by_side_video_fps: 1.0
   debug_mode: false
   # 一時ファイルの自動削除設定
-  cleanup_temp_files: true  # パイプライン完了時に_temp_framesを削除
+  cleanup_temp_files: true # パイプライン完了時に_temp_framesを削除
   # JSON出力最適化設定
   json_optimization:
-    enabled: true              # 最適化を有効化
-    coordinate_precision: 1    # 座標の小数点以下桁数（1=小数第1位）
-    compact_keys: true         # キー名を短縮（bbox→bb, confidence→conf等）
-    exclude_px_coords: true    # floor_coords_pxを除外（mmのみ出力）
+    enabled: true # 最適化を有効化
+    coordinate_precision: 1 # 座標の小数点以下桁数（1=小数第1位）
+    compact_keys: true # キー名を短縮（bbox→bb, confidence→conf等）
+    exclude_px_coords: true # floor_coords_pxを除外（mmのみ出力）
   session:
     archive_days: 30
     delete_archive_days: 90
@@ -241,7 +270,7 @@ timestamp:
     retry_count: 3
     use_improved_validator: true
     validator:
-      base_tolerance_seconds: 300.0
+      base_tolerance_seconds: 30.0
       history_size: 10
       z_score_threshold: 3.0
     roi:
@@ -251,12 +280,13 @@ timestamp:
       height_ratio: 0.06
   extraction_mode: "auto_targets"
   auto_targets:
-    max_frames: 100
+    max_frames: 290
     disable_validation: true
   sampling:
-    coarse_interval_seconds: 1.0
-    fine_interval_seconds: 0.033
-    search_window_seconds: 0.1
+    # OCR頻度向上: 10秒→5秒に短縮（時刻同期精度改善）
+    coarse_interval_seconds: 5.0
+    fine_interval_seconds: 1.0
+    search_window_seconds: 30.0
 
 ocr:
   engines: ["tesseract"]

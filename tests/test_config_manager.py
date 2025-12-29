@@ -28,7 +28,7 @@ def test_load_yaml_config(tmp_path: Path):
 video:
   input_path: "test_video.mov"
 detection:
-  model_name: "test_model"
+  yolov8_model_path: "test_model.pt"
   confidence_threshold: 0.7
   device: "cpu"
 floormap:
@@ -50,7 +50,7 @@ output:
 
     config = ConfigManager(str(config_path))
     assert config.get("video.input_path") == "test_video.mov"
-    assert config.get("detection.model_name") == "test_model"
+    assert config.get("detection.yolov8_model_path") == "test_model.pt"
     assert config.get("detection.confidence_threshold") == 0.7
 
 
@@ -62,7 +62,7 @@ def test_load_json_config(tmp_path: Path):
     json_content = {
         "video": {"input_path": "test_video.mov"},
         "detection": {
-            "model_name": "test_model",
+            "yolov8_model_path": "test_model.pt",
             "confidence_threshold": 0.7,
             "device": "cpu",
         },
@@ -84,7 +84,7 @@ def test_load_json_config(tmp_path: Path):
 
     config = ConfigManager(str(config_path))
     assert config.get("video.input_path") == "test_video.mov"
-    assert config.get("detection.model_name") == "test_model"
+    assert config.get("detection.yolov8_model_path") == "test_model.pt"
 
 
 def test_load_empty_config_file(tmp_path: Path):
@@ -115,7 +115,7 @@ def test_validate_success(tmp_path: Path):
 video:
   input_path: "test_video.mov"
 detection:
-  model_name: "test_model"
+  yolov8_model_path: "test_model.pt"
   confidence_threshold: 0.7
   device: "cpu"
 floormap:
@@ -161,7 +161,7 @@ def test_validate_missing_key(tmp_path: Path):
 video:
   input_path: "test_video.mov"
 detection:
-  model_name: "test_model"
+  yolov8_model_path: "test_model.pt"
   device: "cpu"
 floormap:
   image_path: "test_floormap.png"
@@ -192,7 +192,7 @@ def test_validate_invalid_confidence_threshold(tmp_path: Path):
 video:
   input_path: "test_video.mov"
 detection:
-  model_name: "test_model"
+  yolov8_model_path: "test_model.pt"
   confidence_threshold: 1.5
   device: "cpu"
 floormap:
@@ -224,7 +224,7 @@ def test_validate_invalid_device(tmp_path: Path):
 video:
   input_path: "test_video.mov"
 detection:
-  model_name: "test_model"
+  yolov8_model_path: "test_model.pt"
   confidence_threshold: 0.7
   device: "invalid_device"
 floormap:
@@ -256,7 +256,7 @@ def test_validate_invalid_homography_matrix(tmp_path: Path):
 video:
   input_path: "test_video.mov"
 detection:
-  model_name: "test_model"
+  yolov8_model_path: "test_model.pt"
   confidence_threshold: 0.7
   device: "cpu"
 floormap:
@@ -288,7 +288,7 @@ def test_validate_zones(tmp_path: Path):
 video:
   input_path: "test_video.mov"
 detection:
-  model_name: "test_model"
+  yolov8_model_path: "test_model.pt"
   confidence_threshold: 0.7
   device: "cpu"
 floormap:
@@ -321,7 +321,7 @@ def test_validate_zones_invalid_polygon(tmp_path: Path):
 video:
   input_path: "test_video.mov"
 detection:
-  model_name: "test_model"
+  yolov8_model_path: "test_model.pt"
   confidence_threshold: 0.7
   device: "cpu"
 floormap:
@@ -353,7 +353,7 @@ def test_get_dot_notation():
 
     config = ConfigManager("nonexistent.yaml")
     assert config.get("video.input_path") is not None
-    assert config.get("detection.model_name") is not None
+    assert config.get("detection.yolov8_model_path") is not None
 
 
 def test_get_with_default():
@@ -433,7 +433,7 @@ def test_validate_camera_config(tmp_path: Path):
 video:
   input_path: "test_video.mov"
 detection:
-  model_name: "test_model"
+  yolov8_model_path: "test_model.pt"
   confidence_threshold: 0.7
   device: "cpu"
 floormap:
@@ -471,7 +471,7 @@ def test_validate_video_config_edge_cases(tmp_path: Path):
 video:
   input_path: null
 detection:
-  model_name: "test_model"
+  yolov8_model_path: "test_model.pt"
   confidence_threshold: 0.7
   device: "cpu"
 floormap:
@@ -501,7 +501,7 @@ video:
   input_path: "test_video.mov"
   frame_interval_minutes: -5
 detection:
-  model_name: "test_model"
+  yolov8_model_path: "test_model.pt"
   confidence_threshold: 0.7
   device: "cpu"
 floormap:
@@ -531,7 +531,7 @@ def test_validate_detection_config_edge_cases(tmp_path: Path):
 video:
   input_path: "test_video.mov"
 detection:
-  model_name: "test_model"
+  yolov8_model_path: "test_model.pt"
   confidence_threshold: 1.5
   device: "cpu"
 floormap:
@@ -560,7 +560,7 @@ output:
 video:
   input_path: "test_video.mov"
 detection:
-  model_name: "test_model"
+  yolov8_model_path: "test_model.pt"
   confidence_threshold: 0.7
   device: "invalid_device"
 floormap:
@@ -590,7 +590,7 @@ def test_validate_floormap_config_edge_cases(tmp_path: Path):
 video:
   input_path: "test_video.mov"
 detection:
-  model_name: "test_model"
+  yolov8_model_path: "test_model.pt"
   confidence_threshold: 0.7
   device: "cpu"
 floormap:
@@ -619,7 +619,7 @@ output:
 video:
   input_path: "test_video.mov"
 detection:
-  model_name: "test_model"
+  yolov8_model_path: "test_model.pt"
   confidence_threshold: 0.7
   device: "cpu"
 floormap:
@@ -649,7 +649,7 @@ def test_validate_homography_config_edge_cases(tmp_path: Path):
 video:
   input_path: "test_video.mov"
 detection:
-  model_name: "test_model"
+  yolov8_model_path: "test_model.pt"
   confidence_threshold: 0.7
   device: "cpu"
 floormap:
@@ -678,7 +678,7 @@ output:
 video:
   input_path: "test_video.mov"
 detection:
-  model_name: "test_model"
+  yolov8_model_path: "test_model.pt"
   confidence_threshold: 0.7
   device: "cpu"
 floormap:
@@ -708,7 +708,7 @@ def test_validate_zones_config_edge_cases(tmp_path: Path):
 video:
   input_path: "test_video.mov"
 detection:
-  model_name: "test_model"
+  yolov8_model_path: "test_model.pt"
   confidence_threshold: 0.7
   device: "cpu"
 floormap:
@@ -739,7 +739,7 @@ output:
 video:
   input_path: "test_video.mov"
 detection:
-  model_name: "test_model"
+  yolov8_model_path: "test_model.pt"
   confidence_threshold: 0.7
   device: "cpu"
 floormap:
@@ -771,7 +771,7 @@ def test_validate_camera_config_edge_cases(tmp_path: Path):
 video:
   input_path: "test_video.mov"
 detection:
-  model_name: "test_model"
+  yolov8_model_path: "test_model.pt"
   confidence_threshold: 0.7
   device: "cpu"
 floormap:
@@ -804,7 +804,7 @@ camera:
 video:
   input_path: "test_video.mov"
 detection:
-  model_name: "test_model"
+  yolov8_model_path: "test_model.pt"
   confidence_threshold: 0.7
   device: "cpu"
 floormap:
@@ -839,7 +839,7 @@ def test_validate_output_config_edge_cases(tmp_path: Path):
 video:
   input_path: "test_video.mov"
 detection:
-  model_name: "test_model"
+  yolov8_model_path: "test_model.pt"
   confidence_threshold: 0.7
   device: "cpu"
 floormap:
