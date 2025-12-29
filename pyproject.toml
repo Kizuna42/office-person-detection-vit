@@ -8,7 +8,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "office-person-detection"
 version = "1.0.0"
-description = "Vision Transformer (ViT) ベースのオフィス人物検出システム"
+description = "YOLOv8 ベースのオフィス人物検出・追跡・ゾーン集計システム"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
@@ -64,7 +64,7 @@ dev = [
     "pytest-cov>=4.0.0,<6.0.0",
     "pytest-xdist>=3.0.0,<4.0.0",
     "pre-commit>=3.5.0,<4.0.0",
-    "ruff==0.1.15",
+    "ruff==0.6.4",
     "mypy==1.18.2",
     "types-PyYAML>=6.0.12",
 ]
@@ -197,17 +197,7 @@ module = ["transformers.*"]
 ignore_errors = true
 follow_imports = "skip"
 
-# 既存コードの型エラーを一時的に無視（段階的に修正予定）
-[[tool.mypy.overrides]]
-module = [
-    "src.tracking.reid_feature_extractor",
-    "src.tracking.lightweight_tracker",
-    "src.tracking.track",
-    "src.pipeline.frame_extraction_pipeline",
-    "src.visualization.dashboard_app",
-    "src.evaluation.detection_benchmark",
-]
-ignore_errors = true
+
 
 # ============================================================================
 # Pytest設定
