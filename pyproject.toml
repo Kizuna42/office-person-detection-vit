@@ -239,6 +239,11 @@ omit = [
     "*/__init__.py",
     "*/conftest.py",
     "*/dashboard_utils.py",  # Streamlit依存のためユニットテスト除外
+    "*/dashboard_app.py",  # Streamlitアプリのためユニットテスト困難
+    "src/benchmark/*",  # CLI駆動のベンチマークツール
+    "src/evaluation/detection_benchmark.py",  # 手動ベンチマーク用途
+    "src/evaluation/transform_evaluator.py",  # 手動評価用途
+    "src/tracking/reid_feature_extractor.py",  # ディープラーニングモデル依存
     "src/core/*",
     "src/adapters/*",
     "src/services/*",
