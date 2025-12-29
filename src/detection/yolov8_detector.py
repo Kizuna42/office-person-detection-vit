@@ -108,7 +108,7 @@ class YOLOv8Detector:
             # ベースモデル（yolov8x.pt等）の場合はclasses=[0]でpersonのみフィルタ
             is_finetuned = "person_ft" in self.model_path or "best.pt" in self.model_path
 
-            predict_kwargs = {
+            predict_kwargs: dict[str, bool | float | str | list[int]] = {
                 "conf": self.confidence_threshold,
                 "iou": self.iou_threshold,
                 "verbose": False,

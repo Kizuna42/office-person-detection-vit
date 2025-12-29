@@ -345,9 +345,9 @@ class DetectionBenchmark:
         image_id: int,
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
         """GTと予測をマッチング"""
-        matches = []
-        fp_list = []
-        fn_list = []
+        matches: list[dict[str, Any]] = []
+        fp_list: list[dict[str, Any]] = []
+        fn_list: list[dict[str, Any]] = []
 
         if not gt_boxes and not pred_boxes:
             return matches, fp_list, fn_list

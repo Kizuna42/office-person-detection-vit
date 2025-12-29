@@ -81,7 +81,7 @@ class OpticalFlowTracker:
         self.block_size = block_size
 
         # Lucas-Kanade Optical Flowパラメータ
-        self.lk_params = {
+        self.lk_params: dict[str, tuple[int, int] | int | tuple[int, int, float]] = {
             "winSize": (21, 21),
             "maxLevel": 3,
             "criteria": (
@@ -156,12 +156,17 @@ class OpticalFlowTracker:
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
         # Optical Flowを計算
+        win_size: tuple[int, int] = self.lk_params["winSize"]  # type: ignore[assignment]
+        max_level: int = self.lk_params["maxLevel"]  # type: ignore[assignment]
+        criteria: tuple[int, int, float] = self.lk_params["criteria"]  # type: ignore[assignment]
         next_points, status, _ = cv2.calcOpticalFlowPyrLK(
             self.prev_gray,
             gray,
             self.prev_points,
             None,
-            **self.lk_params,
+            winSize=win_size,
+            maxLevel=max_level,
+            criteria=criteria,
         )
 
         # 追跡成功したポイントを抽出
@@ -391,11 +396,12 @@ class LightweightTracker:
             if max_iou < self.iou_threshold:
                 break
 
-            t_idx, d_idx = np.unravel_index(iou_matrix.argmax(), iou_matrix.shape)
+            flat_idx = int(iou_matrix.argmax())
+            t_idx, d_idx = divmod(flat_idx, iou_matrix.shape[1])
 
-            matched.append((int(t_idx), int(d_idx)))
-            matched_tracks.add(int(t_idx))
-            matched_dets.add(int(d_idx))
+            matched.append((t_idx, d_idx))
+            matched_tracks.add(t_idx)
+            matched_dets.add(d_idx)
 
             # マッチ済みを除外
             iou_matrix[t_idx, :] = 0

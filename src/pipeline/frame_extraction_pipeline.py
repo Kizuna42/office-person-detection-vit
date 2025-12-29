@@ -568,7 +568,7 @@ class FrameExtractionPipeline:
         if self.video_cap is not None:
             self.video_cap.release()
         self.extractor.reset_validator()
-        self.extractor.cleanup()
+        self.extractor.clear_cache()
         logger.info("FrameExtractionPipeline resources have been released")
 
     def _to_video_seconds(self, actual_seconds: float, fps: float) -> float:

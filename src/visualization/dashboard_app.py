@@ -174,12 +174,12 @@ def _load_transformer(config: dict[str, Any] | None) -> tuple[Any | None, dict[s
                 p = Path(__file__).resolve().parents[2] / p
             if p.exists():
                 try:
-                    transformer = PiecewiseAffineTransformer.load(
+                    pwa_transformer = PiecewiseAffineTransformer.load(
                         p, floormap_config=fm_config, distortion_corrector=None
                     )
-                    info = transformer.get_info()
+                    info = pwa_transformer.get_info()
                     info = info if isinstance(info, dict) else {"method": "piecewise_affine"}
-                    return transformer, {"method": "piecewise_affine", **info, "model_path": str(p)}
+                    return pwa_transformer, {"method": "piecewise_affine", **info, "model_path": str(p)}
                 except Exception as exc:  # pragma: no cover - defensive
                     return None, {"reason": f"pwa_load_failed: {exc}", "method": "piecewise_affine"}
         # PWAモデルが無い場合はホモグラフィにフォールバック
@@ -189,7 +189,9 @@ def _load_transformer(config: dict[str, Any] | None) -> tuple[Any | None, dict[s
     matrix = homo_cfg.get("matrix")
     if matrix is not None:
         try:
-            transformer = HomographyTransformer(np.array(matrix, dtype=np.float64), fm_config)
+            transformer: PiecewiseAffineTransformer | HomographyTransformer = HomographyTransformer(
+                np.array(matrix, dtype=np.float64), fm_config
+            )
             return transformer, {"method": "homography"}
         except Exception as exc:  # pragma: no cover - defensive
             return None, {"reason": f"homography_init_failed: {exc}", "method": "homography"}
@@ -460,9 +462,9 @@ def _render_time_series_view(
     width, height = floormap_img.size
 
     def _clip_and_clean(coords: np.ndarray) -> np.ndarray:
-        coords = np.clip(coords, [0, 0], [width - 1, height - 1])
-        mask = ~np.isnan(coords).any(axis=1)
-        return coords[mask]
+        clipped = np.asarray(np.clip(coords, [0, 0], [width - 1, height - 1]))
+        mask = ~np.isnan(clipped).any(axis=1)
+        return clipped[mask]
 
     coords_current = _clip_and_clean(coords_current)
 

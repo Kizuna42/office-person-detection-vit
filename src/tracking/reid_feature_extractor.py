@@ -8,8 +8,12 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 import logging
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -54,8 +58,8 @@ class CLIPReIDExtractor(BaseReIDExtractor):
     ):
         self.model_name = model_name
         self.device = device
-        self.model = None
-        self.processor = None
+        self.model: Any = None
+        self.processor: Any = None
         self._is_loaded = False
         self._feature_dim = 512
 
@@ -142,7 +146,7 @@ class CLIPReIDExtractor(BaseReIDExtractor):
             features_np = features.cpu().numpy()
 
             logger.debug(f"CLIP特徴量を抽出: {len(bboxes)} boxes -> shape={features_np.shape}")
-            return features_np
+            return np.asarray(features_np)
 
         except Exception as e:
             logger.error(f"CLIP特徴量抽出に失敗: {e}")
@@ -182,10 +186,11 @@ class OSNetReIDExtractor(BaseReIDExtractor):
     ):
         self.model_path = model_path
         self.device = device
-        self.model = None
+        self.model: Any = None
         self._is_loaded = False
         self._feature_dim = 512
         self._input_size = (256, 128)  # H, W (OSNet標準)
+        self._transform: Callable[[np.ndarray], Any] | None = None
 
         logger.info(f"OSNetReIDExtractor initialized: model_path={model_path}, device={device}")
 
@@ -314,6 +319,8 @@ class OSNetReIDExtractor(BaseReIDExtractor):
                 crop = image[y1:y2, x1:x2]
                 crop = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)
 
+            if self._transform is None:
+                raise RuntimeError("モデルがロードされていません。load_model()を先に呼び出してください。")
             tensor = self._transform(crop)
             batch_tensors.append(tensor)
 
@@ -336,7 +343,7 @@ class OSNetReIDExtractor(BaseReIDExtractor):
                 features_np = features_np.reshape(1, -1)
 
             logger.debug(f"OSNet特徴量を抽出: {len(bboxes)} boxes -> shape={features_np.shape}")
-            return features_np
+            return np.asarray(features_np)
 
         except Exception as e:
             logger.error(f"OSNet特徴量抽出に失敗: {e}")

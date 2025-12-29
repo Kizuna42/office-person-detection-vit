@@ -32,6 +32,7 @@ class Tracker:
         appearance_weight: float = 0.7,
         motion_weight: float = 0.3,
         max_position_distance: float = 150.0,
+        high_conf_threshold: float = 0.5,
     ):
         """Trackerを初期化
 
@@ -42,11 +43,13 @@ class Tracker:
             appearance_weight: 外観特徴量の重み（0.0-1.0）
             motion_weight: 位置情報の重み（0.0-1.0）
             max_position_distance: 予測位置と検出の最大許容距離（ピクセル）
+            high_conf_threshold: ByteTrack用High/Low-conf分離閾値
         """
         self.max_age = max_age
         self.min_hits = min_hits
         self.iou_threshold = iou_threshold
         self.max_position_distance = max_position_distance
+        self.high_conf_threshold = high_conf_threshold
 
         # 類似度計算器
         self.similarity_calculator = SimilarityCalculator(
@@ -60,7 +63,10 @@ class Tracker:
         self.tracks: list[Track] = []
         self.next_id = 1  # 次のトラックID
 
-        logger.info(f"Tracker initialized: max_age={max_age}, min_hits={min_hits}, iou_threshold={iou_threshold}")
+        logger.info(
+            f"Tracker initialized: max_age={max_age}, min_hits={min_hits}, "
+            f"iou_threshold={iou_threshold}, high_conf_threshold={high_conf_threshold} (ByteTrack 2-Stage enabled)"
+        )
 
     def update(self, detections: list[Detection]) -> list[Detection]:
         """検出結果でトラッカーを更新
@@ -105,11 +111,11 @@ class Tracker:
     def _associate_detections_to_tracks(
         self, detections: list[Detection]
     ) -> tuple[list[tuple[int, int]], list[int], list[int]]:
-        """検出結果とトラックを関連付け（3段階カスケードマッチング）
+        """検出結果とトラックを関連付け（ByteTrack 2-Stage + カスケードマッチング）
 
-        Stage 1: 外観特徴量優先で高信頼マッチング
-        Stage 2: 外観+IoU併用で中信頼マッチング
-        Stage 3: IoUのみで低信頼マッチング
+        ByteTrack方式:
+        - High-conf検出でまずマッチング
+        - 未マッチトラックをLow-conf検出で救済（部分遮蔽対策）
 
         Args:
             detections: 検出結果のリスト
@@ -123,56 +129,75 @@ class Tracker:
         if len(detections) == 0:
             return [], [], list(range(len(self.tracks)))
 
+        # === ByteTrack: High-conf / Low-conf 分離 ===
+        high_conf_indices = [i for i, det in enumerate(detections) if det.confidence >= self.high_conf_threshold]
+        low_conf_indices = [i for i, det in enumerate(detections) if det.confidence < self.high_conf_threshold]
+
+        logger.debug(f"ByteTrack split: {len(high_conf_indices)} high-conf, {len(low_conf_indices)} low-conf")
+
         # 確立されたトラックと仮のトラックを分離
         confirmed_tracks = [i for i, track in enumerate(self.tracks) if track.is_confirmed(self.min_hits)]
         tentative_tracks = [i for i, track in enumerate(self.tracks) if not track.is_confirmed(self.min_hits)]
 
         all_matches = []
-        remaining_det_indices = list(range(len(detections)))
+        remaining_high_conf = list(high_conf_indices)
         remaining_track_indices = list(confirmed_tracks)
 
-        # === Stage 1: 外観優先マッチング（高信頼）===
-        # 外観特徴量のみで厳しい閾値でマッチング
-        if remaining_track_indices and remaining_det_indices:
-            stage1_dets = [detections[i] for i in remaining_det_indices]
+        # === Stage 1: High-conf検出で外観優先マッチング ===
+        if remaining_track_indices and remaining_high_conf:
+            stage1_dets = [detections[i] for i in remaining_high_conf]
             matches_1, _unmatched_dets_1, unmatched_tracks_1 = self._match_by_appearance(
                 remaining_track_indices, stage1_dets, appearance_threshold=0.3
             )
-            # インデックス変換
-            matches_1 = [(t, remaining_det_indices[d]) for t, d in matches_1]
+            matches_1 = [(t, remaining_high_conf[d]) for t, d in matches_1]
             all_matches.extend(matches_1)
             matched_det_set_1 = {d for _, d in matches_1}
-            remaining_det_indices = [i for i in remaining_det_indices if i not in matched_det_set_1]
+            remaining_high_conf = [i for i in remaining_high_conf if i not in matched_det_set_1]
             remaining_track_indices = unmatched_tracks_1
 
-        # === Stage 2: 外観+IoU併用マッチング（中信頼）===
-        if remaining_track_indices and remaining_det_indices:
-            stage2_dets = [detections[i] for i in remaining_det_indices]
+        # === Stage 2: High-conf検出で外観+IoU併用マッチング ===
+        if remaining_track_indices and remaining_high_conf:
+            stage2_dets = [detections[i] for i in remaining_high_conf]
             matches_2, _unmatched_dets_2, unmatched_tracks_2 = self._match(
                 remaining_track_indices, stage2_dets, iou_threshold=0.5
             )
-            # インデックス変換
-            matches_2 = [(t, remaining_det_indices[d]) for t, d in matches_2]
+            matches_2 = [(t, remaining_high_conf[d]) for t, d in matches_2]
             all_matches.extend(matches_2)
             matched_det_set_2 = {d for _, d in matches_2}
-            remaining_det_indices = [i for i in remaining_det_indices if i not in matched_det_set_2]
+            remaining_high_conf = [i for i in remaining_high_conf if i not in matched_det_set_2]
             remaining_track_indices = unmatched_tracks_2
 
-        # === Stage 3: IoUのみマッチング（低信頼・フォールバック）===
-        # IoU閾値を緩和（0.7→0.4）でフォールバック機能を有効化
-        if remaining_track_indices and remaining_det_indices:
-            stage3_dets = [detections[i] for i in remaining_det_indices]
+        # === Stage 3: High-conf検出でIoUのみマッチング（フォールバック）===
+        if remaining_track_indices and remaining_high_conf:
+            stage3_dets = [detections[i] for i in remaining_high_conf]
             matches_3, _unmatched_dets_3, unmatched_tracks_3 = self._match_by_iou(
                 remaining_track_indices, stage3_dets, iou_threshold=0.4
             )
-            # インデックス変換
-            matches_3 = [(t, remaining_det_indices[d]) for t, d in matches_3]
+            matches_3 = [(t, remaining_high_conf[d]) for t, d in matches_3]
             all_matches.extend(matches_3)
             matched_det_set_3 = {d for _, d in matches_3}
-            remaining_det_indices = [i for i in remaining_det_indices if i not in matched_det_set_3]
+            remaining_high_conf = [i for i in remaining_high_conf if i not in matched_det_set_3]
             remaining_track_indices = unmatched_tracks_3
 
-        # === 仮トラックのマッチング ===
+        # === ByteTrack Stage 4: 未マッチトラックをLOW-CONF検出で救済 ===
+        # 部分遮蔽時の低信頼度検出を活用してトラック継続
+        if remaining_track_indices and low_conf_indices:
+            low_conf_dets = [detections[i] for i in low_conf_indices]
+            # Low-confはIoUのみでマッチ（外観特徴は不安定なため）
+            matches_low, _unmatched_dets_low, unmatched_tracks_low = self._match_by_iou(
+                remaining_track_indices, low_conf_dets, iou_threshold=0.5
+            )
+            matches_low = [(t, low_conf_indices[d]) for t, d in matches_low]
+            all_matches.extend(matches_low)
+
+            logger.debug(f"ByteTrack low-conf rescue: {len(matches_low)} tracks saved")
+
+            matched_low_det_set = {d for _, d in matches_low}  # noqa: F841 - 将来の拡張用
+            remaining_track_indices = unmatched_tracks_low
+        # else: Low-conf検出は新規トラック作成に使用しないため残りは無視
+
+        # === 仮トラックのマッチング（High-confの残りのみ）===
+        remaining_det_indices = remaining_high_conf  # Low-confは新規トラック作成しない
         if tentative_tracks and remaining_det_indices:
             tentative_dets = [detections[i] for i in remaining_det_indices]
             matches_tent, _unmatched_dets_tent, unmatched_tracks_tent = self._match(
@@ -184,6 +209,7 @@ class Tracker:
             remaining_det_indices = [i for i in remaining_det_indices if i not in matched_det_set_tent]
             remaining_track_indices.extend(unmatched_tracks_tent)
 
+        # 未マッチ検出 = High-confの残りのみ（Low-confは新規トラック作成しない）
         return all_matches, remaining_det_indices, remaining_track_indices
 
     def _match(
